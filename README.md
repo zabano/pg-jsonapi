@@ -20,7 +20,7 @@ LICENSE
 ACKNOWLEDGEMENTS
 ----------------
 
-  pg-jsonapi was designed for integrating into future version of the NeuroSeq
-  genomics platform developed at the University of British Columnia.
+  pg-jsonapi was designed for integrating into a future version of the NeuroSeq
+  genomics platform developed at the University of British Columbia.
 
 
