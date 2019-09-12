@@ -1,0 +1,13 @@
+bin/
+eggs/
+develop-eggs/
+parts/
+pg_jsonapi.egg-info/
+.build/
+.dist/
+docs/build/
+.idea/
+.pytest_cache/
+__pycache__/
+.installed.cfg
+.DS_Store
