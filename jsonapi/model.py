@@ -1,210 +1,26 @@
-import enum
-from copy import copy
 from collections import defaultdict
+from copy import copy
 from functools import reduce
 
 import marshmallow
-import marshmallow.class_registry
-import sqlalchemy as sa
 from asyncpgsa import pg
 from inflection import camelize
 
+from jsonapi.datatypes import String
 from jsonapi.db import Cardinality
 from jsonapi.db import FromClause
-from jsonapi.db import FromItem
 from jsonapi.db import Query
 from jsonapi.db import get_primary_key
-from jsonapi.exc import Error
 from jsonapi.exc import ModelError
+from jsonapi.fields import Aggregate
+from jsonapi.fields import Derived
+from jsonapi.fields import Field
+from jsonapi.fields import Relationship
+from jsonapi.registry import model_registry
+from jsonapi.registry import schema_registry
 from jsonapi.util import ArgumentParser
 
 MIME_TYPE = 'application/vnd.api+json'
-
-_registry = {}
-"""
-Model Registry.
-
-A dictionary of Model classes, keyed by name.
-Example: {'UserModel': UserModel, 'ArticleModel': ArticleMode}.
-"""
-
-
-class FieldType(enum.Enum):
-    """
-    Field data types.
-    """
-    Bool = marshmallow.fields.Bool()
-    Integer = marshmallow.fields.Integer()
-    Float = marshmallow.fields.Float()
-    String = marshmallow.fields.String()
-    Date = marshmallow.fields.Date()
-    DateTime = marshmallow.fields.DateTime('%Y-%m-%dT%H:%M:%SZ')
-    Time = marshmallow.fields.Time()
-
-
-Bool = FieldType.Bool
-Integer = FieldType.Integer
-Float = FieldType.Float
-String = FieldType.String
-Date = FieldType.Date
-DateTime = FieldType.DateTime
-Time = FieldType.Time
-
-
-class Field:
-    """
-    Simple field type.
-
-    Use this field type to pass a custom sql expression or force a type
-
-    >>> from jsonapi.tests.db import users_t, user_names_t
-    >>> Field('emil_address', users_t.c.email)
-    >>> Field('name', user_names_t.c.first + ' ' + user_names_t.c.last)
-    >>> Field('created_on', type_=Date)
-
-    .. note::
-
-        This class also serve as a base for all other field types.
-    """
-
-    def __init__(self, name, expr=None, type_=None):
-        """
-        Initialize a model field.
-
-        :param str name: a unique field name
-        :param mixed expr: an sql expression
-        :param FieldType type_: one of the supported field types
-        """
-
-        if type_ is not None and not isinstance(type_, FieldType):
-            raise Error('invalid attribute type provided: "{}"'.format(type_))
-
-        self.name = name
-        self.expr = expr
-        self.type_ = self._get_type(expr) if type_ is None else type_.value
-
-    @staticmethod
-    def _get_type(expr):
-        if expr is not None:
-            if hasattr(expr, 'type'):
-                if isinstance(expr.type, sa.Boolean):
-                    return Bool.value
-                if isinstance(expr.type, (sa.Integer, sa.SmallInteger, sa.BigInteger)):
-                    return Integer.value
-                if isinstance(expr.type, (sa.Float, sa.Numeric)):
-                    return Float.value
-                if isinstance(expr.type, sa.Date):
-                    return Date.value
-                if isinstance(expr.type, sa.DateTime):
-                    return DateTime.value
-                if isinstance(expr.type, sa.Time):
-                    return Time.value
-            return String.value
-
-    def __repr__(self):
-        return '<Field({})>'.format(self.name)
-
-
-class Relationship(Field):
-    """
-    Represents a relationship field.
-
-    >>> from jsonapi import ONE_TO_MANY
-    >>> Relationship('articles', 'ArticleModel',
-    >>>              ONE_TO_MANY, 'articles_author_id_fkey'))
-    """
-
-    def __init__(self, name, model_name, cardinality, fkey_name):
-        """
-        :param str name: relationship name
-        :param str model_name: related model name
-        :param Cardinality cardinality: relationship cardinality
-        :param str fkey_name: SQLAlchemy foreign key name
-        """
-
-        if cardinality not in Cardinality:
-            raise Error('invalid cardinality value: {}'.format(cardinality))
-
-        super().__init__(name)
-        self.cardinality = cardinality
-
-        self._model_name = model_name
-        self._fkey_name = fkey_name
-
-        self._model = None
-        self._fkey = None
-
-    @property
-    def model(self):
-        if self._model is None:
-            self._model = _registry[self._model_name]()
-        return self._model
-
-    @property
-    def fkey(self):
-        if self._fkey is None:
-            for table in self.model.from_clause[0].table.metadata.tables.values():
-                for fk in table.foreign_keys:
-                    if fk.name == self._fkey_name:
-                        self._fkey = fk
-                        return self._fkey
-            raise ModelError('foreign key: "{}" not found'.format(self._fkey_name), self._model)
-        return self._fkey
-
-    def __repr__(self):
-        return '<Relationship({})>'.format(self.name)
-
-
-class Aggregate(Field):
-    """
-    Represents an aggregate field (e.g. count, max, etc.)
-
-    To define an aggregate field, an aggregate expression must be provided,
-    along with one or more from items to join to the model's from clause.
-    """
-
-    def __init__(self, name, expr, from_items=None, type_=Integer):
-        """
-        :param str name: relationship name
-        :param expr: SQLAlchemy expression representing an aggregate column
-        :param mixed from_items: additional from items
-        :param FieldType type_: one of the supported field types
-        """
-        super().__init__(name, expr, type_)
-
-        if from_items is None:
-            self._from_items = tuple()
-        elif isinstance(from_items, FromItem):
-            self._from_items = from_items,
-        elif isinstance(from_items, (list, tuple)):
-            for from_item in self._from_items:
-                if not isinstance(from_item, FromItem):
-                    raise Error('invalid From item passed to: {!r}'.format(self))
-            self._from_items = tuple(from_items)
-        else:
-            raise Error('invalid from_items value: {} passed to: {!r}'.format(from_items, self))
-
-    def __repr__(self):
-        return '<Aggregate({})>'.format(self.name)
-
-
-class Derived(Field):
-    """
-    Represents a derived field.
-
-    >>> Derived('name', lambda rec: '{first} {last}.format(**rec)')
-    """
-
-    def __init__(self, name, expr):
-        """
-        :param str name: a unique field name
-        :param lambda expr: a lambda function that accepts a single record as the first argument
-        """
-        super().__init__(name)
-        self.type_ = marshmallow.fields.Function(expr)
-
-    def __repr__(self):
-        return '<Derived({})>'.format(self.name)
 
 
 class JSONSchema(marshmallow.Schema):
@@ -262,7 +78,7 @@ class Model:
 
     def __init_subclass__(cls, **kwargs):
         super().__init_subclass__(**kwargs)
-        _registry[cls.__name__] = cls
+        model_registry[cls.__name__] = cls
 
     def __init__(self):
 
@@ -289,7 +105,9 @@ class Model:
         self.query = Query(self)
         self.included = defaultdict(dict)
 
-    def _is_attribute_excluded(self, args, name):
+    def _is_attribute_excluded(self, args, name, is_aggregate=False):
+        if is_aggregate:
+            return self.type_ not in args.fields.keys() or name not in args.fields[self.type_]
         return self.type_ in args.fields.keys() and name not in args.fields[self.type_]
 
     @property
@@ -326,8 +144,9 @@ class Model:
                 if not self._is_attribute_excluded(args, field):
                     self.schema_fields.append(Field(field, columns[field]))
 
-            elif type(field) in (Field, Derived):
-                if not self._is_attribute_excluded(args, field.name):
+            elif isinstance(field, (Field, Derived, Aggregate)):
+                if not self._is_attribute_excluded(
+                        args, field.name, is_aggregate=isinstance(field, Aggregate)):
                     self.schema_fields.append(field)
 
             elif isinstance(field, Relationship):
@@ -335,19 +154,20 @@ class Model:
                     rel_args = copy(args)
                     rel_args.include = rel_args.include[field.name]
                     field.model.init_schema(rel_args)
-
-                    field.type_ = marshmallow.fields.Nested(
-                        marshmallow.class_registry.get_class('{}Schema'.format(field.model.name))(),
+                    field.data_type = marshmallow.fields.Nested(
+                        schema_registry['{}Schema'.format(field.model.name)](),
                         many=field.cardinality in (Cardinality.ONE_TO_MANY,
                                                    Cardinality.MANY_TO_MANY))
                     self.schema_fields.append(field)
 
-            # else:
-            #     raise ModelError('unsupported field: {!r}'.format(field), self)
+            else:
+                raise ModelError('unsupported field: {!r}'.format(field), self)
 
-        self.schema = type('{}Schema'.format(self.name),
-                           (JSONSchema,),
-                           {field.name: field.type_ for field in self.schema_fields})()
+        schema = type('{}Schema'.format(self.name),
+                      (JSONSchema,),
+                      {field.name: field.data_type for field in self.schema_fields})
+        schema_registry[schema.__name__] = schema
+        self.schema = schema()
         self.schema.context['root'] = self
 
     def response(self, data):
@@ -405,7 +225,8 @@ class Model:
         :return: a dictionary representing a JSON API response
         """
         self.init_schema(ArgumentParser(args))
-        rec = dict(await pg.fetchrow(self.query.get(object_id)))
+        query = self.query.get(object_id)
+        rec = dict(await pg.fetchrow(query))
         await self.fetch_included([rec])
         return self.response(rec)
 
@@ -425,7 +246,8 @@ class Model:
         :return: a dictionary representing a JSON API response
         """
         self.init_schema(ArgumentParser(args))
-        recs = [dict(rec) for rec in await pg.fetch(self.query.all())]
+        query = self.query.all()
+        recs = [dict(rec) for rec in await pg.fetch(query)]
         await self.fetch_included(recs)
         return self.response(recs)
 
@@ -447,10 +269,10 @@ class Model:
         """
         self.init_schema(ArgumentParser(dict(include=relationship_name)))
         rel = self.relationships[relationship_name]
+        rel.model.init_schema(ArgumentParser(args))
         query = rel.model.query.related(object_id, rel)
         recs = [dict(rec) for rec in await pg.fetch(query)] if rel.cardinality in (
             Cardinality.ONE_TO_MANY, Cardinality.MANY_TO_MANY) else dict(await pg.fetchrow(query))
-        rel.model.init_schema(ArgumentParser(args))
         await rel.model.fetch_included(recs)
         return rel.model.response(recs)
 

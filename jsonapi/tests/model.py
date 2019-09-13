@@ -22,8 +22,7 @@ class UserModel(Model):
                            ONE_TO_ONE, 'user_names_id_fkey'),
               Relationship('articles', 'ArticleModel',
                            ONE_TO_MANY, 'articles_author_id_fkey'),
-              Aggregate('article_count', sa.func.count(articles_t.c.id.distinct()),
-                        FromItem(articles_t, left=True)))
+              Aggregate('article_count', articles_t.c.id, sa.func.count))
 
 
 class ArticleModel(Model):

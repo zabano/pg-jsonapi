@@ -30,42 +30,46 @@ Models
     .. automethod:: get_collection
     .. automethod:: get_related
 
-Fields
-======
+Data Types
+==========
 
-Field Data Types
-----------------
+.. automodule:: jsonapi.datatypes
 
 .. note::
 
     Field data types are detected automatically. Use one of the following data types when
     an explicit type is required.
 
-.. autodata:: jsonapi.model.Bool
+.. autodata:: jsonapi.datatypes.Bool
     :annotation: bool types (sa.Boolean)
 
-.. autodata:: jsonapi.model.Integer
+.. autodata:: jsonapi.datatypes.Integer
     :annotation: integer types (sa.Integer, sa.SmallInteger, sa.BigInteger)
 
-.. autodata:: jsonapi.model.Float
+.. autodata:: jsonapi.datatypes.Float
     :annotation: floating point or fixed precision numbers (sa.Float, sa.Numeric)
 
-.. autodata:: jsonapi.model.String
+.. autodata:: jsonapi.datatypes.String
     :annotation: string and character types (sa.String, sa.Text, sa.Enum, sa.Unicode, sa.UnicodeText)
 
-.. autodata:: jsonapi.model.Date
+.. autodata:: jsonapi.datatypes.Date
     :annotation: date values (sa.Date)
 
-.. autodata:: jsonapi.model.DateTime
+.. autodata:: jsonapi.datatypes.DateTime
     :annotation: timestamps without time zone (sa.DateTime)
 
-.. autodata:: jsonapi.model.Time
+.. autodata:: jsonapi.datatypes.Time
     :annotation: time values (sa.Time)
+
+Fields
+======
+
+.. automodule:: jsonapi.fields
 
 Simple Fields
 -------------
 
-.. autoclass:: jsonapi.model.Field
+.. autoclass:: jsonapi.fields.Field
 
     .. automethod:: __init__
 
@@ -73,21 +77,21 @@ Simple Fields
 Derived Fields
 --------------
 
-.. autoclass:: jsonapi.model.Derived
+.. autoclass:: jsonapi.fields.Derived
 
     .. automethod:: __init__
 
 Aggregate Fields
 ----------------
 
-.. class:: jsonapi.model.Aggregate(name, expr, from_items, field_type=Integer)
+.. class:: jsonapi.fields.Aggregate(name, expr, func, field_type=Integer)
 
-    .. automethod:: __init__(name, expr, from_items, field_type=Integer)
+    .. automethod:: __init__(name, expr, func, field_type=Integer)
 
 Relationships
 -------------
 
-.. autoclass:: jsonapi.model.Relationship
+.. autoclass:: jsonapi.fields.Relationship
 
     .. automethod:: __init__
 

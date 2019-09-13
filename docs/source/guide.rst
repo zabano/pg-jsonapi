@@ -47,7 +47,7 @@ Custom Fields
 =============
 
 If you wish to map a field to a column of a different name, you can explicitly define the field
-using the :class:`Field` class::
+using the :class:`Field <jsonapi.fields.Field>` class::
 
     class UserModel(ja.Model):
         type_ = 'user'
@@ -95,7 +95,7 @@ Derived Fields
 
 There are two options for defining derived fields.
 
-The first option is to use the :class:`Field` class::
+The first option is to use the :class:`Field <jsonapi.fields.Field>` class::
 
     class UserModel(ja.Model):
         type_ = 'user'
@@ -104,8 +104,8 @@ The first option is to use the :class:`Field` class::
 
 In this case, the ``name`` field value is directly provided by the select query.
 
-The second option is to use the :class:`Derived` class which is a subclass
-of :class:`Field`::
+The second option is to use the :class:`Derived <jsonapi.fields.Derived>` class which is a subclass
+of :class:`Field <jsonapi.fields.Field>`::
 
     class UserModel(ja.Model):
             type_ = 'user'
@@ -118,8 +118,8 @@ Here, the ``name`` is created during the serialization of the object.
 Relationships
 =============
 
-The :class:`Relationship` class can be used to define relationships between
-resource models::
+The :class:`Relationship <jsonapi.fields.Relationship>` class can be used to define
+relationships between resource models::
 
     from jsonapi.tests.db import articles_t
 
@@ -138,13 +138,15 @@ resource models::
                   Relationship('author', 'UserModel',
                                ja.MANY_TO_ONE, 'articles_author_id_fkey'))
 
-In this example, a ``user`` can author multiple ``article``s, and an ``article`` is authored by one
-``user``. This relationship is represented by two :class:`Relationship`
-objects, each defined as a field in each of the models.
+In this example, a ``user`` can author multiple ``article``s, and an ``article``
+is authored by one ``user``. This relationship is represented by two
+:class:`Relationship <jsonapi.fields.Relationship>` objects, each defined as a field in each of
+the models.
 
-The first argument to :class:`Relationship` is the name of the field, as
-expected. The other arguments are the target model name, the cardinality of the relationship, and
-the name of the foreign key (as defined in the SQLAlchemy table description), in that order.
+The first argument to :class:`Relationship <jsonapi.fields.Relationship>` is the name
+of the field, as expected. The other arguments are the target model name, the cardinality of the
+relationship, and the name of the foreign key (as defined in the SQLAlchemy table description),
+in that order.
 
 .. note::
 
@@ -154,8 +156,8 @@ the name of the foreign key (as defined in the SQLAlchemy table description), in
 Aggregate Functions
 ===================
 
-The :class:`Aggregate` class can be used to define fields that map to aggregate
-functions::
+The :class:`Aggregate <jsonapi.fields.Aggregate>` class can be used to define fields
+that map to aggregate functions::
 
     class UserModel(Model):
         type_ = 'user'
@@ -164,6 +166,5 @@ functions::
         fields = ('email', 'name', 'created_on',
                   Relationship('articles', 'ArticleModel',
                                ONE_TO_MANY, 'articles_author_id_fkey'),
-                  Aggregate('article_count',
-                            sa.func.count(articles_t.c.id.distinct()),
-                            FromItem(articles_t, left=True)))
+                  Aggregate('article_count', articles_t.c.id, sa.func.count))
+

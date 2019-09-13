@@ -38,7 +38,7 @@ class ArgumentParser:
             match = re.search('^fields\[([-_\w]+)\]$', key)
             if match:
                 self.fields[match.group(1)] = set(inflection.underscore(x.lower()) for
-                                                  x in value.split(','))
+                                                  x in value.split(',') + ['id'])
 
         #
         #   page

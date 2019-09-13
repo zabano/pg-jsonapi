@@ -5,17 +5,17 @@ The :mod:`jsonapi.db` module provides an interface to the database layer.
 """
 
 import enum
-from functools import reduce
 from collections.abc import MutableSequence
 from copy import copy
+from functools import reduce
 
+import sqlalchemy as sa
 from sqlalchemy.sql.elements import BinaryExpression
 from sqlalchemy.sql.elements import BooleanClauseList
 from sqlalchemy.sql.selectable import Alias
 
-import sqlalchemy as sa
-
 from jsonapi.exc import Error
+from jsonapi.fields import Field, Aggregate
 
 
 def get_primary_key(table):
@@ -98,7 +98,8 @@ class FromItem:
         """
         A unique string identifier (the name of the table, or the table alias).
         """
-        return self.table.name if isinstance(self.table, sa.Table) else self.element.table.name
+        return self.table.name if isinstance(self.table, (Alias, sa.Table)) else \
+            self.element.table.name
 
     def __repr__(self):
         return "<{}({})>".format(self.__class__.__name__, self.name)
@@ -157,7 +158,7 @@ class FromClause(MutableSequence):
 
     @staticmethod
     def _name(item):
-        return item.element.name if hasattr(item, 'element') else item.name
+        return item.name
 
     @staticmethod
     def _value(item):
@@ -195,37 +196,55 @@ class Query:
     def __init__(self, model):
         self._model = model
 
-    def select_from(self, *additional):
+    def _select_from(self, *additional):
         from_clause = copy(self._model.from_clause)
         from_clause.extend(additional)
+        for field in self._model.schema_fields:
+            if isinstance(field, Aggregate):
+                from_clause.append(FromItem(field.from_alias, left=True))
         return from_clause()
 
-    @property
-    def col_list(self):
+    def _is_aggregate(self):
+        return any(isinstance(field, Aggregate) for field in self._model.schema_fields)
+
+    def _col_list(self, group_by=False):
         return [field.expr.label(field.name) for field in self._model.schema_fields if
-                type(field).__name__ == 'Field']
+                isinstance(field, Field if group_by else (Field, Aggregate))]
 
     @property
     def columns(self):
-        return self.select_from().c
+        return self._select_from().c
+
+    def _group_by(self, query, *columns):
+        if self._is_aggregate():
+            query = query.group_by(*[*self._col_list(group_by=True), *columns])
+        return query
 
     def get(self, resource_id):
-        return sa.select(self.col_list).select_from(self.select_from()).where(
+        query = sa.select(self._col_list()).select_from(self._select_from()).where(
             self._model.primary_key == resource_id)
+        query = self._group_by(query)
+        return query
 
     def all(self):
-        return sa.select(self.col_list).select_from(self.select_from())
+        query = sa.select(self._col_list()).select_from(self._select_from())
+        query = self._group_by(query)
+        return query
 
     def related(self, resource_id, rel):
         fkey_column = rel.fkey.parent
         pkey_column = get_primary_key(fkey_column.table)
         where_col = pkey_column if rel.cardinality in (ONE_TO_ONE, MANY_TO_ONE) \
             else fkey_column
-        return sa.select(self.col_list).select_from(self.select_from(fkey_column.table)).where(
+        query = sa.select(self._col_list()).select_from(self._select_from(fkey_column.table)).where(
             where_col == resource_id)
+        query = self._group_by(query)
+        return query
 
     def included(self, rel, id_list):
         where_col = get_primary_key(rel.fkey.parent.table) \
             if rel.cardinality is MANY_TO_ONE else rel.fkey.parent
-        return sa.select(self.col_list + [where_col.label('parent_id')]).select_from(
-            self.select_from(rel.fkey.parent.table)).where(where_col.in_(id_list))
+        query = sa.select(self._col_list() + [where_col.label('parent_id')]).select_from(
+            self._select_from(rel.fkey.parent.table)).where(where_col.in_(id_list))
+        query = self._group_by(query, where_col)
+        return query
