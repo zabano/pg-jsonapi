@@ -28,7 +28,7 @@ class UserModel(Model):
 class ArticleModel(Model):
     type_ = 'article'
     from_ = articles_t
-    fields = ('title', 'body', 'created_on', 'updated_on',
+    fields = ('title', 'body', 'created_on', 'updated_on', 'is_published',
               Relationship('author', 'UserModel',
                            MANY_TO_ONE, 'articles_author_id_fkey'),
               Relationship('keywords', 'KeywordModel',

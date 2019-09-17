@@ -120,6 +120,7 @@ class Model:
         self.query = Query(self)
         self.included = defaultdict(dict)
         self.errors = list()
+        self.meta = dict()
 
     @property
     def name(self):
@@ -219,6 +220,8 @@ class Model:
         if len(self.included) > 0:
             response['included'] = reduce(lambda a, b: a + [rec for rec in b.values()],
                                           self.included.values(), list())
+        if len(self.meta) > 0:
+            response['meta'] = self.meta
         return response
 
     async def fetch_included(self, data):
@@ -278,7 +281,7 @@ class Model:
         await self.fetch_included([rec])
         return self.response(rec)
 
-    async def get_collection(self, args):
+    async def get_collection(self, args, filter_by=None):
         """
         Fetch a collection of resources.
 
@@ -291,12 +294,25 @@ class Model:
         >>> })
 
         :param dict args: a dictionary representing the request query string
+        :param Filter filter_by: a Filter object for row filtering
         :return: a dictionary representing a JSON API response
         """
         self.parse_arguments(args)
         self.init_schema()
-        query = self.query.all()
+        query = self.query.all(filter_by=filter_by, paginate=True)
         recs = [dict(rec) for rec in await pg.fetch(query)]
+
+        if self.args.limit is not None:
+            self.meta['total'] = await pg.fetchval(self.query.all(
+                filter_by=filter_by, paginate=False, count=True))
+            if filter_by is not None:
+                self.meta['totalFiltered'] = await pg.fetchval(self.query.all(
+                    filter_by=filter_by, paginate=False, count=True))
+
+        if filter_by is not None:
+            self.meta['total'] = await pg.fetchval(self.query.all(
+                paginate=False, count=True))
+
         await self.fetch_included(recs)
         return self.response(recs)
 

@@ -49,6 +49,13 @@ ONE_TO_MANY = Cardinality.ONE_TO_MANY
 MANY_TO_MANY = Cardinality.MANY_TO_MANY
 
 
+class Filter:
+
+    def __init__(self, where, *from_items):
+        self.where = where
+        self.from_items = tuple(from_items)
+
+
 class FromItem:
     """
     Represent a single item in the FROM list of a SELECT query.
@@ -231,11 +238,20 @@ class Query:
         query = self._group_by(query)
         return query
 
-    def all(self):
+    def all(self, filter_by=None, paginate=True, count=False):
         query = sa.select(self._col_list()).select_from(self._select_from())
         query = self._group_by(query)
-        query = self._sort_by(query)
-        return query
+
+        if not count:
+            query = self._sort_by(query)
+
+        if filter_by is not None:
+            query = query.where(filter_by.where)
+
+        if paginate and self._model.args.limit is not None:
+            query = query.offset(self._model.args.offset).limit(self._model.args.limit)
+
+        return query.alias('count').count() if count else query
 
     def related(self, resource_id, rel):
         fkey_column = rel.fkey.parent

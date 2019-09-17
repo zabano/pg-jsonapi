@@ -56,7 +56,9 @@ articles_t = sa.Table('articles', metadata,
                       sa.Column('title', sa.Text, nullable=False, index=True),
                       sa.Column('body', sa.Text, nullable=False),
                       sa.Column('created_on', sa.DateTime(timezone=True)),
-                      sa.Column('updated_on', sa.DateTime(timezone=True)))
+                      sa.Column('updated_on', sa.DateTime(timezone=True)),
+                      sa.Column('is_published', sa.Boolean, nullable=False,
+                                default=False, server_default=sa.false()))
 
 comments_t = sa.Table('comments', metadata,
                       sa.Column('id', sa.Integer, primary_key=True),

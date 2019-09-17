@@ -68,16 +68,16 @@ class RequestArguments:
             if self.limit <= 0:
                 raise Error('page[size] request parameter must be positive')
 
-        if 'page[number]' in args and self.limit > 0:
+            if 'page[number]' in args and self.limit > 0:
 
-            try:
-                number = int(args['page[number]'])
-            except ValueError:
-                raise Error('page[number] request parameter must be an integer')
-            else:
-                if number <= 0:
-                    raise Error('page[number] request parameter must be positive')
-                self.offset = (number - 1) * self.limit
+                try:
+                    number = int(args['page[number]'])
+                except ValueError:
+                    raise Error('page[number] request parameter must be an integer')
+                else:
+                    if number <= 0:
+                        raise Error('page[number] request parameter must be positive')
+                    self.offset = (number - 1) * self.limit
 
     def in_include(self, name):
         return name in self.include.keys()

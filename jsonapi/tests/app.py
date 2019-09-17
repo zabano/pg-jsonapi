@@ -6,6 +6,7 @@ from quart import Quart
 from quart import jsonify
 from quart import request
 
+from jsonapi.db import Filter
 from jsonapi.model import MIME_TYPE
 from jsonapi.model import get_error_object
 from jsonapi.tests.model import *
@@ -51,7 +52,11 @@ async def user_name(user_id):
 
 @app.route('/articles/')
 async def articles():
-    return jsonify(await ArticleModel().get_collection(request.args))
+    filter_by = None
+    if 'filter[is-published]' in request.args:
+        filter_by = Filter(articles_t.c.is_published.is_(
+            request.args['filter[is-published]'] == 't'))
+    return jsonify(await ArticleModel().get_collection(request.args, filter_by=filter_by))
 
 
 @app.route('/articles/<int:article_id>')
