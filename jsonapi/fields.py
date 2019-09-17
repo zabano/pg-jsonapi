@@ -24,6 +24,7 @@ class BaseField:
         self.name = name
         self.expr = expr
         self.data_type = self._get_data_type(expr).value if data_type is None else data_type.value
+        self.exclude = False
 
     @staticmethod
     def _get_data_type(expr):
@@ -42,6 +43,16 @@ class BaseField:
                 if isinstance(expr.type, sa.Time):
                     return Time
         return String
+
+    def __call__(self):
+
+        if isinstance(self.data_type, (marshmallow.fields.Nested, marshmallow.fields.Function)):
+            return self.data_type
+
+        args = list()
+        if self.data_type == DateTime:
+            args = ['%Y-%m-%dT%H:%M:%SZ']
+        return self.data_type(*args)
 
     def __repr__(self):
         return '<{}({})>'.format(self.__class__.__name__, self.name)

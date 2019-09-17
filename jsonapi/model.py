@@ -18,7 +18,7 @@ from jsonapi.fields import Field
 from jsonapi.fields import Relationship
 from jsonapi.registry import model_registry
 from jsonapi.registry import schema_registry
-from jsonapi.util import ArgumentParser
+from jsonapi.util import RequestArguments
 
 MIME_TYPE = 'application/vnd.api+json'
 
@@ -31,7 +31,7 @@ class JSONSchema(marshmallow.Schema):
         for name, field in self.declared_fields.items():
             if name not in ('id', 'type') and not isinstance(field, marshmallow.fields.Nested):
                 resource['attributes'][camelize(name, False)] = data[name]
-            elif isinstance(field, marshmallow.fields.Nested):
+            elif isinstance(field, marshmallow.fields.Nested) and not field.load_only:
                 if 'relationships' not in resource:
                     resource['relationships'] = dict()
                 included = self.context['root'].included
@@ -102,13 +102,9 @@ class Model:
         self.schema = None
         self.schema_fields = list()
 
+        self.args = None
         self.query = Query(self)
         self.included = defaultdict(dict)
-
-    def _is_attribute_excluded(self, args, name, is_aggregate=False):
-        if is_aggregate:
-            return self.type_ not in args.fields.keys() or name not in args.fields[self.type_]
-        return self.type_ in args.fields.keys() and name not in args.fields[self.type_]
 
     @property
     def name(self):
@@ -132,26 +128,59 @@ class Model:
         return {field.name: field for field in self.schema_fields if
                 isinstance(field, Relationship)}
 
-    def init_schema(self, args):
+    @property
+    def attributes(self):
+        """
+        A dictionary of attribute fields keyed by name.
+        """
+        return {field.name: field for field in self.schema_fields if
+                not isinstance(field, Relationship)}
+
+    def get_relationship(self, name):
+        for field in self.fields:
+            if isinstance(field, Relationship) and name == field.name:
+                return field
+        return ModelError('relationship does not exist: "{}"'.format(name), self)
+
+    def parse_arguments(self, args):
+        self.args = RequestArguments(args)
+
+    def init_schema(self, args=None):
+
+        if args is not None:
+            self.args = args
 
         self.schema_fields = [Field('id', self.primary_key, String)]
         columns = {col.name: col for col in self.query.columns}
         for field in self.fields:
 
-            if isinstance(field, str):
-                if field not in columns:
-                    raise ModelError('field: "{}" not found'.format(field), self)
-                if not self._is_attribute_excluded(args, field):
-                    self.schema_fields.append(Field(field, columns[field]))
+            name = field if isinstance(field, str) else field.name
+            in_include = self.args.in_include(name)
+            fieldset_defined = self.args.fieldset_defined(self.type_)
+            in_fieldset = self.args.in_fieldset(self.type_, name)
+            in_sort = self.args.in_sort(name)
 
-            elif isinstance(field, (Field, Derived, Aggregate)):
-                if not self._is_attribute_excluded(
-                        args, field.name, is_aggregate=isinstance(field, Aggregate)):
+            if isinstance(field, str):
+                if name not in columns:
+                    raise ModelError('field: "{}" not found'.format(name), self)
+                if not fieldset_defined or in_fieldset:
+                    field = Field(field, columns[field])
+                    field.exclude = in_sort and fieldset_defined and not in_fieldset
+                    self.schema_fields.append(field)
+
+            elif isinstance(field, (Field, Derived)):
+                if not fieldset_defined or in_fieldset:
+                    field.exclude = in_sort and fieldset_defined and not in_fieldset
+                    self.schema_fields.append(field)
+
+            elif isinstance(field, Aggregate):
+                if in_fieldset:
+                    field.exclude = in_sort and fieldset_defined and not in_fieldset
                     self.schema_fields.append(field)
 
             elif isinstance(field, Relationship):
-                if field.name in args.include.keys():
-                    rel_args = copy(args)
+                if in_include:
+                    rel_args = copy(self.args)
                     rel_args.include = rel_args.include[field.name]
                     field.model.init_schema(rel_args)
                     field.data_type = marshmallow.fields.Nested(
@@ -165,7 +194,7 @@ class Model:
 
         schema = type('{}Schema'.format(self.name),
                       (JSONSchema,),
-                      {field.name: field.data_type for field in self.schema_fields})
+                      {field.name: field() for field in self.schema_fields if not field.exclude})
         schema_registry[schema.__name__] = schema
         self.schema = schema()
         self.schema.context['root'] = self
@@ -224,7 +253,8 @@ class Model:
         :param int or str object_id: the resource object id
         :return: a dictionary representing a JSON API response
         """
-        self.init_schema(ArgumentParser(args))
+        self.parse_arguments(args)
+        self.init_schema()
         query = self.query.get(object_id)
         rec = dict(await pg.fetchrow(query))
         await self.fetch_included([rec])
@@ -245,7 +275,8 @@ class Model:
         :param dict args: a dictionary representing the request query string
         :return: a dictionary representing a JSON API response
         """
-        self.init_schema(ArgumentParser(args))
+        self.parse_arguments(args)
+        self.init_schema()
         query = self.query.all()
         recs = [dict(rec) for rec in await pg.fetch(query)]
         await self.fetch_included(recs)
@@ -267,9 +298,9 @@ class Model:
         :param relationship_name: relationship name
         :return: a dictionary representing a JSON API response
         """
-        self.init_schema(ArgumentParser(dict(include=relationship_name)))
-        rel = self.relationships[relationship_name]
-        rel.model.init_schema(ArgumentParser(args))
+        rel = self.get_relationship(relationship_name)
+        rel.model.parse_arguments(args)
+        rel.model.init_schema()
         query = rel.model.query.related(object_id, rel)
         recs = [dict(rec) for rec in await pg.fetch(query)] if rel.cardinality in (
             Cardinality.ONE_TO_MANY, Cardinality.MANY_TO_MANY) else dict(await pg.fetchrow(query))

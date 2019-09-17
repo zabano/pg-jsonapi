@@ -220,6 +220,11 @@ class Query:
             query = query.group_by(*[*self._col_list(group_by=True), *columns])
         return query
 
+    def _sort_by(self, query):
+        return query.order_by(*[getattr(self._model.attributes[name].expr,
+                                        'desc' if desc else 'asc')().nullslast() for
+                                name, desc in self._model.args.sort.items()])
+
     def get(self, resource_id):
         query = sa.select(self._col_list()).select_from(self._select_from()).where(
             self._model.primary_key == resource_id)
@@ -229,6 +234,7 @@ class Query:
     def all(self):
         query = sa.select(self._col_list()).select_from(self._select_from())
         query = self._group_by(query)
+        query = self._sort_by(query)
         return query
 
     def related(self, resource_id, rel):
@@ -239,6 +245,8 @@ class Query:
         query = sa.select(self._col_list()).select_from(self._select_from(fkey_column.table)).where(
             where_col == resource_id)
         query = self._group_by(query)
+        if rel.cardinality in (ONE_TO_MANY, MANY_TO_MANY):
+            query = self._sort_by(query)
         return query
 
     def included(self, rel, id_list):

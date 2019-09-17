@@ -1,10 +1,11 @@
 import re
 import inflection
+from collections import OrderedDict
 
 from jsonapi.exc import Error
 
 
-class ArgumentParser:
+class RequestArguments:
 
     def __init__(self, args):
         """
@@ -14,6 +15,7 @@ class ArgumentParser:
 
         self.include = dict()
         self.fields = dict()
+        self.sort = OrderedDict()
 
         self.offset = 0
         self.limit = None
@@ -25,7 +27,7 @@ class ArgumentParser:
         if 'include' in args:
             for dot_path in args['include'].split(','):
                 include = self.include
-                for i, attr in enumerate(dot_path.split('.')):
+                for attr in dot_path.split('.'):
                     if attr not in include:
                         include[attr] = dict()
                     include = include[attr]
@@ -41,7 +43,19 @@ class ArgumentParser:
                                                   x in value.split(',') + ['id'])
 
         #
-        #   page
+        # sort
+        #
+
+        if 'sort' in args:
+            for sort_spec in args['sort'].split(','):
+                desc, name = re.search('([-+]?)(.+)', sort_spec).groups()
+                if '.' in name:
+                    raise Error('"sort" parameter does not support '
+                                'dot notation: "{}"'.format(name))
+                self.sort[inflection.underscore(name)] = (desc == '-')
+
+        #
+        # page
         #
 
         if 'page[size]' in args:
@@ -64,3 +78,15 @@ class ArgumentParser:
                 if number <= 0:
                     raise Error('page[number] request parameter must be positive')
                 self.offset = (number - 1) * self.limit
+
+    def in_include(self, name):
+        return name in self.include.keys()
+
+    def in_fieldset(self, resource_type, name):
+        return self.fieldset_defined(resource_type) and name in self.fields[resource_type]
+
+    def fieldset_defined(self, resource_type):
+        return resource_type in self.fields.keys()
+
+    def in_sort(self, name):
+        return name in self.sort.keys()
