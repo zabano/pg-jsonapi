@@ -3,5 +3,37 @@ class Error(Exception):
 
 
 class ModelError(Error):
+
     def __init__(self, message, model):
-        super().__init__('[{}] {}'.format(model.name, message))
+        super().__init__(message)
+        self.message = message
+        self.model = model
+
+    def __str__(self):
+        return '[{}] {}'.format(self.model.name, self.message)
+
+
+class APIError(ModelError):
+
+    def __init__(self, message, model, status=400):
+        super().__init__(message, model)
+        self.status = status
+
+    def __str__(self):
+        return '[{}:{:d}] {}'.format(self.model.name, self.status, self.message)
+
+
+class NotFound(APIError):
+
+    def __init__(self, object_id, model):
+        message = "object not found: {}({})".format(model.type_, object_id)
+        super().__init__(message, model, 404)
+        self.object_id = object_id
+
+
+class Forbidden(APIError):
+
+    def __init__(self, object_id, model):
+        message = "access denied for: {}({})".format(model.type_, object_id)
+        super().__init__(message, model, 403)
+        self.object_id = object_id

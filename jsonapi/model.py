@@ -12,6 +12,8 @@ from jsonapi.db import FromClause
 from jsonapi.db import Query
 from jsonapi.db import get_primary_key
 from jsonapi.exc import ModelError
+from jsonapi.exc import APIError
+from jsonapi.exc import NotFound
 from jsonapi.fields import Aggregate
 from jsonapi.fields import Derived
 from jsonapi.fields import Field
@@ -23,10 +25,22 @@ from jsonapi.util import RequestArguments
 MIME_TYPE = 'application/vnd.api+json'
 
 
+def get_error_object(e):
+    if isinstance(e, APIError):
+        return dict(data=dict(errors=[dict(
+            title=str(e),
+            status=e.status if hasattr(e, 'status') else 500)]))
+    raise e
+
+
 class JSONSchema(marshmallow.Schema):
 
     @marshmallow.post_dump(pass_many=False, pass_original=True)
     def wrap(self, data, orig, many):
+
+        if len(data) == 0:
+            return
+
         resource = dict(id=data['id'], type=orig['type'], attributes=dict())
         for name, field in self.declared_fields.items():
             if name not in ('id', 'type') and not isinstance(field, marshmallow.fields.Nested):
@@ -105,6 +119,7 @@ class Model:
         self.args = None
         self.query = Query(self)
         self.included = defaultdict(dict)
+        self.errors = list()
 
     @property
     def name(self):
@@ -256,7 +271,10 @@ class Model:
         self.parse_arguments(args)
         self.init_schema()
         query = self.query.get(object_id)
-        rec = dict(await pg.fetchrow(query))
+        result = await pg.fetchrow(query)
+        if result is None:
+            raise NotFound(object_id, self)
+        rec = dict(result)
         await self.fetch_included([rec])
         return self.response(rec)
 
@@ -298,14 +316,22 @@ class Model:
         :param relationship_name: relationship name
         :return: a dictionary representing a JSON API response
         """
+
+        result = await pg.fetchrow(self.query.get(object_id))
+        if result is None:
+            raise NotFound(object_id, self)
+
         rel = self.get_relationship(relationship_name)
         rel.model.parse_arguments(args)
         rel.model.init_schema()
         query = rel.model.query.related(object_id, rel)
-        recs = [dict(rec) for rec in await pg.fetch(query)] if rel.cardinality in (
-            Cardinality.ONE_TO_MANY, Cardinality.MANY_TO_MANY) else dict(await pg.fetchrow(query))
-        await rel.model.fetch_included(recs)
-        return rel.model.response(recs)
+        if rel.cardinality in (Cardinality.ONE_TO_ONE, Cardinality.MANY_TO_ONE):
+            result = await pg.fetchrow(query)
+            data = dict(result) if result is not None else None
+        else:
+            data = [dict(rec) for rec in await pg.fetch(query)]
+        await rel.model.fetch_included(data)
+        return rel.model.response(data)
 
     def __repr__(self):
         return '<Model({})>'.format(self.name)

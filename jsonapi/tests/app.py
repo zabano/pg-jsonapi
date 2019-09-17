@@ -1,11 +1,13 @@
 import logging
 import os
 
+from asyncpgsa import pg
 from quart import Quart
 from quart import jsonify
 from quart import request
-from asyncpgsa import pg
+
 from jsonapi.model import MIME_TYPE
+from jsonapi.model import get_error_object
 from jsonapi.tests.model import *
 
 app = Quart('jsonapi-test')
@@ -20,6 +22,11 @@ if 'JSONAPI_DEBUG' in os.environ:
 @app.before_first_request
 async def init():
     await pg.init(database='jsonapi', user='jsonapi', password='jsonapi', min_size=5, max_size=10)
+
+
+@app.errorhandler(500)
+def handle_api_error(e):
+    return jsonify(get_error_object(e)), e.status if hasattr(e, 'status') else 500
 
 
 @app.route('/users/')
@@ -68,4 +75,4 @@ async def article_keywords(article_id):
 
 
 if __name__ == '__main__':
-    app.run(debug=True)
+    app.run()
