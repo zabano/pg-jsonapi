@@ -17,6 +17,8 @@ from sqlalchemy.sql.selectable import Alias
 from jsonapi.exc import Error
 from jsonapi.fields import Field, Aggregate
 
+SQL_PARAM_LIMIT = 10000
+
 
 def get_primary_key(table):
     """
@@ -269,6 +271,8 @@ class Query:
         where_col = get_primary_key(rel.fkey.parent.table) \
             if rel.cardinality is MANY_TO_ONE else rel.fkey.parent
         query = sa.select(self._col_list() + [where_col.label('parent_id')]).select_from(
-            self._select_from(rel.fkey.parent.table)).where(where_col.in_(id_list))
+            self._select_from(rel.fkey.parent.table))
         query = self._group_by(query, where_col)
-        return query
+        return (query.where(where_col.in_(x))
+                for x in (id_list[i:i + SQL_PARAM_LIMIT]
+                          for i in range(0, len(id_list), SQL_PARAM_LIMIT)))

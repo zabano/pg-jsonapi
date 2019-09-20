@@ -233,7 +233,9 @@ class Model:
             rec['type'] = self.type_
 
         for rel in self.relationships.values():
-            result = await pg.fetch(rel.model.query.included(rel, [rec['id'] for rec in data]))
+            result = list()
+            for query in rel.model.query.included(rel, [rec['id'] for rec in data]):
+                result.extend(await pg.fetch(query))
 
             recs_by_parent_id = defaultdict(list)
             for rec in result:
