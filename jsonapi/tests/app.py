@@ -14,6 +14,8 @@ from jsonapi.tests.model import *
 app = Quart('jsonapi-test')
 app.config['JSONIFY_MIMETYPE'] = MIME_TYPE
 
+logging.getLogger('quart.app').setLevel(logging.CRITICAL)
+
 if 'JSONAPI_DEBUG' in os.environ:
     logger = logging.getLogger('asyncpgsa.query')
     logger.addHandler(app.logger.handlers[0])

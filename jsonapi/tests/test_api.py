@@ -2,12 +2,15 @@ import pytest
 from jsonapi.tests.app import app
 from collections.abc import Sequence
 
+pytestmark = pytest.mark.asyncio
 
-async def _get(cli, url):
+
+async def _get(cli, url, status=200):
     response = await cli.get(url)
-    assert response.status_code == 200
+    assert response.status_code == status
     json = await response.json
-    assert 'data' in json
+    if status == 200:
+        assert 'data' in json
     return json
 
 
@@ -21,12 +24,18 @@ def _check_object(data, object_type, object_id, *attributes):
         assert name in data['attributes']
 
 
+def _check_error(json, status, text):
+    assert 'errors' in json and len(json['errors']) == 1
+    error = json['errors'][0]
+    assert error['status'] == int(status)
+    assert error['title'] is not None and text in error['title'].lower()
+
+
 @pytest.fixture()
 def cli():
     return app.test_client()
 
 
-@pytest.mark.asyncio
 async def test_get_users(cli):
     json = await _get(cli, '/users/')
     assert len(json['data']) == 2
@@ -34,7 +43,6 @@ async def test_get_users(cli):
         _check_object(rec, 'user', [1, 2])
 
 
-@pytest.mark.asyncio
 async def test_get_users_include(cli):
     json = await _get(cli, '/users/?include=articles.comments.author,name&fields[name]=first,last')
     assert len(json['data']) == 2
@@ -72,26 +80,22 @@ async def test_get_users_include(cli):
             assert rec['relationships']['author']['id'] in ('1', '2')
 
 
-@pytest.mark.asyncio
 async def test_get_user_1(cli):
     json = await _get(cli, '/users/1')
     _check_object(json['data'], 'user', 1, 'email', 'status')
 
 
-@pytest.mark.asyncio
 async def test_get_user_1_article_count(cli):
     json = await _get(cli, '/users/1?fields[user]=email,article-count')
     _check_object(json['data'], 'user', 1, 'email', 'articleCount')
     assert json['data']['attributes']['articleCount'] == 3
 
 
-@pytest.mark.asyncio
 async def test_get_user_1_name(cli):
     json = await _get(cli, '/users/1/name')
     _check_object(json['data'], 'name', 1, 'first', 'last')
 
 
-@pytest.mark.asyncio
 async def test_get_user_1_articles(cli):
     json = await _get(cli, '/users/1/articles/')
     assert len(json['data']) == 3
@@ -99,7 +103,6 @@ async def test_get_user_1_articles(cli):
         _check_object(rec, 'article', (11, 12, 14), 'title', 'body')
 
 
-@pytest.mark.asyncio
 async def test_get_articles(cli):
     json = await _get(cli, '/articles/')
     assert len(json['data']) == 5
@@ -107,7 +110,27 @@ async def test_get_articles(cli):
         _check_object(rec, 'article', (11, 12, 13, 14, 15), 'title', 'body')
 
 
-@pytest.mark.asyncio
+async def test_get_articles_most_resent(cli):
+    json = await _get(cli, '/articles/?sort=-created-on&page[size]=2')
+    assert len(json['data']) == 2
+    assert 'total' in json['meta'] and json['meta']['total'] == 5
+
+
+async def test_get_articles_published(cli):
+    json = await _get(cli, '/articles/?filter[is-published]=t')
+    assert len(json['data']) == 3
+    for rec in json['data']:
+        assert rec['attributes']['isPublished'] is True
+    assert 'total' in json['meta'] and json['meta']['total'] == 5
+
+
+async def test_get_articles_published_most_resent(cli):
+    json = await _get(cli, '/articles/?filter[is-published]=t&sort=-created-on&page[size]=2')
+    assert len(json['data']) == 2
+    assert 'total' in json['meta'] and json['meta']['total'] == 5
+    assert 'totalFiltered' in json['meta'] and json['meta']['totalFiltered'] == 3
+
+
 async def test_get_articles_with_author_article_count(cli):
     json = await _get(cli, '/articles/?include=author&fields[user]=email,article-count')
     assert len(json['data']) == 5
@@ -119,13 +142,11 @@ async def test_get_articles_with_author_article_count(cli):
         assert rec['attributes']['articleCount'] in (2, 3)
 
 
-@pytest.mark.asyncio
 async def test_get_article_1_author(cli):
     json = await _get(cli, '/articles/11/author')
     _check_object(json['data'], 'user', 1, 'email', 'status')
 
 
-@pytest.mark.asyncio
 async def test_get_article_11_comments(cli):
     json = await _get(cli, '/articles/11/comments/')
     assert len(json['data']) == 1
@@ -133,9 +154,19 @@ async def test_get_article_11_comments(cli):
         _check_object(rec, 'comment', 1, 'body')
 
 
-@pytest.mark.asyncio
 async def test_get_article_1_keywords(cli):
     json = await _get(cli, '/articles/11/keywords/')
     assert len(json['data']) == 4
     for rec in json['data']:
         _check_object(rec, 'keyword', (1, 2, 3, 4), 'name')
+
+
+async def test_get_user_10_not_found(cli):
+    json = await _get(cli, '/users/10', 404)
+    _check_error(json, 404, 'not found')
+
+
+async def test_get_user_10_articles_not_found(cli):
+    json = await _get(cli, '/users/10/articles/', 404)
+    _check_error(json, 404, 'not found')
+

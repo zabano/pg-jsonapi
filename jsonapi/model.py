@@ -27,9 +27,9 @@ MIME_TYPE = 'application/vnd.api+json'
 
 def get_error_object(e):
     if isinstance(e, APIError):
-        return dict(data=dict(errors=[dict(
+        return dict(errors=[dict(
             title=str(e),
-            status=e.status if hasattr(e, 'status') else 500)]))
+            status=e.status if hasattr(e, 'status') else 500)])
     raise e
 
 

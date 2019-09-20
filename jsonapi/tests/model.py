@@ -2,7 +2,6 @@ from jsonapi.model import Model
 from jsonapi.model import Relationship
 from jsonapi.model import Derived
 from jsonapi.model import Aggregate
-from jsonapi.db import FromItem
 from jsonapi.db import ONE_TO_ONE, MANY_TO_ONE, ONE_TO_MANY, MANY_TO_MANY
 from jsonapi.tests.db import *
 
