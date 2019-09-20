@@ -28,6 +28,33 @@ CREATE TYPE public.user_status AS ENUM (
 
 ALTER TYPE public.user_status OWNER TO jsonapi;
 
+--
+-- Name: check_article_read_access(integer, integer); Type: FUNCTION; Schema: public; Owner: jsonapi
+--
+
+CREATE FUNCTION public.check_article_read_access(p_article_id integer, p_user_id integer) RETURNS boolean
+    LANGUAGE plpgsql
+    AS $$
+BEGIN
+    -- return true if the user is the author of the article
+    IF EXISTS(SELECT *
+              FROM articles
+              WHERE id = p_article_id
+                AND author_id = p_user_id) THEN
+        RETURN TRUE;
+    END IF;
+
+    -- check permissions
+    RETURN EXISTS(SELECT *
+                  FROM article_read_access
+                  WHERE article_id = p_article_id
+                    AND user_id = p_user_id);
+END;
+$$;
+
+
+ALTER FUNCTION public.check_article_read_access(p_article_id integer, p_user_id integer) OWNER TO jsonapi;
+
 SET default_tablespace = '';
 
 SET default_with_oids = false;
@@ -43,6 +70,18 @@ CREATE TABLE public.article_keywords (
 
 
 ALTER TABLE public.article_keywords OWNER TO jsonapi;
+
+--
+-- Name: article_read_access; Type: TABLE; Schema: public; Owner: jsonapi
+--
+
+CREATE TABLE public.article_read_access (
+    user_id integer NOT NULL,
+    article_id integer NOT NULL
+);
+
+
+ALTER TABLE public.article_read_access OWNER TO jsonapi;
 
 --
 -- Name: articles; Type: TABLE; Schema: public; Owner: jsonapi
@@ -300,6 +339,13 @@ INSERT INTO public.article_keywords VALUES (11, 4);
 
 
 --
+-- Data for Name: article_read_access; Type: TABLE DATA; Schema: public; Owner: jsonapi
+--
+
+INSERT INTO public.article_read_access VALUES (1, 13);
+
+
+--
 -- Data for Name: articles; Type: TABLE DATA; Schema: public; Owner: jsonapi
 --
 
@@ -394,6 +440,14 @@ SELECT pg_catalog.setval('public.users_id_seq', 2, true);
 
 ALTER TABLE ONLY public.article_keywords
     ADD CONSTRAINT article_keywords_pk PRIMARY KEY (article_id, keyword_id);
+
+
+--
+-- Name: article_read_access article_read_access_pk; Type: CONSTRAINT; Schema: public; Owner: jsonapi
+--
+
+ALTER TABLE ONLY public.article_read_access
+    ADD CONSTRAINT article_read_access_pk PRIMARY KEY (user_id, article_id);
 
 
 --
@@ -557,6 +611,22 @@ ALTER TABLE ONLY public.article_keywords
 
 ALTER TABLE ONLY public.article_keywords
     ADD CONSTRAINT article_keywords_keyword_id_fkey FOREIGN KEY (keyword_id) REFERENCES public.keywords(id) ON DELETE CASCADE;
+
+
+--
+-- Name: article_read_access article_read_access_article_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: jsonapi
+--
+
+ALTER TABLE ONLY public.article_read_access
+    ADD CONSTRAINT article_read_access_article_id_fkey FOREIGN KEY (article_id) REFERENCES public.articles(id) ON UPDATE CASCADE ON DELETE CASCADE;
+
+
+--
+-- Name: article_read_access article_read_access_user_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: jsonapi
+--
+
+ALTER TABLE ONLY public.article_read_access
+    ADD CONSTRAINT article_read_access_user_id_fkey FOREIGN KEY (user_id) REFERENCES public.users(id) ON UPDATE CASCADE ON DELETE CASCADE;
 
 
 --

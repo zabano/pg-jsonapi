@@ -11,8 +11,8 @@ from jsonapi.db import Cardinality
 from jsonapi.db import FromClause
 from jsonapi.db import Query
 from jsonapi.db import get_primary_key
-from jsonapi.exc import ModelError
 from jsonapi.exc import APIError
+from jsonapi.exc import ModelError
 from jsonapi.exc import NotFound
 from jsonapi.fields import Aggregate
 from jsonapi.fields import Derived
@@ -83,6 +83,11 @@ class Model:
     fields = None
     """
     A variable length list of fields or field names.
+    """
+
+    access = None
+    """
+    Resource access protection.
     """
 
     search = None

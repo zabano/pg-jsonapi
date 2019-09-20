@@ -1,8 +1,12 @@
+from jsonapi.db import MANY_TO_MANY
+from jsonapi.db import MANY_TO_ONE
+from jsonapi.db import ONE_TO_MANY
+from jsonapi.db import ONE_TO_ONE
+from jsonapi.model import Aggregate
+from jsonapi.model import Derived
 from jsonapi.model import Model
 from jsonapi.model import Relationship
-from jsonapi.model import Derived
-from jsonapi.model import Aggregate
-from jsonapi.db import ONE_TO_ONE, MANY_TO_ONE, ONE_TO_MANY, MANY_TO_MANY
+from jsonapi.tests.auth import current_user
 from jsonapi.tests.db import *
 
 
@@ -34,6 +38,8 @@ class ArticleModel(Model):
                            MANY_TO_MANY, 'article_keywords_article_id_fkey'),
               Relationship('comments', 'CommentModel',
                            ONE_TO_MANY, 'articles_article_id_fkey'))
+    access = sa.func.check_article_read_access
+    user = current_user
 
 
 class KeywordModel(Model):

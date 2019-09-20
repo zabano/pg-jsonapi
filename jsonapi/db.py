@@ -15,6 +15,7 @@ from sqlalchemy.sql.elements import BooleanClauseList
 from sqlalchemy.sql.selectable import Alias
 
 from jsonapi.exc import Error
+from jsonapi.exc import ModelError
 from jsonapi.fields import Field, Aggregate
 
 SQL_PARAM_LIMIT = 10000
@@ -234,13 +235,25 @@ class Query:
                                         'desc' if desc else 'asc')().nullslast() for
                                 name, desc in self._model.args.sort.items()])
 
+    def _check_access(self, query):
+        if not hasattr(self._model, 'user'):
+            raise ModelError('"user" not defined for protected model', self._model)
+        if not hasattr(self._model.user, 'id'):
+            raise ModelError('"user.id" not defined for protected model', self._model)
+        if self._model.user.id is None:
+            raise ModelError('"user.id" value missing for protected model', self._model)
+        return query.where(self._model.access(self._model.primary_key, self._model.user.id))
+
     def get(self, resource_id):
         query = sa.select(self._col_list()).select_from(self._select_from()).where(
             self._model.primary_key == resource_id)
         query = self._group_by(query)
+        if self._model.access is not None:
+            query = self._check_access(query)
         return query
 
     def all(self, filter_by=None, paginate=True, count=False):
+
         query = sa.select(self._col_list()).select_from(self._select_from())
         query = self._group_by(query)
 
@@ -249,6 +262,9 @@ class Query:
 
         if filter_by is not None:
             query = query.where(filter_by.where)
+
+        if self._model.access is not None:
+            query = self._check_access(query)
 
         if paginate and self._model.args.limit is not None:
             query = query.offset(self._model.args.offset).limit(self._model.args.limit)
@@ -265,6 +281,8 @@ class Query:
         query = self._group_by(query)
         if rel.cardinality in (ONE_TO_MANY, MANY_TO_MANY):
             query = self._sort_by(query)
+        if self._model.access is not None:
+            query = self._check_access(query)
         return query
 
     def included(self, rel, id_list):
@@ -273,6 +291,8 @@ class Query:
         query = sa.select(self._col_list() + [where_col.label('parent_id')]).select_from(
             self._select_from(rel.fkey.parent.table))
         query = self._group_by(query, where_col)
+        if self._model.access is not None:
+            query = self._check_access(query)
         return (query.where(where_col.in_(x))
                 for x in (id_list[i:i + SQL_PARAM_LIMIT]
                           for i in range(0, len(id_list), SQL_PARAM_LIMIT)))
