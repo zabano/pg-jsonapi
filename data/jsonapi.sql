@@ -54,7 +54,8 @@ CREATE TABLE public.articles (
     title text NOT NULL,
     body text NOT NULL,
     created_on timestamp without time zone DEFAULT timezone('utc'::text, now()) NOT NULL,
-    updated_on timestamp without time zone
+    updated_on timestamp without time zone,
+    is_published boolean DEFAULT false NOT NULL
 );
 
 
@@ -290,80 +291,66 @@ ALTER TABLE ONLY public.users ALTER COLUMN id SET DEFAULT nextval('public.users_
 -- Data for Name: article_keywords; Type: TABLE DATA; Schema: public; Owner: jsonapi
 --
 
-COPY public.article_keywords (article_id, keyword_id) FROM stdin;
-1	1
-1	2
-1	3
-1	4
-2	5
-2	6
-\.
+INSERT INTO public.article_keywords VALUES (12, 5);
+INSERT INTO public.article_keywords VALUES (12, 6);
+INSERT INTO public.article_keywords VALUES (11, 1);
+INSERT INTO public.article_keywords VALUES (11, 2);
+INSERT INTO public.article_keywords VALUES (11, 3);
+INSERT INTO public.article_keywords VALUES (11, 4);
 
 
 --
 -- Data for Name: articles; Type: TABLE DATA; Schema: public; Owner: jsonapi
 --
 
-COPY public.articles (id, author_id, title, body, created_on, updated_on) FROM stdin;
-3	2	Article 3	This is a test.	2019-08-27 12:03:04.786736	\N
-1	1	Article 1	This is a test.	2019-08-25 19:06:04.786736	\N
-4	1	Article 4	This is a test.	2019-08-27 15:04:04.786736	\N
-2	1	Article 2	This is a test.	2019-08-26 19:06:04.786736	\N
-5	2	Article 5	This is a test.	2019-08-27 18:07:04.786736	\N
-\.
+INSERT INTO public.articles VALUES (13, 2, 'Article 3', 'This is a test.', '2019-08-27 12:03:04.786736', NULL, false);
+INSERT INTO public.articles VALUES (12, 1, 'Article 2', 'This is a test.', '2019-08-26 19:06:04.786736', NULL, false);
+INSERT INTO public.articles VALUES (15, 2, 'Article 5', 'This is a test.', '2019-08-27 18:07:04.786736', NULL, true);
+INSERT INTO public.articles VALUES (14, 1, 'Article 4', 'This is a test.', '2019-08-27 15:04:04.786736', NULL, true);
+INSERT INTO public.articles VALUES (11, 1, 'Article 1', 'This is a test.', '2019-08-25 19:06:04.786736', NULL, true);
 
 
 --
 -- Data for Name: comments; Type: TABLE DATA; Schema: public; Owner: jsonapi
 --
 
-COPY public.comments (id, article_id, user_id, body, created_on, updated_on) FROM stdin;
-1	1	2	This is a test.	2019-09-03 18:49:19.036388	\N
-4	5	1	This is a test.	2019-09-10 17:19:12.216478	\N
-5	5	2	Another test.	2019-09-10 17:19:12.216478	\N
-\.
+INSERT INTO public.comments VALUES (1, 11, 2, 'This is a test.', '2019-09-03 18:49:19.036388', NULL);
+INSERT INTO public.comments VALUES (4, 15, 1, 'This is a test.', '2019-09-10 17:19:12.216478', NULL);
+INSERT INTO public.comments VALUES (5, 15, 2, 'Another test.', '2019-09-10 17:19:12.216478', NULL);
 
 
 --
 -- Data for Name: keywords; Type: TABLE DATA; Schema: public; Owner: jsonapi
 --
 
-COPY public.keywords (id, name) FROM stdin;
-1	foo
-2	bar
-3	test
-4	apple
-5	orange
-6	red
-\.
+INSERT INTO public.keywords VALUES (1, 'foo');
+INSERT INTO public.keywords VALUES (2, 'bar');
+INSERT INTO public.keywords VALUES (3, 'test');
+INSERT INTO public.keywords VALUES (4, 'apple');
+INSERT INTO public.keywords VALUES (5, 'orange');
+INSERT INTO public.keywords VALUES (6, 'red');
 
 
 --
 -- Data for Name: replies; Type: TABLE DATA; Schema: public; Owner: jsonapi
 --
 
-COPY public.replies (id, user_id, comment_id, body, created_on, updated_on) FROM stdin;
-\.
 
 
 --
 -- Data for Name: user_names; Type: TABLE DATA; Schema: public; Owner: jsonapi
 --
 
-COPY public.user_names (id, title, first, middle, last, suffix, nickname) FROM stdin;
-1	\N	Jane	\N	Doe	\N	\N
-2	\N	John	\N	Smith	\N	\N
-\.
+INSERT INTO public.user_names VALUES (1, NULL, 'Jane', NULL, 'Doe', NULL, NULL);
+INSERT INTO public.user_names VALUES (2, NULL, 'John', NULL, 'Smith', NULL, NULL);
 
 
 --
 -- Data for Name: users; Type: TABLE DATA; Schema: public; Owner: jsonapi
 --
 
-COPY public.users (id, email, created_on, is_confirmed, force_password_reset, password, is_approved, status, is_superuser, first) FROM stdin;
-1	jane.doe@jsonapi.test	2019-08-27 19:01:00.173736	f	f	1b04d25168c6cf23f0c65cd86bcd2581abfa1981a4c56eb109f14d013a0ee805	f	active	f	\N
-2	john.smith@jsonapi.test	2019-08-27 19:02:31.532467	f	f	1b04d25168c6cf23f0c65cd86bcd2581abfa1981a4c56eb109f14d013a0ee805	f	active	f	\N
-\.
+INSERT INTO public.users VALUES (1, 'jane.doe@jsonapi.test', '2019-08-27 19:01:00.173736', false, false, '1b04d25168c6cf23f0c65cd86bcd2581abfa1981a4c56eb109f14d013a0ee805', false, 'active', false, NULL);
+INSERT INTO public.users VALUES (2, 'john.smith@jsonapi.test', '2019-08-27 19:02:31.532467', false, false, '1b04d25168c6cf23f0c65cd86bcd2581abfa1981a4c56eb109f14d013a0ee805', false, 'active', false, NULL);
 
 
 --
@@ -561,7 +548,7 @@ CREATE INDEX users_status_index ON public.users USING btree (status);
 --
 
 ALTER TABLE ONLY public.article_keywords
-    ADD CONSTRAINT article_keywords_article_id_fkey FOREIGN KEY (article_id) REFERENCES public.articles(id) ON DELETE CASCADE;
+    ADD CONSTRAINT article_keywords_article_id_fkey FOREIGN KEY (article_id) REFERENCES public.articles(id) ON UPDATE CASCADE ON DELETE CASCADE;
 
 
 --
@@ -577,7 +564,7 @@ ALTER TABLE ONLY public.article_keywords
 --
 
 ALTER TABLE ONLY public.comments
-    ADD CONSTRAINT articles_article_id_fkey FOREIGN KEY (article_id) REFERENCES public.articles(id) ON DELETE CASCADE;
+    ADD CONSTRAINT articles_article_id_fkey FOREIGN KEY (article_id) REFERENCES public.articles(id) ON UPDATE CASCADE ON DELETE CASCADE;
 
 
 --
