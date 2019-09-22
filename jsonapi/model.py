@@ -12,6 +12,7 @@ from jsonapi.db import FromClause
 from jsonapi.db import Query
 from jsonapi.db import get_primary_key
 from jsonapi.exc import APIError
+from jsonapi.exc import Forbidden
 from jsonapi.exc import ModelError
 from jsonapi.exc import NotFound
 from jsonapi.fields import Aggregate
@@ -280,10 +281,14 @@ class Model:
         """
         self.parse_arguments(args)
         self.init_schema()
+
+        if not await pg.fetchval(self.query.exists(object_id)):
+            raise NotFound(object_id, self)
+
         query = self.query.get(object_id)
         result = await pg.fetchrow(query)
         if result is None:
-            raise NotFound(object_id, self)
+            raise Forbidden(object_id, self)
         rec = dict(result)
         await self.fetch_included([rec])
         return self.response(rec)

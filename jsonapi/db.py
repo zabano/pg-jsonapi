@@ -244,6 +244,10 @@ class Query:
             raise ModelError('"user.id" value missing for protected model', self._model)
         return query.where(self._model.access(self._model.primary_key, self._model.user.id))
 
+    def exists(self, resource_id):
+        pk = self._model.primary_key
+        return sa.select([sa.exists(sa.select([pk]).where(pk == resource_id))])
+
     def get(self, resource_id):
         query = sa.select(self._col_list()).select_from(self._select_from()).where(
             self._model.primary_key == resource_id)

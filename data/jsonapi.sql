@@ -36,20 +36,23 @@ CREATE FUNCTION public.check_article_read_access(p_article_id integer, p_user_id
     LANGUAGE plpgsql
     AS $$
 BEGIN
+
     -- return true if the user is the author of the article
-    IF EXISTS(SELECT *
-              FROM articles
-              WHERE id = p_article_id
-                AND author_id = p_user_id) THEN
+    PERFORM *
+    FROM articles
+    WHERE id = p_article_id
+      AND author_id = p_user_id;
+    IF found THEN
         RETURN TRUE;
     END IF;
 
-    -- check permissions
-    RETURN EXISTS(SELECT *
-                  FROM article_read_access
-                  WHERE article_id = p_article_id
-                    AND user_id = p_user_id);
-END;
+    -- if the user is not granted read access, raise an exception
+    PERFORM *
+    FROM article_read_access
+    WHERE article_id = p_article_id
+      AND user_id = p_user_id;
+    RETURN found;
+END ;
 $$;
 
 
