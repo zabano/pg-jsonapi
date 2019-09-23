@@ -230,6 +230,18 @@ class Model:
             response['meta'] = self.meta
         return response
 
+    async def paginate(self, filter_by):
+        if self.args.limit is not None:
+            self.meta['total'] = await pg.fetchval(self.query.all(
+                filter_by=filter_by, paginate=False, count=True))
+            if filter_by is not None:
+                self.meta['totalFiltered'] = await pg.fetchval(self.query.all(
+                    filter_by=filter_by, paginate=False, count=True))
+
+        if filter_by is not None:
+            self.meta['total'] = await pg.fetchval(self.query.all(
+                paginate=False, count=True))
+
     async def fetch_included(self, data):
 
         if not isinstance(data, list):
@@ -306,29 +318,18 @@ class Model:
         >>> })
 
         :param dict args: a dictionary representing the request query string
-        :param Filter filter_by: a Filter object for row filtering
+        :param Filter filter_by: a Filter object for row filtering (optional)
         :return: a dictionary representing a JSON API response
         """
         self.parse_arguments(args)
         self.init_schema()
         query = self.query.all(filter_by=filter_by, paginate=True)
         recs = [dict(rec) for rec in await pg.fetch(query)]
-
-        if self.args.limit is not None:
-            self.meta['total'] = await pg.fetchval(self.query.all(
-                filter_by=filter_by, paginate=False, count=True))
-            if filter_by is not None:
-                self.meta['totalFiltered'] = await pg.fetchval(self.query.all(
-                    filter_by=filter_by, paginate=False, count=True))
-
-        if filter_by is not None:
-            self.meta['total'] = await pg.fetchval(self.query.all(
-                paginate=False, count=True))
-
+        await self.paginate(filter_by)
         await self.fetch_included(recs)
         return self.response(recs)
 
-    async def get_related(self, args, object_id, relationship_name):
+    async def get_related(self, args, object_id, relationship_name, filter_by=None):
         """
         Fetch a collection of related resources.
 
@@ -342,6 +343,7 @@ class Model:
         :param dict args: a dictionary representing the request query string
         :param object_id: the resource object id
         :param relationship_name: relationship name
+        :param Filter filter_by: a Filter object for row filtering (optional)
         :return: a dictionary representing a JSON API response
         """
 
@@ -358,6 +360,7 @@ class Model:
             data = dict(result) if result is not None else None
         else:
             data = [dict(rec) for rec in await pg.fetch(query)]
+            await rel.model.paginate(filter_by)
         await rel.model.fetch_included(data)
         return rel.model.response(data)
 

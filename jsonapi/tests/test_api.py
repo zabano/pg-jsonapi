@@ -88,7 +88,7 @@ async def test_get_user_1(cli):
 async def test_get_user_1_article_count(cli):
     json = await _get(cli, '/users/1?fields[user]=email,article-count')
     _check_object(json['data'], 'user', 1, 'email', 'articleCount')
-    assert json['data']['attributes']['articleCount'] == 3
+    assert json['data']['attributes']['articleCount'] == 4
 
 
 async def test_get_user_1_name(cli):
@@ -98,16 +98,16 @@ async def test_get_user_1_name(cli):
 
 async def test_get_user_1_articles(cli):
     json = await _get(cli, '/users/1/articles/')
-    assert len(json['data']) == 3
+    assert len(json['data']) == 4
     for rec in json['data']:
-        _check_object(rec, 'article', (11, 12, 14), 'title', 'body')
+        _check_object(rec, 'article', (11, 12, 14, 16), 'title', 'body')
 
 
 async def test_get_articles(cli):
     json = await _get(cli, '/articles/')
     assert len(json['data']) == 5
     for rec in json['data']:
-        _check_object(rec, 'article', (11, 12, 13, 14, 15), 'title', 'body')
+        _check_object(rec, 'article', (11, 12, 13, 14, 15, 16), 'title', 'body')
 
 
 async def test_get_articles_most_resent(cli):
@@ -135,11 +135,11 @@ async def test_get_articles_with_author_article_count(cli):
     json = await _get(cli, '/articles/?include=author&fields[user]=email,article-count')
     assert len(json['data']) == 5
     for rec in json['data']:
-        _check_object(rec, 'article', (11, 12, 13, 14, 15), 'title', 'body')
+        _check_object(rec, 'article', (11, 12, 13, 14, 15, 16), 'title', 'body')
     assert len(json['included']) == 2
     for rec in json['included']:
         _check_object(rec, 'user', (1, 2), 'email', 'articleCount')
-        assert rec['attributes']['articleCount'] in (2, 3)
+        assert rec['attributes']['articleCount'] in (2, 4)
 
 
 async def test_get_article_1_author(cli):
