@@ -35,7 +35,7 @@ def get_primary_key(table):
     return table.primary_key.columns.values()[0]
 
 
-class Cardinality(enum.Enum):
+class Cardinality(enum.IntEnum):
     """
     The cardinality of a relationship between two models.
     """
@@ -217,32 +217,53 @@ class Query:
     def _is_aggregate(self):
         return any(isinstance(field, Aggregate) for field in self._model.schema_fields)
 
-    def _col_list(self, group_by=False):
-        return [field.expr.label(field.name) for field in self._model.schema_fields if
-                isinstance(field, Field if group_by else (Field, Aggregate))]
+    def _col_list(self, group_by=False, search=None):
+        col_list = [field.expr.label(field.name) for field in self._model.schema_fields if
+                    isinstance(field, Field if group_by else (Field, Aggregate))]
+        if self._model.search is not None and search is not None:
+            col_list.append(self._ts_rank_column(search))
+        return col_list
 
     @property
     def columns(self):
         return self._select_from().c
+
+    def _ts_rank_column(self, search):
+        if self._model.search is not None and search is not None:
+            return sa.func.ts_rank_cd(
+                self._model.search.c.tsvector, sa.func.to_tsquery(search)).label('_ts_rank')
 
     def _group_by(self, query, *columns):
         if self._is_aggregate():
             query = query.group_by(*[*self._col_list(group_by=True), *columns])
         return query
 
-    def _sort_by(self, query):
+    def _sort_by(self, query, search=None):
+        if self._model.search is not None and search is not None:
+            return query.order_by(self._ts_rank_column(search).desc())
         return query.order_by(*[getattr(self._model.attributes[name].expr,
                                         'desc' if desc else 'asc')().nullslast() for
                                 name, desc in self._model.args.sort.items()])
 
     def _check_access(self, query):
+
+        if self._model.access is None:
+            return query
+
         if not hasattr(self._model, 'user'):
             raise ModelError('"user" not defined for protected model', self._model)
         if not hasattr(self._model.user, 'id'):
             raise ModelError('"user.id" not defined for protected model', self._model)
         if self._model.user.id is None:
             raise ModelError('"user.id" value missing for protected model', self._model)
+
         return query.where(self._model.access(self._model.primary_key, self._model.user.id))
+
+    def _search(self, query, search):
+        if self._model.search is None or search is None:
+            return query
+        query = query.where(self._model.search.c.tsvector.match(search))
+        return query
 
     def exists(self, resource_id):
         pk = self._model.primary_key
@@ -256,22 +277,25 @@ class Query:
             query = self._check_access(query)
         return query
 
-    def all(self, filter_by=None, paginate=True, count=False):
+    def all(self, filter_by=None, paginate=True, count=False, search=None):
 
-        query = sa.select(self._col_list()).select_from(self._select_from())
+        search_t = self._model.search
+        from_clause = self._select_from(search_t) if search_t is not None else self._select_from()
+        query = sa.select(self._col_list(search=search)).select_from(from_clause)
         query = self._group_by(query)
 
         if not count:
-            query = self._sort_by(query)
+            query = self._sort_by(query, search)
 
         if filter_by is not None:
             query = query.where(filter_by.where)
 
-        if self._model.access is not None:
-            query = self._check_access(query)
+        query = self._check_access(query)
 
         if paginate and self._model.args.limit is not None:
             query = query.offset(self._model.args.offset).limit(self._model.args.limit)
+
+        query = self._search(query, search)
 
         return query.alias('count').count() if count else query
 
@@ -285,8 +309,7 @@ class Query:
         query = self._group_by(query)
         if rel.cardinality in (ONE_TO_MANY, MANY_TO_MANY):
             query = self._sort_by(query)
-        if self._model.access is not None:
-            query = self._check_access(query)
+        query = self._check_access(query)
         return query
 
     def included(self, rel, id_list):
@@ -295,8 +318,7 @@ class Query:
         query = sa.select(self._col_list() + [where_col.label('parent_id')]).select_from(
             self._select_from(rel.fkey.parent.table))
         query = self._group_by(query, where_col)
-        if self._model.access is not None:
-            query = self._check_access(query)
+        query = self._check_access(query)
         return (query.where(where_col.in_(x))
                 for x in (id_list[i:i + SQL_PARAM_LIMIT]
                           for i in range(0, len(id_list), SQL_PARAM_LIMIT)))

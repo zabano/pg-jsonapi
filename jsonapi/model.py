@@ -43,6 +43,10 @@ class JSONSchema(marshmallow.Schema):
             return
 
         resource = dict(id=data['id'], type=orig['type'], attributes=dict())
+
+        if '_ts_rank' in orig:
+            resource['meta'] = dict(rank=orig['_ts_rank'])
+
         for name, field in self.declared_fields.items():
             if name not in ('id', 'type') and not isinstance(field, marshmallow.fields.Nested):
                 resource['attributes'][camelize(name, False)] = data[name]
@@ -305,7 +309,7 @@ class Model:
         await self.fetch_included([rec])
         return self.response(rec)
 
-    async def get_collection(self, args, filter_by=None):
+    async def get_collection(self, args, filter_by=None, search=None):
         """
         Fetch a collection of resources.
 
@@ -319,11 +323,12 @@ class Model:
 
         :param dict args: a dictionary representing the request query string
         :param Filter filter_by: a Filter object for row filtering (optional)
+        :param str search: an optional search term
         :return: a dictionary representing a JSON API response
         """
         self.parse_arguments(args)
         self.init_schema()
-        query = self.query.all(filter_by=filter_by, paginate=True)
+        query = self.query.all(filter_by=filter_by, paginate=True, search=search)
         recs = [dict(rec) for rec in await pg.fetch(query)]
         await self.paginate(filter_by)
         await self.fetch_included(recs)
@@ -366,3 +371,20 @@ class Model:
 
     def __repr__(self):
         return '<Model({})>'.format(self.name)
+
+
+class MixedModel:
+    """
+    A mixed model defines a heterogeneous set of JSON API resources.
+    """
+
+    models = None
+    """
+    A set of resource models
+    """
+
+    search = False
+    """
+    Full-text search support.
+    """
+

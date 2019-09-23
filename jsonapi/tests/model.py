@@ -38,6 +38,7 @@ class ArticleModel(Model):
                            MANY_TO_MANY, 'article_keywords_article_id_fkey'),
               Relationship('comments', 'CommentModel',
                            ONE_TO_MANY, 'articles_article_id_fkey'))
+    search = articles_ts
     access = sa.func.check_article_read_access
     user = current_user
 

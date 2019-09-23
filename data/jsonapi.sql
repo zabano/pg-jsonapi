@@ -37,6 +37,12 @@ CREATE FUNCTION public.check_article_read_access(p_article_id integer, p_user_id
     AS $$
 BEGIN
 
+    -- return true if the user is a global admin
+    PERFORM * FROM users WHERE id = p_user_id AND is_superuser;
+    IF FOUND THEN
+        RETURN TRUE;
+    END IF;
+
     -- return true if the user is the author of the article
     PERFORM *
     FROM articles
@@ -124,6 +130,18 @@ ALTER TABLE public.articles_id_seq OWNER TO jsonapi;
 
 ALTER SEQUENCE public.articles_id_seq OWNED BY public.articles.id;
 
+
+--
+-- Name: articles_ts; Type: TABLE; Schema: public; Owner: jsonapi
+--
+
+CREATE TABLE public.articles_ts (
+    article_id integer NOT NULL,
+    tsvector tsvector NOT NULL
+);
+
+
+ALTER TABLE public.articles_ts OWNER TO jsonapi;
 
 --
 -- Name: comments; Type: TABLE; Schema: public; Owner: jsonapi
@@ -295,6 +313,18 @@ ALTER SEQUENCE public.users_id_seq OWNED BY public.users.id;
 
 
 --
+-- Name: users_ts; Type: TABLE; Schema: public; Owner: jsonapi
+--
+
+CREATE TABLE public.users_ts (
+    user_id integer NOT NULL,
+    tsvector tsvector NOT NULL
+);
+
+
+ALTER TABLE public.users_ts OWNER TO jsonapi;
+
+--
 -- Name: articles id; Type: DEFAULT; Schema: public; Owner: jsonapi
 --
 
@@ -353,10 +383,26 @@ INSERT INTO public.article_read_access VALUES (1, 13);
 --
 
 INSERT INTO public.articles VALUES (13, 2, 'Article 3', 'This is a test.', '2019-08-27 12:03:04.786736', NULL, false);
-INSERT INTO public.articles VALUES (12, 1, 'Article 2', 'This is a test.', '2019-08-26 19:06:04.786736', NULL, false);
-INSERT INTO public.articles VALUES (15, 2, 'Article 5', 'This is a test.', '2019-08-27 18:07:04.786736', NULL, true);
-INSERT INTO public.articles VALUES (14, 1, 'Article 4', 'This is a test.', '2019-08-27 15:04:04.786736', NULL, true);
-INSERT INTO public.articles VALUES (11, 1, 'Article 1', 'This is a test.', '2019-08-25 19:06:04.786736', NULL, true);
+INSERT INTO public.articles VALUES (14, 1, 'Article 4', 'Increasing impression interested expression he my at. Respect invited request charmed me warrant to. Expect no pretty as do though so genius afraid cousin. Girl when of ye snug poor draw. Mistake totally of in chiefly. Justice visitor him entered for. Continue delicate as unlocked entirely mr relation diverted in. Known not end fully being style house. An whom down kept lain name so at easy. ', '2019-08-27 15:04:04.786736', NULL, true);
+INSERT INTO public.articles VALUES (12, 1, 'Article 2', 'Preserved defective offending he daughters on or. Rejoiced prospect yet material servants out answered men admitted. Sportsmen certainty prevailed suspected am as. Add stairs admire all answer the nearer yet length. Advantages prosperous remarkably my inhabiting so reasonably be if. Too any appearance announcing impossible one. Out mrs means heart ham tears shall power every. 
+
+He went such dare good mr fact. The small own seven saved man age ﻿no offer. Suspicion did mrs nor furniture smallness. Scale whole downs often leave not eat. An expression reasonably cultivated indulgence mr he surrounded instrument. Gentleman eat and consisted are pronounce distrusts. 
+', '2019-08-26 19:06:04.786736', NULL, false);
+INSERT INTO public.articles VALUES (11, 1, 'Article 1', 'Effects present letters inquiry no an removed or friends. Desire behind latter me though in. Supposing shameless am he engrossed up additions. My possible peculiar together to. Desire so better am cannot he up before points. Remember mistaken opinions it pleasure of debating. Court front maids forty if aware their at. Chicken use are pressed removed. ', '2019-08-25 19:06:04.786736', NULL, true);
+INSERT INTO public.articles VALUES (15, 2, 'Article 5', 'Indulgence announcing uncommonly met seven continuing seven unpleasing terminated. Now busy say down the shed eyes roof paid her. Of shameless collected suspicion existence in. Share walls stuff think but the arise guest. Course suffer to do he sussex it window advice. Yet matter enable misery end extent common men should. Her indulgence but assistance favourable cultivated everything collecting. ', '2019-08-27 18:07:04.786736', NULL, true);
+INSERT INTO public.articles VALUES (16, 1, 'Article 6', 'Death there seven mirth way the noisy seven. Piqued shy spring nor six though mutual living ask extent. Replying of dashwood advanced ladyship smallest disposal or. Attempt offices own improve now see. Called person are around county talked her esteem. Those fully these way nay thing seems. ', '2019-09-23 00:23:29.962972', NULL, true);
+
+
+--
+-- Data for Name: articles_ts; Type: TABLE DATA; Schema: public; Owner: jsonapi
+--
+
+INSERT INTO public.articles_ts VALUES (13, '''3'':2A ''articl'':1A ''john'':4B ''smith'':3B ''test'':8C');
+INSERT INTO public.articles_ts VALUES (14, '''4'':2A ''afraid'':27C ''articl'':1A ''charm'':15C ''chiefli'':40C ''continu'':46C ''cousin'':28C ''delic'':47C ''divert'':53C ''doe'':3B ''draw'':35C ''easi'':70C ''end'':57C ''enter'':44C ''entir'':50C ''expect'':19C ''express'':8C ''fulli'':58C ''genius'':26C ''girl'':29C ''hous'':61C ''impress'':6C ''increas'':5C ''interest'':7C ''invit'':13C ''jane'':4B ''justic'':41C ''kept'':65C ''known'':55C ''lain'':66C ''mistak'':36C ''mr'':51C ''name'':67C ''poor'':34C ''pretti'':21C ''relat'':52C ''request'':14C ''respect'':12C ''snug'':33C ''style'':60C ''though'':24C ''total'':37C ''unlock'':49C ''visitor'':42C ''warrant'':17C ''ye'':32C');
+INSERT INTO public.articles_ts VALUES (12, '''2'':2A ''add'':27C ''admir'':29C ''admit'':20C ''advantag'':36C ''age'':73C ''announc'':48C ''answer'':18C,31C ''appear'':47C ''articl'':1A ''certainti'':22C ''consist'':101C ''cultiv'':92C ''dare'':63C ''daughter'':9C ''defect'':6C ''distrust'':104C ''doe'':3B ''down'':84C ''eat'':88C,99C ''everi'':59C ''express'':90C ''fact'':66C ''furnitur'':80C ''gentleman'':98C ''good'':64C ''ham'':55C ''heart'':54C ''imposs'':49C ''indulg'':93C ''inhabit'':40C ''instrument'':97C ''jane'':4B ''leav'':86C ''length'':35C ''man'':72C ''materi'':15C ''mean'':53C ''men'':19C ''mr'':65C,94C ''mrs'':52C,78C ''nearer'':33C ''offend'':7C ''offer'':75C ''often'':85C ''one'':50C ''power'':58C ''preserv'':5C ''prevail'':23C ''pronounc'':103C ''prospect'':13C ''prosper'':37C ''reason'':42C,91C ''rejoic'':12C ''remark'':38C ''save'':71C ''scale'':82C ''servant'':16C ''seven'':70C ''shall'':57C ''small'':68C,81C ''sportsmen'':21C ''stair'':28C ''surround'':96C ''suspect'':24C ''suspicion'':76C ''tear'':56C ''went'':61C ''whole'':83C ''yet'':14C,34C ''﻿no'':74C');
+INSERT INTO public.articles_ts VALUES (11, '''1'':2A ''addit'':26C ''articl'':1A ''awar'':53C ''behind'':15C ''better'':34C ''cannot'':36C ''chicken'':56C ''court'':48C ''debat'':47C ''desir'':14C,32C ''doe'':3B ''effect'':5C ''engross'':24C ''forti'':51C ''friend'':13C ''front'':49C ''inquiri'':8C ''jane'':4B ''latter'':16C ''letter'':7C ''maid'':50C ''mistaken'':42C ''opinion'':43C ''peculiar'':29C ''pleasur'':45C ''point'':40C ''possibl'':28C ''present'':6C ''press'':59C ''rememb'':41C ''remov'':11C,60C ''shameless'':21C ''suppos'':20C ''though'':18C ''togeth'':30C ''use'':57C');
+INSERT INTO public.articles_ts VALUES (15, '''5'':2A ''advic'':46C ''announc'':6C ''aris'':36C ''articl'':1A ''assist'':59C ''busi'':15C ''collect'':26C,63C ''common'':53C ''continu'':10C ''cours'':38C ''cultiv'':61C ''enabl'':49C ''end'':51C ''everyth'':62C ''exist'':28C ''extent'':52C ''eye'':20C ''favour'':60C ''guest'':37C ''indulg'':5C,57C ''john'':4B ''matter'':48C ''men'':54C ''met'':8C ''miseri'':50C ''paid'':22C ''roof'':21C ''say'':16C ''seven'':9C,11C ''shameless'':25C ''share'':30C ''shed'':19C ''smith'':3B ''stuff'':32C ''suffer'':39C ''suspicion'':27C ''sussex'':43C ''termin'':13C ''think'':33C ''uncommon'':7C ''unpleas'':12C ''wall'':31C ''window'':45C ''yet'':47C');
+INSERT INTO public.articles_ts VALUES (16, '''6'':2A ''advanc'':26C ''around'':40C ''articl'':1A ''ask'':21C ''attempt'':31C ''call'':37C ''counti'':41C ''dashwood'':25C ''death'':5C ''dispos'':29C ''doe'':3B ''esteem'':44C ''extent'':22C ''fulli'':46C ''improv'':34C ''jane'':4B ''ladyship'':27C ''live'':20C ''mirth'':8C ''mutual'':19C ''nay'':49C ''noisi'':11C ''offic'':32C ''person'':38C ''piqu'':13C ''repli'':23C ''see'':36C ''seem'':51C ''seven'':7C,12C ''shi'':14C ''six'':17C ''smallest'':28C ''spring'':15C ''talk'':42C ''thing'':50C ''though'':18C ''way'':9C,48C');
 
 
 --
@@ -398,8 +444,16 @@ INSERT INTO public.user_names VALUES (2, NULL, 'John', NULL, 'Smith', NULL, NULL
 -- Data for Name: users; Type: TABLE DATA; Schema: public; Owner: jsonapi
 --
 
-INSERT INTO public.users VALUES (1, 'jane.doe@jsonapi.test', '2019-08-27 19:01:00.173736', false, false, '1b04d25168c6cf23f0c65cd86bcd2581abfa1981a4c56eb109f14d013a0ee805', false, 'active', false, NULL);
 INSERT INTO public.users VALUES (2, 'john.smith@jsonapi.test', '2019-08-27 19:02:31.532467', false, false, '1b04d25168c6cf23f0c65cd86bcd2581abfa1981a4c56eb109f14d013a0ee805', false, 'active', false, NULL);
+INSERT INTO public.users VALUES (1, 'jane.doe@jsonapi.test', '2019-08-27 19:01:00.173736', false, false, '1b04d25168c6cf23f0c65cd86bcd2581abfa1981a4c56eb109f14d013a0ee805', false, 'active', false, NULL);
+
+
+--
+-- Data for Name: users_ts; Type: TABLE DATA; Schema: public; Owner: jsonapi
+--
+
+INSERT INTO public.users_ts VALUES (1, '''doe'':2B ''jane'':3B ''jane.doe@jsonapi.test'':1A');
+INSERT INTO public.users_ts VALUES (2, '''john'':3B ''john.smith@jsonapi.test'':1A ''smith'':2B');
 
 
 --
@@ -462,6 +516,22 @@ ALTER TABLE ONLY public.articles
 
 
 --
+-- Name: articles_ts articles_ts_pk; Type: CONSTRAINT; Schema: public; Owner: jsonapi
+--
+
+ALTER TABLE ONLY public.articles_ts
+    ADD CONSTRAINT articles_ts_pk PRIMARY KEY (article_id);
+
+
+--
+-- Name: articles_ts articles_ts_pk_2; Type: CONSTRAINT; Schema: public; Owner: jsonapi
+--
+
+ALTER TABLE ONLY public.articles_ts
+    ADD CONSTRAINT articles_ts_pk_2 UNIQUE (tsvector);
+
+
+--
 -- Name: comments comments_pk; Type: CONSTRAINT; Schema: public; Owner: jsonapi
 --
 
@@ -510,6 +580,14 @@ ALTER TABLE ONLY public.users
 
 
 --
+-- Name: users_ts users_ts_pk; Type: CONSTRAINT; Schema: public; Owner: jsonapi
+--
+
+ALTER TABLE ONLY public.users_ts
+    ADD CONSTRAINT users_ts_pk PRIMARY KEY (user_id);
+
+
+--
 -- Name: article_keywords_article_id_index; Type: INDEX; Schema: public; Owner: jsonapi
 --
 
@@ -528,6 +606,13 @@ CREATE INDEX article_keywords_keyword_id_index ON public.article_keywords USING 
 --
 
 CREATE INDEX articles_author_id_index ON public.articles USING btree (author_id);
+
+
+--
+-- Name: articles_ts_tsvector_index; Type: INDEX; Schema: public; Owner: jsonapi
+--
+
+CREATE INDEX articles_ts_tsvector_index ON public.articles_ts USING btree (tsvector);
 
 
 --
@@ -601,6 +686,13 @@ CREATE INDEX users_status_index ON public.users USING btree (status);
 
 
 --
+-- Name: users_ts_tsvector_index; Type: INDEX; Schema: public; Owner: jsonapi
+--
+
+CREATE INDEX users_ts_tsvector_index ON public.users_ts USING btree (tsvector);
+
+
+--
 -- Name: article_keywords article_keywords_article_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: jsonapi
 --
 
@@ -649,6 +741,14 @@ ALTER TABLE ONLY public.articles
 
 
 --
+-- Name: articles_ts articles_ts_article_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: jsonapi
+--
+
+ALTER TABLE ONLY public.articles_ts
+    ADD CONSTRAINT articles_ts_article_id_fkey FOREIGN KEY (article_id) REFERENCES public.articles(id) ON UPDATE CASCADE ON DELETE CASCADE;
+
+
+--
 -- Name: comments articles_user_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: jsonapi
 --
 
@@ -678,6 +778,14 @@ ALTER TABLE ONLY public.replies
 
 ALTER TABLE ONLY public.user_names
     ADD CONSTRAINT user_names_id_fkey FOREIGN KEY (id) REFERENCES public.users(id) ON DELETE CASCADE;
+
+
+--
+-- Name: users_ts users_ts_user_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: jsonapi
+--
+
+ALTER TABLE ONLY public.users_ts
+    ADD CONSTRAINT users_ts_user_id_fkey FOREIGN KEY (user_id) REFERENCES public.users(id) ON UPDATE CASCADE ON DELETE CASCADE;
 
 
 --

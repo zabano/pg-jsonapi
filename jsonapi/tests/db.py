@@ -1,6 +1,8 @@
-import enum
 import datetime as dt
+import enum
+
 import sqlalchemy as sa
+from sqlalchemy.dialects.postgresql import TSVECTOR
 
 PASSWORD_HASH_LENGTH = 128
 
@@ -47,6 +49,13 @@ user_names_t = sa.Table('user_names', metadata,
                         sa.Column('nickname', sa.Text),
                         sa.UniqueConstraint('first', 'last'))
 
+articles_ts = sa.Table('users_ts', metadata,
+                       sa.Column('user_id', sa.Integer,
+                                 sa.ForeignKey('users.id',
+                                               name='users_ts_article_id_fkey'),
+                                 primary_key=True),
+                       sa.Column('tsvector', TSVECTOR, index=True, nullable=False))
+
 articles_t = sa.Table('articles', metadata,
                       sa.Column('id', sa.Integer, primary_key=True),
                       sa.Column('author_id', sa.Integer,
@@ -59,6 +68,13 @@ articles_t = sa.Table('articles', metadata,
                       sa.Column('updated_on', sa.DateTime(timezone=True)),
                       sa.Column('is_published', sa.Boolean, nullable=False,
                                 default=False, server_default=sa.false()))
+
+articles_ts = sa.Table('articles_ts', metadata,
+                       sa.Column('article_id', sa.Integer,
+                                 sa.ForeignKey('articles.id',
+                                               name='articles_ts_article_id_fkey'),
+                                 primary_key=True),
+                       sa.Column('tsvector', TSVECTOR, index=True, nullable=False))
 
 comments_t = sa.Table('comments', metadata,
                       sa.Column('id', sa.Integer, primary_key=True),
