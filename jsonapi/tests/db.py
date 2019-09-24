@@ -49,7 +49,7 @@ user_names_t = sa.Table('user_names', metadata,
                         sa.Column('nickname', sa.Text),
                         sa.UniqueConstraint('first', 'last'))
 
-articles_ts = sa.Table('users_ts', metadata,
+users_ts = sa.Table('users_ts', metadata,
                        sa.Column('user_id', sa.Integer,
                                  sa.ForeignKey('users.id',
                                                name='users_ts_article_id_fkey'),

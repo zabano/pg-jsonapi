@@ -288,7 +288,7 @@ class Query:
             query = self._sort_by(query, search)
 
         if filter_by is not None:
-            query = query.where(filter_by.where)
+            query = query.where(filter_by.where if isinstance(filter_by, Filter) else filter_by)
 
         query = self._check_access(query)
 
@@ -298,6 +298,13 @@ class Query:
         query = self._search(query, search)
 
         return query.alias('count').count() if count else query
+
+    def search(self, term):
+        search_t = self._model.search
+        query = sa.select([self._model.primary_key, self._ts_rank_column(term)]).select_from(
+            self._select_from(search_t))
+        query = self._search(query, term)
+        return self._check_access(query)
 
     def related(self, resource_id, rel):
         fkey_column = rel.fkey.parent

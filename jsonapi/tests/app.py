@@ -86,5 +86,10 @@ async def search_articles(term):
     return jsonify(await ArticleModel().get_collection(request.args, search=term))
 
 
+@app.route('/search/<term>')
+async def search(term):
+    return jsonify(await SearchModel().search(request.args, term))
+
+
 if __name__ == '__main__':
     app.run()

@@ -4,6 +4,7 @@ from jsonapi.db import ONE_TO_MANY
 from jsonapi.db import ONE_TO_ONE
 from jsonapi.model import Aggregate
 from jsonapi.model import Derived
+from jsonapi.model import MixedModel
 from jsonapi.model import Model
 from jsonapi.model import Relationship
 from jsonapi.tests.auth import current_user
@@ -19,13 +20,13 @@ class UserNameModel(Model):
 class UserModel(Model):
     type_ = 'user'
     from_ = users_t
-
     fields = ('email', 'created_on', 'status',
               Relationship('name', 'UserNameModel',
                            ONE_TO_ONE, 'user_names_id_fkey'),
               Relationship('articles', 'ArticleModel',
                            ONE_TO_MANY, 'articles_author_id_fkey'),
               Aggregate('article_count', articles_t.c.id, sa.func.count))
+    search = users_ts
 
 
 class ArticleModel(Model):
@@ -61,3 +62,7 @@ class ReplyModel(Model):
     type_ = 'reply'
     from_ = replies_t
     fields = 'body', 'created_on', 'updated_on'
+
+
+class SearchModel(MixedModel):
+    models = UserModel, ArticleModel

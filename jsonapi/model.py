@@ -1,8 +1,10 @@
 from collections import defaultdict
 from copy import copy
 from functools import reduce
+from itertools import islice
 
 import marshmallow
+import sqlalchemy as sa
 from asyncpgsa import pg
 from inflection import camelize
 
@@ -383,8 +385,53 @@ class MixedModel:
     A set of resource models
     """
 
-    search = False
-    """
-    Full-text search support.
-    """
+    def __init__(self):
+        models = set()
+        for model in self.models:
+            if isinstance(model, Model):
+                models.add(model)
+            elif issubclass(model, Model):
+                models.add(model())
+            else:
+                raise ModelError('invalid model: {:!r}'.format(model), self)
+        self.models = models
 
+    @property
+    def name(self):
+        return self.__class__.__name__
+
+    async def search(self, args, term):
+
+        args = RequestArguments(args)
+
+        data = list()
+        total = 0
+        for model in self.models:
+            async with pg.query(model.query.search(term)) as cursor:
+                async for row in cursor:
+                    data.append(dict(type=model.type_, id=str(row['id']), rank=row['_ts_rank']))
+                    total += 1
+        data = sorted(data, key=lambda x: x['rank'], reverse=True)
+
+        sliced_data = defaultdict(dict)
+        for rec in islice(data, args.offset, args.offset + args.limit):
+            sliced_data[rec['type']][rec['id']] = rec['rank']
+
+        result = list()
+        for model in self.models:
+            id_list = list(object_id for object_id in sliced_data[model.type_].keys())
+            if len(id_list) > 0:
+                model.parse_arguments({})
+                model.init_schema()
+                result.extend(model.schema.dump(
+                    [{'type': model.type_, **rec} for rec in await pg.fetch(
+                        model.query.all(filter_by=model.primary_key.in_(
+                            [int(object_id) if isinstance(model.primary_key.type, sa.Integer)
+                             else object_id for object_id in id_list]
+                        )))], many=True))
+
+        # todo:: add support for "fields" and "include" request parameters
+
+        return dict(
+            data=sorted(result, key=lambda x: sliced_data[x['type']][x['id']], reverse=True),
+            meta=dict(total=total))
