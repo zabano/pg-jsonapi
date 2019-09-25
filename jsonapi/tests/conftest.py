@@ -4,6 +4,7 @@ import pytest
 
 from jsonapi.tests.app import app
 from jsonapi.tests.db import *
+from jsonapi.tests.data import TOTAL_USERS
 
 
 @pytest.yield_fixture(scope='session')
@@ -22,6 +23,11 @@ def cli():
 @pytest.fixture()
 async def article_count():
     return await pg.fetchval(articles_t.count())
+
+
+@pytest.fixture()
+def user_count():
+    return TOTAL_USERS
 
 
 @pytest.fixture()

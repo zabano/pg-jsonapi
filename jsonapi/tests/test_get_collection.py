@@ -1,7 +1,6 @@
 import pytest
 
 from jsonapi.tests.util import *
-from jsonapi.tests.data import TOTAL_USERS
 
 
 #
@@ -10,10 +9,10 @@ from jsonapi.tests.data import TOTAL_USERS
 
 
 @pytest.mark.asyncio
-async def test_get_users(cli):
+async def test_get_users(cli, user_count):
     json = await get(cli, '/users/')
     assert isinstance(json['data'], list)
-    assert len(json['data']) == TOTAL_USERS
+    assert len(json['data']) == user_count
     check_user(json['data'][0])
     check_user(json['data'][-1])
 
