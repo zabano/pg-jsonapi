@@ -17,7 +17,7 @@ MAX_ARTICLES_PER_USER = 6
 SUPERUSER_MAX_ID = 5  # any user with an id under this value is a superuser
 PUBLISHED_PROBABILITY = 0.90
 COMMENT_PROBABILITY_PER_USER = 0.02
-REPLY_PROBABILITY_PER_COMMENT = 75.0
+REPLY_PROBABILITY_PER_COMMENT = 0.75
 MAX_COMMENT_REPLIES = 3
 SQL_INSERT_LIMIT = 1000
 
@@ -51,7 +51,7 @@ async def populate_test_db():
         await conn.fetchrow('TRUNCATE TABLE keywords CASCADE')
 
         #
-        # Populate user data
+        # populate user data
         #
 
         logger.info('generating user data ...')
@@ -145,10 +145,6 @@ async def populate_test_db():
 
         logger.info('creating {:,d} comment records ...'.format(len(comment_data)))
         await insert_data(conn, comments_t, comment_data)
-
-        #
-        #
-        #
 
         # replies
 
