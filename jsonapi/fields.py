@@ -50,7 +50,7 @@ class BaseField:
             return self.data_type
 
         args = list()
-        if self.data_type == DateTime:
+        if issubclass(self.data_type, marshmallow.fields.DateTime):
             args = ['%Y-%m-%dT%H:%M:%SZ']
         return self.data_type(*args)
 

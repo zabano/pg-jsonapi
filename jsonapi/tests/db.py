@@ -118,3 +118,14 @@ article_keywords_t = sa.Table('article_keywords', metadata,
                                                       ondelete='CASCADE',
                                                       name='article_keywords_keyword_id_fkey')),
                               sa.PrimaryKeyConstraint('article_id', 'keyword_id'))
+
+article_read_access_t = sa.Table('article_read_access', metadata,
+                              sa.Column('article_id', sa.Integer,
+                                        sa.ForeignKey('articles.id',
+                                                      ondelete='CASCADE',
+                                                      name='article_read_access_article_id_fkey')),
+                              sa.Column('user_id', sa.Integer,
+                                        sa.ForeignKey('users.id',
+                                                      ondelete='CASCADE',
+                                                      name='article_read_access_user_id_fkey')),
+                              sa.PrimaryKeyConstraint('article_id', 'user_id'))

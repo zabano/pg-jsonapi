@@ -1,22 +1,22 @@
-import random
 import logging
+import random
 
 import faker
 from werkzeug.security import generate_password_hash
 
+from jsonapi.tests import coroutine
 from jsonapi.tests.db import *
-from jsonapi import coroutine
 
 logging.basicConfig(format='[%(asctime)s] %(levelname)s: %(message)s')
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.INFO)
 
 RANDOM_SEED = 1980
-TOTAL_USERS = 500
+TOTAL_USERS = 1000
 MAX_ARTICLES_PER_USER = 6
 SUPERUSER_MAX_ID = 5  # any user with an id under this value is a superuser
 PUBLISHED_PROBABILITY = 0.90
-COMMENT_PROBABILITY_PER_USER = 0.02
+COMMENT_PROBABILITY_PER_USER = 0.03  # probability of commenting on published articles
 REPLY_PROBABILITY_PER_COMMENT = 0.75
 MAX_COMMENT_REPLIES = 3
 SQL_INSERT_LIMIT = 1000
@@ -40,7 +40,7 @@ async def populate_test_db():
         logger.info('start populating test database')
 
         #
-        # Truncate all tables
+        # truncate all tables
         #
 
         logger.info('truncating user data ...')
@@ -128,11 +128,12 @@ async def populate_test_db():
         comment_id = 0
         for user_id in user_data.keys():
             for article_id in article_data.keys():
+                article = article_data[article_id]
                 comment_probability = random.uniform(0, 1)
-                if comment_probability <= COMMENT_PROBABILITY_PER_USER:
+                if comment_probability <= COMMENT_PROBABILITY_PER_USER and article['is_published']:
                     comment_id += 1
                     user_dt = user_data[user_id]['created_on']
-                    article_dt = article_data[article_id]['created_on']
+                    article_dt = article['created_on']
                     created_on_start = user_dt if user_dt > article_dt else article_dt
                     comment_data[comment_id] = dict(
                         id=comment_id,
@@ -168,6 +169,41 @@ async def populate_test_db():
 
         logger.info('creating {:,d} reply records ...'.format(len(reply_data)))
         await insert_data(conn, replies_t, reply_data)
+
+        #
+        # grant read access
+        #
+
+        read_access_data = dict()
+
+        # grant access to all users who commented on an article
+        for comment in comment_data.values():
+            article_id = comment['article_id']
+            user_id = comment['user_id']
+            author_id = article_data[article_id]['author_id']
+            if user_id != author_id:
+                read_access_data[(article_id, user_id)] = dict(
+                    article_id=article_id, user_id=user_id)
+
+        # grant access to all users who replied to comments on an article
+        for reply in reply_data:
+            article_id = comment_data[reply['comment_id']]['article_id']
+            user_id = reply['user_id']
+            author_id = article_data[article_id]['author_id']
+            if user_id != author_id:
+                read_access_data[(article_id, user_id)] = dict(
+                    article_id=article_id, user_id=user_id)
+
+        # grant access to all other random users
+        for article in article_data.values():
+            users = random.sample(user_data.keys(), random.randint(0, TOTAL_USERS / 20))
+            if article['author_id'] in users:
+                users.remove(article['author_id'])
+            read_access_data[(article_id, user_id)] = dict(
+                article_id=article_id, user_id=user_id)
+
+        logger.info('creating {:,d} read permission records ...'.format(len(read_access_data)))
+        await insert_data(conn, article_read_access_t, read_access_data)
 
     #
     # done

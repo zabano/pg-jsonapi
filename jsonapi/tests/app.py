@@ -10,6 +10,8 @@ from jsonapi.model import MIME_TYPE
 from jsonapi.model import get_error_object
 from jsonapi.tests.model import *
 from jsonapi.tests.db import init_db
+from jsonapi.tests.auth import login
+from jsonapi.tests.auth import logout
 
 app = Quart('jsonapi-test')
 app.config['JSONIFY_MIMETYPE'] = MIME_TYPE
@@ -25,6 +27,15 @@ if 'JSONAPI_DEBUG' in os.environ:
 @app.before_first_request
 async def init():
     await init_db()
+
+
+@app.before_request
+async def login_user():
+    if 'JSONAPI_LOGIN' in os.environ:
+        user_id = os.environ['JSONAPI_LOGIN']
+        login(user_id)
+    else:
+        logout()
 
 
 @app.errorhandler(500)

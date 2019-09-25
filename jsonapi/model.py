@@ -354,9 +354,12 @@ class Model:
         :return: a dictionary representing a JSON API response
         """
 
+        if not await pg.fetchval(self.query.exists(object_id)):
+            raise NotFound(object_id, self)
+
         result = await pg.fetchrow(self.query.get(object_id))
         if result is None:
-            raise NotFound(object_id, self)
+            raise Forbidden(object_id, self)
 
         rel = self.get_relationship(relationship_name)
         rel.model.parse_arguments(args)

@@ -252,12 +252,9 @@ class Query:
 
         if not hasattr(self._model, 'user'):
             raise ModelError('"user" not defined for protected model', self._model)
-        if not hasattr(self._model.user, 'id'):
-            raise ModelError('"user.id" not defined for protected model', self._model)
-        if self._model.user.id is None:
-            raise ModelError('"user.id" value missing for protected model', self._model)
 
-        return query.where(self._model.access(self._model.primary_key, self._model.user.id))
+        return query.where(self._model.access(
+            self._model.primary_key, self._model.user.id if self._model.user else None))
 
     def _search(self, query, search):
         if self._model.search is None or search is None:
