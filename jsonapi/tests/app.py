@@ -1,7 +1,6 @@
 import logging
 import os
 
-from asyncpgsa import pg
 from quart import Quart
 from quart import jsonify
 from quart import request
@@ -10,6 +9,7 @@ from jsonapi.db import Filter
 from jsonapi.model import MIME_TYPE
 from jsonapi.model import get_error_object
 from jsonapi.tests.model import *
+from jsonapi.tests.db import init_db
 
 app = Quart('jsonapi-test')
 app.config['JSONIFY_MIMETYPE'] = MIME_TYPE
@@ -24,7 +24,7 @@ if 'JSONAPI_DEBUG' in os.environ:
 
 @app.before_first_request
 async def init():
-    await pg.init(database='jsonapi', user='jsonapi', password='jsonapi', min_size=5, max_size=10)
+    await init_db()
 
 
 @app.errorhandler(500)

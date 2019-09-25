@@ -1,4 +1,20 @@
+import asyncio
+import uvloop
+from functools import update_wrapper
+
 from jsonapi.datatypes import *
 from jsonapi.fields import *
 from jsonapi.model import *
 from jsonapi.db import *
+
+asyncio.set_event_loop_policy(uvloop.EventLoopPolicy())
+
+
+def coroutine(f):
+    f = asyncio.coroutine(f)
+
+    def wrapper(*args, **kwargs):
+        loop = asyncio.get_event_loop()
+        return loop.run_until_complete(f(*args, **kwargs))
+
+    return update_wrapper(wrapper, f)
