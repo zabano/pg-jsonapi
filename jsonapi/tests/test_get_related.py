@@ -67,3 +67,9 @@ async def test_get_user_2_articles_as_superuser(cli, superuser_id, user_2_id):
     for article in json['data']:
         check_article(article)
 
+
+@pytest.mark.asyncio
+async def test_get_article_1_author_as_superuser(cli, superuser_id):
+    json = await get(cli, '/articles/1/author', 200, superuser_id)
+    assert isinstance(json['data'], dict)
+    check_user(json['data'])

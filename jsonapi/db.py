@@ -13,6 +13,7 @@ import sqlalchemy as sa
 from sqlalchemy.sql.elements import BinaryExpression
 from sqlalchemy.sql.elements import BooleanClauseList
 from sqlalchemy.sql.selectable import Alias
+from sqlalchemy.exc import AmbiguousForeignKeysError
 
 from jsonapi.exc import Error
 from jsonapi.exc import ModelError
@@ -304,12 +305,13 @@ class Query:
         return self._check_access(query)
 
     def related(self, resource_id, rel):
-        fkey_column = rel.fkey.parent
-        pkey_column = get_primary_key(fkey_column.table)
+        pkey_column = get_primary_key(rel.fkey.parent.table)
         where_col = pkey_column if rel.cardinality in (ONE_TO_ONE, MANY_TO_ONE) \
-            else fkey_column
-        query = sa.select(self._col_list()).select_from(self._select_from(fkey_column.table)).where(
-            where_col == resource_id)
+            else rel.fkey.parent
+        query = sa.select(self._col_list()).select_from(self._select_from(
+            FromItem(rel.fkey.parent.table,
+                     onclause=rel.fkey.column == rel.fkey.parent,
+                     left=True))).where(where_col == resource_id)
         query = self._group_by(query)
         if rel.cardinality in (ONE_TO_MANY, MANY_TO_MANY):
             query = self._sort_by(query)

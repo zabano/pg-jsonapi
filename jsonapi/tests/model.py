@@ -35,6 +35,8 @@ class ArticleModel(Model):
     fields = ('title', 'body', 'created_on', 'updated_on', 'is_published',
               Relationship('author', 'UserModel',
                            MANY_TO_ONE, 'articles_author_id_fkey'),
+              Relationship('published_by', 'UserModel',
+                           MANY_TO_ONE, 'articles_published_by_fkey'),
               Relationship('keywords', 'KeywordModel',
                            MANY_TO_MANY, 'article_keywords_article_id_fkey'),
               Relationship('comments', 'CommentModel',
