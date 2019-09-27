@@ -37,6 +37,12 @@ def assert_attribute(json, name, validator=None):
         assert validator(attributes[name]) is True
 
 
+def assert_attribute_does_not_exist(json, name):
+    assert 'attributes' in json
+    attributes = json['attributes']
+    assert name not in attributes
+
+
 def assert_relationship(json, name, length):
     assert 'relationships' in json
     relationships = json['relationships']
@@ -44,12 +50,13 @@ def assert_relationship(json, name, length):
     assert len(relationships[name]) == length
 
 
-def assert_error(json, status, text):
+def assert_error(json, status, text=None):
     assert 'errors' in json
     assert len(json['errors']) == 1
     error = json['errors'][0]
     assert error['status'] == int(status)
-    assert error['title'] is not None and text in error['title'].lower()
+    if text is not None:
+        assert error['title'] is not None and text in error['title'].lower()
 
 
 def get_relationship(json, name):
@@ -59,6 +66,10 @@ def get_relationship(json, name):
 def is_date(v):
     return v is not None and \
            re.match('[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z$', v) is not None
+
+
+def is_positive(v):
+    return isinstance(v, int) and v >= 0
 
 
 def check_user(user, user_id=None):

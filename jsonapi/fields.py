@@ -78,18 +78,18 @@ class Aggregate(BaseField):
     along with one or more from items to add to the model's from clause.
     """
 
-    def __init__(self, name, expr, func, data_type=Integer):
+    def __init__(self, name, rel_name, func, data_type=Integer):
         """
-        :param str name: relationship name
-        :param expr: SQLAlchemy column expression (ex. articles_t.c.id)
+        :param str name: field name
+        :param rel_name: relationship name
         :param func: SQLAlchemy aggregate function (ex. sa.func.count)
-        :param DataType data_type: one of the supported field types
+        :param DataType data_type: one of the supported data types (optional)
         """
-        super().__init__(name, expr, data_type)
-
-        # create an alias table, and count using the alias's column
-        self.from_alias = expr.table.alias('{}_alias_for_{}'.format(name, expr.table.name))
-        self.expr = func(getattr(self.from_alias.c, expr.name).distinct())
+        super().__init__(name, expr=None, data_type=data_type)
+        self.func = func
+        self.rel_name = rel_name
+        self.rel = None
+        self.from_items = None
 
 
 class Derived(BaseField):

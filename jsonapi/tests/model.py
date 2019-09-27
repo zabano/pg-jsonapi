@@ -25,7 +25,7 @@ class UserModel(Model):
                            ONE_TO_ONE, 'user_names_id_fkey'),
               Relationship('articles', 'ArticleModel',
                            ONE_TO_MANY, 'articles_author_id_fkey'),
-              Aggregate('article_count', articles_t.c.id, sa.func.count))
+              Aggregate('article_count', 'articles', sa.func.count))
     search = users_ts
 
 
@@ -40,7 +40,10 @@ class ArticleModel(Model):
               Relationship('keywords', 'KeywordModel',
                            MANY_TO_MANY, 'article_keywords_article_id_fkey'),
               Relationship('comments', 'CommentModel',
-                           ONE_TO_MANY, 'articles_article_id_fkey'))
+                           ONE_TO_MANY, 'articles_article_id_fkey'),
+              Aggregate('keyword_count', 'keywords', sa.func.count),
+              Aggregate('comment_count', 'comments', sa.func.count),
+              Aggregate('author_count', 'author', sa.func.count))
     search = articles_ts
     access = sa.func.check_article_read_access
     user = current_user
@@ -57,7 +60,8 @@ class CommentModel(Model):
     from_ = comments_t
     fields = ('body', 'created_on', 'updated_on',
               Relationship('author', 'UserModel', MANY_TO_ONE, 'articles_user_id_fkey'),
-              Relationship('replies', 'ReplyModel', ONE_TO_MANY, 'replies_comment_id_fkey'))
+              Relationship('replies', 'ReplyModel', ONE_TO_MANY, 'replies_comment_id_fkey'),
+              Aggregate('reply_count', 'replies', sa.func.count))
 
 
 class ReplyModel(Model):

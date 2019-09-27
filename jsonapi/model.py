@@ -11,6 +11,7 @@ from inflection import camelize
 from jsonapi.datatypes import String
 from jsonapi.db import Cardinality
 from jsonapi.db import FromClause
+from jsonapi.db import FromItem
 from jsonapi.db import Query
 from jsonapi.db import get_primary_key
 from jsonapi.exc import APIError
@@ -23,6 +24,7 @@ from jsonapi.fields import Field
 from jsonapi.fields import Relationship
 from jsonapi.registry import model_registry
 from jsonapi.registry import schema_registry
+from jsonapi.registry import alias_registry
 from jsonapi.util import RequestArguments
 
 MIME_TYPE = 'application/vnd.api+json'
@@ -173,6 +175,29 @@ class Model:
     def parse_arguments(self, args):
         self.args = RequestArguments(args)
 
+    def _load_aggregate_field(self, field):
+        field.rel = self.get_relationship(field.rel_name)
+        pkey = field.rel.model.primary_key
+        fkey = field.rel.fkey
+        alias_name = '{}_alias_for_{}'.format(field.rel.name, field.name)
+        if alias_name in alias_registry:
+            alias = alias_registry[alias_name]
+        else:
+            alias = pkey.table.alias()
+        alias_pkey = getattr(alias.c, pkey.name)
+        field.expr = field.func(alias_pkey.distinct())
+        if field.rel.cardinality == Cardinality.MANY_TO_MANY:
+            field.from_items = FromItem(alias, left=True), \
+                               FromItem(fkey.parent.table, left=True)
+        elif field.rel.cardinality == Cardinality.ONE_TO_MANY:
+            field.from_items = FromItem(
+                alias,
+                fkey.column == getattr(alias.c, fkey.parent.name),
+                left=True),
+        else:
+            raise APIError('aggregate field support only TO_MANY '
+                           'relationships: "{}"'.format(field.name), self)
+
     def init_schema(self, args=None):
 
         if args is not None:
@@ -204,6 +229,7 @@ class Model:
             elif isinstance(field, Aggregate):
                 if in_fieldset:
                     field.exclude = in_sort and fieldset_defined and not in_fieldset
+                    self._load_aggregate_field(field)
                     self.schema_fields.append(field)
 
             elif isinstance(field, Relationship):
