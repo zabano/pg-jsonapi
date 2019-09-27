@@ -2,6 +2,9 @@ import enum
 import marshmallow
 
 
+DATETIME_FORMAT = '%Y-%m-%dT%H:%M:%SZ'
+
+
 class DataType(enum.Enum):
     """
     Field data types.

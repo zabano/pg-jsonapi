@@ -48,11 +48,11 @@ class RequestArguments:
 
         if 'sort' in args:
             for sort_spec in args['sort'].split(','):
-                desc, name = re.search('([-+]?)(.+)', sort_spec).groups()
+                order, name = re.search('([-+]?)(.+)', sort_spec).groups()
                 if '.' in name:
                     raise Error('"sort" parameter does not support '
                                 'dot notation: "{}"'.format(name))
-                self.sort[inflection.underscore(name)] = (desc == '-')
+                self.sort[inflection.underscore(name).strip()] = (order == '-')
 
         #
         # page

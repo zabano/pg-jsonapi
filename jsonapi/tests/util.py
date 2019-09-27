@@ -1,8 +1,34 @@
 import os
 import re
+from urllib.parse import quote
+from datetime import datetime as dt
+from jsonapi.datatypes import DATETIME_FORMAT
+
+
+def _parse_url_object(url):
+    url_string = url.pop('url', '/')
+    if len(url) == 0:
+        return url_string
+    fields = list()
+    for name1, val1 in url.items():
+        if isinstance(val1, dict):
+            for name2, val2 in val1.items():
+                fields.append('{}[{}]={}'.format(name1, name2, quote(val2)))
+        else:
+            fields.append('{}={}'.format(name1, quote(val1)))
+    return '{}?{}'.format(url_string, '&'.join(fields))
 
 
 async def get(cli, url, status=200, user_id=None):
+    """
+    Perform a GET request.
+
+    :param cli: http client instant
+    :param mixed url: url string or object
+    :param status: expected http status code
+    :param user_id: user_id to use for login
+    :return:
+    """
 
     if user_id is None:
         if 'JSONAPI_LOGIN' in os.environ:
@@ -10,12 +36,18 @@ async def get(cli, url, status=200, user_id=None):
     else:
         os.environ['JSONAPI_LOGIN'] = str(user_id)
 
-    response = await cli.get(url)
+    url_string = _parse_url_object(url) if isinstance(url, dict) else str(url)
+    response = await cli.get(url_string)
     assert response.status_code == status
     json = await response.json
     if status == 200:
         assert 'data' in json
     return json
+
+
+def parse_datetime(datetime):
+    if datetime is not None:
+        return dt.strptime(datetime, DATETIME_FORMAT)
 
 
 def assert_object(json, object_type, object_id=None):

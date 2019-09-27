@@ -11,6 +11,7 @@ from .datatypes import String
 from .datatypes import Date
 from .datatypes import DateTime
 from .datatypes import Time
+from .datatypes import DATETIME_FORMAT
 
 
 class BaseField:
@@ -51,7 +52,7 @@ class BaseField:
 
         args = list()
         if issubclass(self.data_type, marshmallow.fields.DateTime):
-            args = ['%Y-%m-%dT%H:%M:%SZ']
+            args = [DATETIME_FORMAT]
         return self.data_type(*args)
 
     def __repr__(self):

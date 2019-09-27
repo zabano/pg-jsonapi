@@ -216,19 +216,19 @@ class Model:
             if isinstance(field, str):
                 if name not in columns:
                     raise ModelError('field: "{}" not found'.format(name), self)
-                if not fieldset_defined or in_fieldset:
+                if not fieldset_defined or in_fieldset or in_sort:
                     field = Field(field, columns[field])
                     field.exclude = in_sort and fieldset_defined and not in_fieldset
                     self.schema_fields.append(field)
 
             elif isinstance(field, (Field, Derived)):
-                if not fieldset_defined or in_fieldset:
+                if not fieldset_defined or in_fieldset or in_sort:
                     field.exclude = in_sort and fieldset_defined and not in_fieldset
                     self.schema_fields.append(field)
 
             elif isinstance(field, Aggregate):
-                if in_fieldset:
-                    field.exclude = in_sort and fieldset_defined and not in_fieldset
+                if in_fieldset or in_sort:
+                    field.exclude = in_sort and not (fieldset_defined and in_fieldset)
                     self._load_aggregate_field(field)
                     self.schema_fields.append(field)
 

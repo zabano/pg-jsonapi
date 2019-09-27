@@ -6,7 +6,11 @@ from jsonapi.tests.util import *
 @pytest.mark.asyncio
 async def test_fields_get_articles_as_user_1(cli, user_1_id):
     qs = 'fields[article]=title'
-    json = await get(cli, '/articles/?{}'.format(qs), 200, user_1_id)
+    json = await get(cli, dict(
+        url='/articles/',
+        fields=dict(
+            article='title'
+        )), 200, user_1_id)
     assert isinstance(json['data'], list)
     assert len(json['data']) > 0
     for article in json['data']:
@@ -20,8 +24,13 @@ async def test_fields_get_articles_as_user_1(cli, user_1_id):
 
 @pytest.mark.asyncio
 async def test_fields_get_articles_and_authors_as_user_1(cli, user_1_id):
-    qs = 'include=author&fields[article]=title,created-on&fields[user]=email,article-count'
-    json = await get(cli, '/articles/?{}'.format(qs), 200, user_1_id)
+    json = await get(cli, dict(
+        url='/articles/',
+        include='author',
+        fields=dict(
+            article='title,created-on',
+            user='email,article-count'
+        )), 200, user_1_id)
     assert isinstance(json['data'], list)
     assert len(json['data']) > 0
     for article in json['data']:
