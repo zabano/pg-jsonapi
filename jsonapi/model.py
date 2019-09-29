@@ -3,28 +3,15 @@ from copy import copy
 from functools import reduce
 from itertools import islice
 
-import marshmallow
 import sqlalchemy as sa
 from asyncpgsa import pg
 from inflection import camelize
 
-from jsonapi.datatypes import String
-from jsonapi.db import Cardinality
-from jsonapi.db import FromClause
-from jsonapi.db import FromItem
-from jsonapi.db import Query
-from jsonapi.db import get_primary_key
-from jsonapi.exc import APIError
-from jsonapi.exc import Forbidden
-from jsonapi.exc import ModelError
-from jsonapi.exc import NotFound
-from jsonapi.fields import Aggregate
-from jsonapi.fields import Derived
-from jsonapi.fields import Field
-from jsonapi.fields import Relationship
-from jsonapi.registry import model_registry
-from jsonapi.registry import schema_registry
-from jsonapi.registry import alias_registry
+from jsonapi.datatypes import *
+from jsonapi.db import Cardinality, Filter, FromClause, FromItem, Query, get_primary_key
+from jsonapi.exc import APIError, Error, Forbidden, ModelError, NotFound
+from jsonapi.fields import Aggregate, Derived, Field, Relationship
+from jsonapi.registry import alias_registry, model_registry, schema_registry
 from jsonapi.util import RequestArguments
 
 MIME_TYPE = 'application/vnd.api+json'
@@ -172,6 +159,25 @@ class Model:
                 return field
         return ModelError('relationship does not exist: "{}"'.format(name), self)
 
+    def get_attribute(self, name):
+
+        if name == 'id':
+            return Field('id', self.primary_key, String)
+
+        for field in self.fields:
+            if not isinstance(field, Relationship):
+                if isinstance(field, str):
+                    if field == name:
+                        columns = {col.name: col for col in self.query.columns}
+                        if name not in columns:
+                            raise ModelError('database column: "{}" not found'.format(name), self)
+                        field = Field(field, columns[field])
+                        return field
+                elif name == field.name:
+                    return field
+
+        raise ModelError('attribute does not exist: "{}"'.format(name), self)
+
     def parse_arguments(self, args):
         self.args = RequestArguments(args)
 
@@ -203,8 +209,7 @@ class Model:
         if args is not None:
             self.args = args
 
-        self.schema_fields = [Field('id', self.primary_key, String)]
-        columns = {col.name: col for col in self.query.columns}
+        self.schema_fields = [self.get_attribute('id')]
         for field in self.fields:
 
             name = field if isinstance(field, str) else field.name
@@ -212,23 +217,22 @@ class Model:
             fieldset_defined = self.args.fieldset_defined(self.type_)
             in_fieldset = self.args.in_fieldset(self.type_, name)
             in_sort = self.args.in_sort(name)
+            in_filter = self.args.in_filter(name)
 
             if isinstance(field, str):
-                if name not in columns:
-                    raise ModelError('field: "{}" not found'.format(name), self)
-                if not fieldset_defined or in_fieldset or in_sort:
-                    field = Field(field, columns[field])
-                    field.exclude = in_sort and fieldset_defined and not in_fieldset
+                if not fieldset_defined or in_fieldset or in_sort or in_filter:
+                    field = self.get_attribute(name)
+                    field.exclude = (in_sort or in_filter) and fieldset_defined and not in_fieldset
                     self.schema_fields.append(field)
 
             elif isinstance(field, (Field, Derived)):
-                if not fieldset_defined or in_fieldset or in_sort:
-                    field.exclude = in_sort and fieldset_defined and not in_fieldset
+                if not fieldset_defined or in_fieldset or in_sort or in_filter:
+                    field.exclude = (in_sort or in_filter) and fieldset_defined and not in_fieldset
                     self.schema_fields.append(field)
 
             elif isinstance(field, Aggregate):
-                if in_fieldset or in_sort:
-                    field.exclude = in_sort and not (fieldset_defined and in_fieldset)
+                if in_fieldset or in_sort or in_filter:
+                    field.exclude = (in_sort or in_filter) and not (fieldset_defined and in_fieldset)
                     self._load_aggregate_field(field)
                     self.schema_fields.append(field)
 
@@ -273,6 +277,16 @@ class Model:
         if filter_by is not None:
             self.meta['total'] = await pg.fetchval(self.query.all(
                 paginate=False, count=True))
+
+    def get_filter(self, args):
+        filter_by = Filter()
+        for key, arg in self.args.filter.items():
+            attr = self.get_attribute(arg['name'])
+            try:
+                filter_by.add(attr, arg['op'], args[key])
+            except Error as e:
+                raise APIError('filter:{} | {}'.format(attr.name, e), self)
+        return filter_by
 
     async def fetch_included(self, data):
 
@@ -356,6 +370,7 @@ class Model:
         """
         self.parse_arguments(args)
         self.init_schema()
+        filter_by = self.get_filter(args)
         query = self.query.all(filter_by=filter_by, paginate=True, search=search)
         recs = [dict(rec) for rec in await pg.fetch(query)]
         await self.paginate(filter_by)

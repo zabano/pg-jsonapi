@@ -5,21 +5,33 @@ The :mod:`jsonapi.db` module provides an interface to the database layer.
 """
 
 import enum
+import operator
+import re
 from collections.abc import MutableSequence
 from copy import copy
+from datetime import datetime as dt
 from functools import reduce
 
 import sqlalchemy as sa
-from sqlalchemy.sql.elements import BinaryExpression
-from sqlalchemy.sql.elements import BooleanClauseList
+from sqlalchemy.sql.elements import BinaryExpression, BooleanClauseList
 from sqlalchemy.sql.selectable import Alias
-from sqlalchemy.exc import AmbiguousForeignKeysError
 
-from jsonapi.exc import Error
-from jsonapi.exc import ModelError
-from jsonapi.fields import Field, Aggregate
+from jsonapi.exc import APIError, Error, ModelError
+from jsonapi.fields import Aggregate, Field
 
 SQL_PARAM_LIMIT = 10000
+
+DATETIME_FORMATS = ('%Y-%m-%dT%H:%M:%SZ', '%Y-%m-%dT%H:%M:%S', '%Y-%m-%dT%H:%M', '%Y-%m-%d', '%Y-%m')
+DATE_FORMATS = ('%Y-%m-%d', '%Y-%m')
+TIME_FORMATS = ('%H:%M:%SZ', '%H:%M')
+
+TRUE_VALUES = ('t', 'true', 'on', '1')
+FALSE_VALUES = ('f', 'false', 'off', '0')
+NULL_VALUES = ('null', 'none', 'na')
+
+OPERATORS = ('', 'eq', 'ne', 'gt', 'ge', 'lt', 'le')
+MODIFIERS = {'=': operator.eq, '<>': operator.ne, '!=': operator.ne,
+             '>=': operator.ge, '<=': operator.le, '>': operator.gt, '<': operator.lt}
 
 
 def get_primary_key(table):
@@ -53,11 +65,171 @@ ONE_TO_MANY = Cardinality.ONE_TO_MANY
 MANY_TO_MANY = Cardinality.MANY_TO_MANY
 
 
+class FilterClause:
+
+    def __init__(self, **options):
+
+        operators = list()
+        for op in options.pop('operators', tuple()):
+            if op not in OPERATORS:
+                raise ValueError('[FilterExpression] invalid op: {}'.format(op))
+            operators.append(op)
+        self.operators = tuple(operators)
+
+        self.decoder = options.pop('decoder', None)
+        if self.decoder is None:
+            self.decoder = lambda x: x
+
+        self.multiple = options.pop('multiple', None)
+
+    def parse_values(self, val):
+        if any(symbol in val for symbol in MODIFIERS):
+            values = list()
+            for v in val.split(','):
+                match = re.match('({})?(\w+)'.format('|'.join(MODIFIERS)), v)
+                if match:
+                    mod = '=' if not match[1] else match[1]
+                    values.append((mod, self.decoder(match[2])))
+            return values
+        else:
+            return [('=', self.decoder(v)) for v in val.split(',')]
+
+    def __call__(self, expr, op, val):
+
+        #
+        # multiple values
+        #
+        if ',' in val:
+            if self.multiple is None:
+                raise Error('multiple values not supported')
+            if op != '' and op not in self.multiple.keys():
+                raise Error('invalid operator: {}'.format(op))
+
+            values = self.parse_values(val)
+            if all(mod == '=' for mod, _ in values):
+                if op in ('', 'eq'):
+                    return expr.in_(val for _, val in values)
+                elif op == 'ne':
+                    return expr.notin_(val for _, val in values)
+                else:
+                    raise Error('invalid operator: {}')
+            else:
+                expressions = list()
+                for mod, val in values:
+                    if val in (True, False, None):
+                        if mod == '=':
+                            expressions.append(expr.is_(val))
+                        elif mod in ('!=', '<>'):
+                            expressions.append(expr.isnot(val))
+                        else:
+                            raise Error('invalid modifier: {}'.format(mod))
+                    else:
+                        expressions.append(MODIFIERS[mod](expr, val))
+                return sa.or_(*expressions)
+
+        #
+        # single values
+        #
+        else:
+            if op not in self.operators:
+                raise Error('invalid operator: {}'.format(op))
+            if op == '':
+                op = 'eq'
+
+            v = self.decoder(val)
+            if v in (True, False, None):
+                if op == 'eq':
+                    return expr.is_(v)
+                if op == 'ne':
+                    return expr.isnot(v)
+                raise Error('invalid operator: {}'.format(op))
+            return getattr(operator, op)(expr, v)
+
+
 class Filter:
 
-    def __init__(self, where, *from_items):
-        self.where = where
+    def __init__(self, where=None, *from_items):
+        self.where = list(where) if where is not None else list()
         self.from_items = tuple(from_items)
+        self.having = list()
+
+    @staticmethod
+    def bool(val):
+        if val.lower() in NULL_VALUES:
+            return
+        if val.lower() not in TRUE_VALUES and val.lower() not in FALSE_VALUES:
+            raise Error('invalid value: {}'.format(val))
+        return val.lower() in TRUE_VALUES
+
+    @staticmethod
+    def int(val):
+        if val.lower() in NULL_VALUES:
+            return
+        try:
+            return int(val)
+        except ValueError:
+            raise Error('invalid value: {}'.format(val))
+
+    @staticmethod
+    def float(val):
+        if val.lower() in NULL_VALUES:
+            return
+        try:
+            return float(val)
+        except ValueError:
+            raise Error('invalid value: {}'.format(val))
+
+    @staticmethod
+    def date(val):
+        if val.lower() in NULL_VALUES:
+            return
+        fmt = {len(fmt) + 2: fmt for fmt in DATE_FORMATS}
+        if len(val) not in fmt:
+            raise Error('invalid value: {}'.format(val))
+        return dt.strptime(val, fmt[len(val)])
+
+    @staticmethod
+    def time(val):
+        if val.lower() in NULL_VALUES:
+            return
+        fmt = {len(fmt): fmt for fmt in TIME_FORMATS}
+        if len(val) not in fmt:
+            raise Error('invalid value: {}'.format(val))
+        return dt.strptime(val, fmt[len(val)])
+
+    @staticmethod
+    def datetime(val):
+        if val.lower() in NULL_VALUES:
+            return
+        fmt = {len(fmt) + 2: fmt for fmt in DATETIME_FORMATS}
+        if len(val) not in fmt:
+            raise Error('invalid value: {}'.format(val))
+        return dt.strptime(val, fmt[len(val)])
+
+    def add(self, attr, op, val):
+
+        if attr.name == 'id' or attr.is_int():
+            fc = FilterClause(operators=('', 'eq', 'ne', 'gt', 'lt', 'ge', 'le'),
+                              decoder=self.int,
+                              multiple=dict(eq=True, ne=False))
+        elif attr.is_float():
+            fc = FilterClause(operators=('gt', 'lt', 'ge', 'le'), decoder=self.float)
+        elif attr.is_bool():
+            fc = FilterClause(operators=('',), decoder=self.bool, multiple=dict(eq=False))
+        elif attr.is_datetime():
+            fc = FilterClause(operators=('gt', 'lt'), decoder=self.datetime)
+        elif attr.is_date():
+            fc = FilterClause(operators=('gt', 'lt'), decoder=self.date)
+        elif attr.is_time():
+            fc = FilterClause(operators=('gt', 'lt'), decoder=self.time)
+        else:
+            fc = FilterClause(operators=('eq', 'ne'), multiple=dict(eq=False, ne=False))
+
+        clause = fc(attr.expr, op, val)
+        if isinstance(attr, Aggregate):
+            self.having.append(clause)
+        else:
+            self.where.append(clause)
 
 
 class FromItem:
@@ -255,9 +427,15 @@ class Query:
     def sort_by(self, query, search=None):
         if self.model.search is not None and search is not None:
             return query.order_by(self.rank_column(search).desc())
-        return query.order_by(*[getattr(self.model.attributes[name].expr,
-                                        'desc' if desc else 'asc')().nullslast() for
-                                name, desc in self.model.args.sort.items()])
+        order_by = list()
+        for name, desc in self.model.args.sort.items():
+            try:
+                expr = self.model.attributes[name].expr
+            except KeyError:
+                raise APIError('column does not exist: {}'.format(name), self.model)
+            else:
+                order_by.append(getattr(expr, 'desc' if desc else 'asc')().nullslast())
+        return query.order_by(*order_by)
 
     def check_access(self, query):
 
@@ -300,7 +478,13 @@ class Query:
             query = self.sort_by(query, search)
 
         if filter_by is not None:
-            query = query.where(filter_by.where if isinstance(filter_by, Filter) else filter_by)
+            if isinstance(filter_by, Filter):
+                if filter_by.where:
+                    query = query.where(sa.and_(*filter_by.where))
+                if filter_by.having:
+                    query = query.having(sa.and_(filter_by.having))
+            else:
+                return query.where(filter_by)
 
         query = self.check_access(query)
 

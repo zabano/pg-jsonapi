@@ -1,17 +1,9 @@
-import sqlalchemy as sa
 import marshmallow
+import sqlalchemy as sa
 
+from .datatypes import Bool, DATETIME_FORMAT, DataType, Date, DateTime, Float, Integer, String, Time
 from .exc import Error, ModelError
 from .registry import model_registry
-from .datatypes import DataType
-from .datatypes import Bool
-from .datatypes import Integer
-from .datatypes import Float
-from .datatypes import String
-from .datatypes import Date
-from .datatypes import DateTime
-from .datatypes import Time
-from .datatypes import DATETIME_FORMAT
 
 
 class BaseField:
@@ -44,6 +36,27 @@ class BaseField:
                 if isinstance(expr.type, sa.Time):
                     return Time
         return String
+
+    def is_bool(self):
+        return issubclass(self.data_type, marshmallow.fields.Bool)
+
+    def is_int(self):
+        return issubclass(self.data_type, marshmallow.fields.Integer)
+
+    def is_float(self):
+        return issubclass(self.data_type, marshmallow.fields.Float)
+
+    def is_date(self):
+        return issubclass(self.data_type, marshmallow.fields.Date)
+
+    def is_datetime(self):
+        return issubclass(self.data_type, marshmallow.fields.DateTime)
+
+    def is_time(self):
+        return issubclass(self.data_type, marshmallow.fields.Time)
+
+    def is_str(self):
+        return issubclass(self.data_type, marshmallow.fields.String)
 
     def __call__(self):
 

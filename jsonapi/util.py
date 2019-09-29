@@ -1,6 +1,7 @@
 import re
-import inflection
 from collections import OrderedDict
+
+import inflection
 
 from jsonapi.exc import Error
 
@@ -10,7 +11,6 @@ class RequestArguments:
     def __init__(self, args):
         """
         :param args: a dictionary representing the request query string
-        :param include: an additional include value
         """
 
         self.include = dict()
@@ -19,6 +19,7 @@ class RequestArguments:
 
         self.offset = 0
         self.limit = None
+        self.filter = dict()
 
         #
         # include
@@ -79,6 +80,16 @@ class RequestArguments:
                         raise Error('page[number] request parameter must be positive')
                     self.offset = (number - 1) * self.limit
 
+        #
+        # filter
+        #
+
+        for arg in args.keys():
+            match = re.match(r'filter\[([\w_-]+):?(\w*)\]', arg.lower())
+            if match:
+                name, op = match.groups()
+                self.filter[arg] = dict(name=inflection.underscore(name), op=op)
+
     def in_include(self, name):
         return name in self.include.keys()
 
@@ -90,3 +101,6 @@ class RequestArguments:
 
     def in_sort(self, name):
         return name in self.sort.keys()
+
+    def in_filter(self, name):
+        return name in self.filter.keys()

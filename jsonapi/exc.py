@@ -19,9 +19,6 @@ class APIError(ModelError):
         super().__init__(message, model)
         self.status = status
 
-    def __str__(self):
-        return '[{}:{:d}] {}'.format(self.model.name, self.status, self.message)
-
 
 class NotFound(APIError):
 

@@ -13,9 +13,9 @@ def _parse_url_object(url):
     for name1, val1 in url.items():
         if isinstance(val1, dict):
             for name2, val2 in val1.items():
-                fields.append('{}[{}]={}'.format(name1, name2, quote(val2)))
+                fields.append('{}[{}]={}'.format(name1, name2, quote(str(val2))))
         else:
-            fields.append('{}={}'.format(name1, quote(val1)))
+            fields.append('{}={}'.format(name1, quote(str(val1))))
     return '{}?{}'.format(url_string, '&'.join(fields))
 
 
@@ -50,15 +50,12 @@ def parse_datetime(datetime):
         return dt.strptime(datetime, DATETIME_FORMAT)
 
 
-def assert_object(json, object_type, object_id=None):
+def assert_object(json, object_type, validator=None):
     assert 'type' in json
     assert json['type'] == object_type
     assert 'id' in json
-    if object_id is not None:
-        if isinstance(object_id, (list, tuple)):
-            assert json['id'] in (str(x) for x in object_id)
-        else:
-            assert json['id'] == str(object_id)
+    if validator is not None:
+        assert validator(json['id'])
 
 
 def assert_attribute(json, name, validator=None):
@@ -105,7 +102,7 @@ def is_positive(v):
 
 
 def check_user(user, user_id=None):
-    assert_object(user, 'user', user_id)
+    assert_object(user, 'user', None if user_id is None else lambda uid: uid == str(user_id))
     assert_attribute(user, 'email', lambda v: '@' in v)
     assert_attribute(user, 'status', lambda v: v in ('active', 'pending'))
     assert_attribute(user, 'createdOn', lambda v: is_date(v))

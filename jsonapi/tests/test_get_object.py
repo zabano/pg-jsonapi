@@ -37,7 +37,7 @@ async def test_get_user_1_articles(cli, user_1_id):
 def _check_articles(json, id_list):
     assert_relationship(json['data'], 'articles', len(id_list))
     for article in get_relationship(json['data'], 'articles'):
-        assert_object(article, 'article', id_list)
+        assert_object(article, 'article', lambda obj_id: int(obj_id) in id_list)
     assert 'included' in json
     for article in json['included']:
         check_article(article)

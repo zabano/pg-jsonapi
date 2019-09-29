@@ -5,7 +5,6 @@ from jsonapi.tests.util import *
 
 @pytest.mark.asyncio
 async def test_fields_get_articles_as_user_1(cli, user_1_id):
-    qs = 'fields[article]=title'
     json = await get(cli, dict(
         url='/articles/',
         fields=dict(

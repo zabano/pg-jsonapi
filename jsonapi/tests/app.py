@@ -65,11 +65,7 @@ async def user_name(user_id):
 
 @app.route('/articles/')
 async def articles():
-    filter_by = None
-    if 'filter[is-published]' in request.args:
-        filter_by = Filter(articles_t.c.is_published.is_(
-            request.args['filter[is-published]'] == 't'))
-    return jsonify(await ArticleModel().get_collection(request.args, filter_by=filter_by))
+    return jsonify(await ArticleModel().get_collection(request.args))
 
 
 @app.route('/articles/<int:article_id>')
