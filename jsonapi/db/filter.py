@@ -178,6 +178,9 @@ class Filter:
         self.from_items = list(from_items)
         self.having = list()
 
+    def __bool__(self):
+        return any((self.where, self.having, self.from_items))
+
     def add(self, attr, op, val):
 
         if attr.is_bool():

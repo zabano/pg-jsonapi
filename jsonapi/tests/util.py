@@ -89,6 +89,13 @@ def assert_error(json, status, text=None):
         assert error['title'] is not None and text in error['title'].lower()
 
 
+def assert_meta(json, name, validator=None):
+    assert 'meta' in json
+    assert name in json['meta']
+    if validator is not None:
+        assert validator(json['meta'][name])
+
+
 def get_relationship(json, name):
     return json['relationships'][name]
 

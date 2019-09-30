@@ -274,11 +274,11 @@ class Model:
         if self.args.limit is not None:
             self.meta['total'] = await pg.fetchval(self.query.all(
                 filter_by=filter_by, paginate=False, count=True))
-            if filter_by is not None:
+            if filter_by:
                 self.meta['totalFiltered'] = await pg.fetchval(self.query.all(
                     filter_by=filter_by, paginate=False, count=True))
 
-        if filter_by is not None:
+        if filter_by:
             self.meta['total'] = await pg.fetchval(self.query.all(
                 paginate=False, count=True))
 
