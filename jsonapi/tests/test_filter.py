@@ -1,6 +1,6 @@
 import pytest
 
-from db.util import parse_datetime
+from jsonapi.db.util import parse_datetime
 from jsonapi.tests.util import *
 
 
@@ -131,6 +131,7 @@ async def test_filter_int_multiple_2(cli, superuser_id):
     for article in json['data']:
         assert_object(article, 'article', lambda v: int(v) in (1, 2, 3, 6, 8, 9, 10))
 
+
 #
 # bool
 #
@@ -179,7 +180,9 @@ async def test_filter_enum(cli, superuser_id):
         assert isinstance(json['data'], list)
         assert len(json['data']) == 5
         for user in json['data']:
-            assert_attribute(user, 'status', lambda v: v in val.split(',') if ',' in val else v == val)
+            assert_attribute(user, 'status',
+                             lambda v: v in val.split(',') if ',' in val else v == val)
+
 
 #
 # datetime
@@ -188,7 +191,8 @@ async def test_filter_enum(cli, superuser_id):
 
 @pytest.mark.asyncio
 async def test_filter_datetime(cli, superuser_id):
-    for val in ('2019-09-01T00:00:00Z', '2019-09-01T00:00:00', '2019-09-01T00:00', '2019-09-01', '2019-09'):
+    for val in ('2019-09-01T00:00:00Z', '2019-09-01T00:00:00',
+                '2019-09-01T00:00', '2019-09-01', '2019-09'):
         json = await get(cli, dict(
             url='/users/',
             filter={'created-on:gt': val},
@@ -198,4 +202,84 @@ async def test_filter_datetime(cli, superuser_id):
         assert isinstance(json['data'], list)
         assert len(json['data']) == 5
         for user in json['data']:
-            assert_attribute(user, 'createdOn', lambda v: parse_datetime(v) > dt.datetime(2019, 9, 1))
+            assert_attribute(user, 'createdOn',
+                             lambda v: parse_datetime(v) > dt.datetime(2019, 9, 1))
+
+
+#
+# aggregate filter
+#
+
+
+@pytest.mark.asyncio
+async def test_filter_aggregate_1(cli, superuser_id):
+    json = await get(cli, dict(
+        url='/users/',
+        filter={'article-count': 5},
+        fields=dict(user='article-count'),
+        page=dict(size=5),
+    ), 200, superuser_id)
+    assert isinstance(json['data'], list)
+    assert len(json['data']) == 5
+    for user in json['data']:
+        assert_object(user, 'user')
+        assert_attribute(user, 'articleCount', lambda v: v == 5)
+
+
+@pytest.mark.asyncio
+async def test_filter_aggregate_2(cli, superuser_id):
+    json = await get(cli, dict(
+        url='/users/',
+        filter={'article-count:le': 3},
+        fields=dict(user='article-count'),
+        page=dict(size=10),
+    ), 200, superuser_id)
+    assert isinstance(json['data'], list)
+    assert len(json['data']) == 10
+    for user in json['data']:
+        assert_object(user, 'user')
+        assert_attribute(user, 'articleCount', lambda v: v <= 3)
+
+
+@pytest.mark.asyncio
+async def test_filter_aggregate_3(cli, superuser_id):
+    json = await get(cli, dict(
+        url='/articles/',
+        filter={'comment-count:gt': 30, 'keyword-count': 3},
+        fields=dict(article='comment-count,keyword-count'),
+        page=dict(size=10),
+    ), 200, superuser_id)
+    assert isinstance(json['data'], list)
+    assert len(json['data']) == 10
+    for article in json['data']:
+        assert_object(article, 'article')
+        assert_attribute(article, 'commentCount', lambda v: v > 30)
+        assert_attribute(article, 'keywordCount', lambda v: v == 3)
+
+
+#
+# mixed filters
+#
+
+
+@pytest.mark.asyncio
+async def test_filter_mixed_1(cli, superuser_id):
+    json = await get(cli, dict(
+        url='/users/',
+        filter={
+            'created-on:lt': '2019-09-01',
+            'status': 'pending',
+            'id:gt': 100,
+            'article-count:le': 2
+        },
+        fields=dict(user='created-on,status,article-count'),
+        page=dict(size=3),
+    ), 200, superuser_id)
+    assert isinstance(json['data'], list)
+    assert len(json['data']) == 3
+    for user in json['data']:
+        assert_object(user, 'user', lambda v: int(v) > 100)
+        assert_attribute(user, 'status', lambda v: v == 'pending')
+        assert_attribute(user, 'articleCount', lambda v: v <= 2)
+        assert_attribute(user, 'createdOn',
+                         lambda v: parse_datetime(v) < dt.datetime(2019, 9, 1))

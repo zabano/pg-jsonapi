@@ -103,7 +103,7 @@ class FilterClause:
                 op = 'eq'
 
             v = self.parse(val)
-            if v in (True, False, None):
+            if v is False or v is True or v is None:
                 if op == 'eq':
                     return expr.is_(v)
                 if op == 'ne':

@@ -38,9 +38,10 @@ class Query:
                     from_clause.append(from_item)
         return from_clause()
 
-    @property
-    def columns(self):
-        return self.from_obj().c
+    def get_column(self, name):
+        for col in self.from_obj().c:
+            if col.name == name:
+                return col
 
     def rank_column(self, search):
         if self.model.search is not None and search is not None:
@@ -110,7 +111,7 @@ class Query:
                 if filter_by.where:
                     query = query.where(sa.and_(*filter_by.where))
                 if filter_by.having:
-                    query = query.having(sa.and_(filter_by.having))
+                    query = query.having(sa.and_(*filter_by.having))
             else:
                 return query.where(filter_by)
 

@@ -103,4 +103,4 @@ class RequestArguments:
         return name in self.sort.keys()
 
     def in_filter(self, name):
-        return name in self.filter.keys()
+        return name in (v['name'] for v in self.filter.values())

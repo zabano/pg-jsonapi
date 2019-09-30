@@ -171,11 +171,10 @@ class Model:
             if not isinstance(field, Relationship):
                 if isinstance(field, str):
                     if field == name:
-                        columns = {col.name: col for col in self.query.columns}
-                        if name not in columns:
+                        expr = self.query.get_column(name)
+                        if expr is None:
                             raise ModelError('database column: "{}" not found'.format(name), self)
-                        field = Field(field, columns[field])
-                        return field
+                        return Field(field, expr)
                 elif name == field.name:
                     return field
 
@@ -235,7 +234,8 @@ class Model:
 
             elif isinstance(field, Aggregate):
                 if in_fieldset or in_sort or in_filter:
-                    field.exclude = (in_sort or in_filter) and not (fieldset_defined and in_fieldset)
+                    field.exclude = (in_sort or in_filter) and not (
+                                fieldset_defined and in_fieldset)
                     self._load_aggregate_field(field)
                     self.schema_fields.append(field)
 
