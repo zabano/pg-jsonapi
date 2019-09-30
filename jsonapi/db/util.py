@@ -11,10 +11,6 @@ TRUE_VALUES = ('t', 'true', 'on', '1')
 FALSE_VALUES = ('f', 'false', 'off', '0')
 NULL_VALUES = ('null', 'none', 'na')
 
-OPERATORS = ('', 'eq', 'ne', 'gt', 'ge', 'lt', 'le')
-MODIFIERS = {'=': operator.eq, '<>': operator.ne, '!=': operator.ne,
-             '>=': operator.ge, '<=': operator.le, '>': operator.gt, '<': operator.lt}
-
 
 def get_primary_key(table):
     """
