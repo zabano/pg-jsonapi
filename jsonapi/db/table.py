@@ -67,7 +67,7 @@ class FromItem:
             raise Error('[FromItem] invalid "table" argument: {}'.format(table))
 
         if onclause is not None:
-            if not isinstance(onclause, (BinaryExpression, BooleanClauseList)):
+            if not is_clause(onclause):
                 raise Error('[FromItem] invalid "onclause" argument: {}'.format(onclause))
 
     @property
@@ -172,3 +172,11 @@ class FromClause(MutableSequence):
         if len(self) > 0:
             return self._from_items[0].table.name if len(self) == 1 else str(self().compile())
         return ''
+
+
+def is_from_item(from_item):
+    return isinstance(from_item, (sa.Table, Alias, FromItem))
+
+
+def is_clause(clause):
+    return isinstance(clause, (BinaryExpression, BooleanClauseList))

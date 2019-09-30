@@ -1,15 +1,16 @@
 from collections import defaultdict
 from copy import copy
 from functools import reduce
+from functools import wraps
 from itertools import islice
 
 import sqlalchemy as sa
 from asyncpgsa import pg
-from inflection import camelize
+from inflection import camelize, underscore
 
 from jsonapi.db.filter import Filter
 from jsonapi.db.query import Query
-from jsonapi.db.table import Cardinality, FromClause, FromItem
+from jsonapi.db.table import Cardinality, FromClause, FromItem, is_clause, is_from_item
 from jsonapi.db.util import get_primary_key
 from jsonapi.datatypes import *
 from jsonapi.exc import APIError, Error, Forbidden, ModelError, NotFound
@@ -112,7 +113,7 @@ class Model:
 
         if self.fields is None:
             self.fields = tuple()
-        elif isinstance(self.fields, (list, tuple)):
+        elif isinstance(self.fields, (list, tuple, set)):
             self.fields = tuple(self.fields)
         else:
             self.fields = (self.fields,)
@@ -235,7 +236,7 @@ class Model:
             elif isinstance(field, Aggregate):
                 if in_fieldset or in_sort or in_filter:
                     field.exclude = (in_sort or in_filter) and not (
-                                fieldset_defined and in_fieldset)
+                            fieldset_defined and in_fieldset)
                     self._load_aggregate_field(field)
                     self.schema_fields.append(field)
 
@@ -284,11 +285,33 @@ class Model:
     def get_filter(self, args):
         filter_by = Filter()
         for key, arg in self.args.filter.items():
-            attr = self.get_attribute(arg['name'])
+            name = arg['name']
             try:
-                filter_by.add(attr, arg['op'], args[key])
-            except Error as e:
-                raise APIError('filter:{} | {}'.format(attr.name, e), self)
+                custom_filter = getattr(self, 'filter_{}'.format(name))
+                result = custom_filter(args[key])
+                if is_clause(result):
+                    filter_by.where.append(result)
+                else:
+                    try:
+                        iter(result)
+                    except TypeError:
+                        raise ModelError('filter:{} | invalid where clause'.format(name), self)
+                    else:
+                        if len(result) > 2:
+                            raise ModelError('filter:{} | expected a where clause and a sequence '
+                                             'of from items'.format(name), self)
+                        filter_by.where.append(result[0])
+                        for from_item in result[1]:
+                            if not is_from_item(from_item):
+                                raise ModelError('filter:{} | invalid from item'.format(name), self)
+                            filter_by.from_items.append(from_item)
+
+            except AttributeError:
+                attr = self.get_attribute(name)
+                try:
+                    filter_by.add(attr, arg['op'], args[key])
+                except Error as e:
+                    raise APIError('filter:{} | {}'.format(attr.name, e), self)
         return filter_by
 
     async def fetch_included(self, data):

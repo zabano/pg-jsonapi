@@ -283,3 +283,37 @@ async def test_filter_mixed_1(cli, superuser_id):
         assert_attribute(user, 'articleCount', lambda v: v <= 2)
         assert_attribute(user, 'createdOn',
                          lambda v: parse_datetime(v) < dt.datetime(2019, 9, 1))
+
+
+#
+# custom filter
+#
+
+@pytest.mark.asyncio
+async def test_filter_custom_1(cli, superuser_id):
+    json = await get(cli, dict(
+        url='/articles/',
+        filter={'custom': 15},
+        fields=dict(article='title'),
+        page=dict(size=5),
+    ), 200, superuser_id)
+    assert isinstance(json['data'], list)
+    assert len(json['data']) == 5
+    for article in json['data']:
+        assert_object(article, 'article')
+        assert_attribute(article, 'title', lambda v: len(v) == 15)
+
+
+@pytest.mark.asyncio
+async def test_filter_custom_2(cli, superuser_id):
+    json = await get(cli, dict(
+        url='/articles/',
+        filter={'custom': 15, 'is-published': False},
+        fields=dict(article='title,is-published')
+    ), 200, superuser_id)
+    assert isinstance(json['data'], list)
+    assert len(json['data']) == 1
+    for article in json['data']:
+        assert_object(article, 'article')
+        assert_attribute(article, 'title', lambda v: len(v) == 15)
+        assert_attribute(article, 'isPublished', lambda v: v is False)

@@ -175,7 +175,7 @@ class Filter:
 
     def __init__(self, where=None, *from_items):
         self.where = list(where) if where is not None else list()
-        self.from_items = tuple(from_items)
+        self.from_items = list(from_items)
         self.having = list()
 
     def add(self, attr, op, val):

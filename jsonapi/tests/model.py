@@ -37,6 +37,11 @@ class ArticleModel(Model):
               Aggregate('keyword_count', 'keywords', sa.func.count),
               Aggregate('comment_count', 'comments', sa.func.count),
               Aggregate('author_count', 'author', sa.func.count))
+
+    @staticmethod
+    def filter_custom(v):
+        return sa.func.char_length(articles_t.c.title) == int(v)
+
     search = articles_ts
     access = sa.func.check_article_read_access
     user = current_user
