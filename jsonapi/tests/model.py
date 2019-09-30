@@ -1,4 +1,4 @@
-from jsonapi.db import MANY_TO_MANY, MANY_TO_ONE, ONE_TO_MANY, ONE_TO_ONE
+from jsonapi.db.table import MANY_TO_MANY, MANY_TO_ONE, ONE_TO_MANY, ONE_TO_ONE
 from jsonapi.model import Aggregate, Derived, MixedModel, Model, Relationship
 from jsonapi.tests.auth import current_user
 from jsonapi.tests.db import *

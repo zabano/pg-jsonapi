@@ -1,6 +1,6 @@
 import pytest
 
-from jsonapi.db import parse_datetime
+from db.util import parse_datetime
 from jsonapi.tests.util import *
 
 
@@ -198,4 +198,4 @@ async def test_filter_datetime(cli, superuser_id):
         assert isinstance(json['data'], list)
         assert len(json['data']) == 5
         for user in json['data']:
-            assert_attribute(user, 'createdOn', lambda v: parse_datetime(v) > dt(2019, 9, 1))
+            assert_attribute(user, 'createdOn', lambda v: parse_datetime(v) > dt.datetime(2019, 9, 1))

@@ -5,7 +5,6 @@ from quart import Quart
 from quart import jsonify
 from quart import request
 
-from jsonapi.db import Filter
 from jsonapi.model import MIME_TYPE
 from jsonapi.model import get_error_object
 from jsonapi.tests.model import *

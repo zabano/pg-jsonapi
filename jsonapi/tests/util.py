@@ -1,7 +1,8 @@
+import datetime as dt
 import os
 import re
 from urllib.parse import quote
-from datetime import datetime as dt
+
 from jsonapi.datatypes import DATETIME_FORMAT
 
 
@@ -47,7 +48,7 @@ async def get(cli, url, status=200, user_id=None):
 
 def parse_datetime(datetime):
     if datetime is not None:
-        return dt.strptime(datetime, DATETIME_FORMAT)
+        return dt.datetime.strptime(datetime, DATETIME_FORMAT)
 
 
 def assert_object(json, object_type, validator=None):

@@ -7,8 +7,11 @@ import sqlalchemy as sa
 from asyncpgsa import pg
 from inflection import camelize
 
+from jsonapi.db.filter import Filter
+from jsonapi.db.query import Query
+from jsonapi.db.table import Cardinality, FromClause, FromItem
+from jsonapi.db.util import get_primary_key
 from jsonapi.datatypes import *
-from jsonapi.db import Cardinality, Filter, FromClause, FromItem, Query, get_primary_key
 from jsonapi.exc import APIError, Error, Forbidden, ModelError, NotFound
 from jsonapi.fields import Aggregate, Derived, Field, Relationship
 from jsonapi.registry import alias_registry, model_registry, schema_registry
