@@ -65,6 +65,59 @@ ONE_TO_MANY = Cardinality.ONE_TO_MANY
 MANY_TO_MANY = Cardinality.MANY_TO_MANY
 
 
+def parse_bool(val):
+    if val.lower() in NULL_VALUES:
+        return
+    if val.lower() not in TRUE_VALUES and val.lower() not in FALSE_VALUES:
+        raise Error('invalid value: {}'.format(val))
+    return val.lower() in TRUE_VALUES
+
+
+def parse_int(val):
+    if val.lower() in NULL_VALUES:
+        return
+    try:
+        return int(val)
+    except ValueError:
+        raise Error('invalid value: {}'.format(val))
+
+
+def parse_float(val):
+    if val.lower() in NULL_VALUES:
+        return
+    try:
+        return float(val)
+    except ValueError:
+        raise Error('invalid value: {}'.format(val))
+
+
+def parse_date(val):
+    if val.lower() in NULL_VALUES:
+        return
+    fmt = {len(fmt) + 2: fmt for fmt in DATE_FORMATS}
+    if len(val) not in fmt:
+        raise Error('invalid value: {}'.format(val))
+    return dt.strptime(val, fmt[len(val)])
+
+
+def parse_time(val):
+    if val.lower() in NULL_VALUES:
+        return
+    fmt = {len(fmt): fmt for fmt in TIME_FORMATS}
+    if len(val) not in fmt:
+        raise Error('invalid value: {}'.format(val))
+    return dt.strptime(val, fmt[len(val)])
+
+
+def parse_datetime(val):
+    if val.lower() in NULL_VALUES:
+        return
+    fmt = {len(fmt) + 2: fmt for fmt in DATETIME_FORMATS}
+    if len(val) not in fmt:
+        raise Error('invalid value: {}'.format(val))
+    return dt.strptime(val, fmt[len(val)])
+
+
 class FilterClause:
 
     def __init__(self, **options):
@@ -153,77 +206,24 @@ class Filter:
         self.from_items = tuple(from_items)
         self.having = list()
 
-    @staticmethod
-    def bool(val):
-        if val.lower() in NULL_VALUES:
-            return
-        if val.lower() not in TRUE_VALUES and val.lower() not in FALSE_VALUES:
-            raise Error('invalid value: {}'.format(val))
-        return val.lower() in TRUE_VALUES
-
-    @staticmethod
-    def int(val):
-        if val.lower() in NULL_VALUES:
-            return
-        try:
-            return int(val)
-        except ValueError:
-            raise Error('invalid value: {}'.format(val))
-
-    @staticmethod
-    def float(val):
-        if val.lower() in NULL_VALUES:
-            return
-        try:
-            return float(val)
-        except ValueError:
-            raise Error('invalid value: {}'.format(val))
-
-    @staticmethod
-    def date(val):
-        if val.lower() in NULL_VALUES:
-            return
-        fmt = {len(fmt) + 2: fmt for fmt in DATE_FORMATS}
-        if len(val) not in fmt:
-            raise Error('invalid value: {}'.format(val))
-        return dt.strptime(val, fmt[len(val)])
-
-    @staticmethod
-    def time(val):
-        if val.lower() in NULL_VALUES:
-            return
-        fmt = {len(fmt): fmt for fmt in TIME_FORMATS}
-        if len(val) not in fmt:
-            raise Error('invalid value: {}'.format(val))
-        return dt.strptime(val, fmt[len(val)])
-
-    @staticmethod
-    def datetime(val):
-        if val.lower() in NULL_VALUES:
-            return
-        fmt = {len(fmt) + 2: fmt for fmt in DATETIME_FORMATS}
-        if len(val) not in fmt:
-            raise Error('invalid value: {}'.format(val))
-        return dt.strptime(val, fmt[len(val)])
-
     def add(self, attr, op, val):
 
         if attr.name == 'id' or attr.is_int():
             fc = FilterClause(operators=('', 'eq', 'ne', 'gt', 'lt', 'ge', 'le'),
-                              decoder=self.int,
+                              decoder=parse_int,
                               multiple=dict(eq=True, ne=False))
         elif attr.is_float():
-            fc = FilterClause(operators=('gt', 'lt', 'ge', 'le'), decoder=self.float)
+            fc = FilterClause(operators=('gt', 'lt', 'ge', 'le'), decoder=parse_float)
         elif attr.is_bool():
-            fc = FilterClause(operators=('',), decoder=self.bool, multiple=dict(eq=False))
+            fc = FilterClause(operators=('',), decoder=parse_bool, multiple=dict(eq=False))
         elif attr.is_datetime():
-            fc = FilterClause(operators=('gt', 'lt'), decoder=self.datetime)
+            fc = FilterClause(operators=('gt', 'lt'), decoder=parse_datetime)
         elif attr.is_date():
-            fc = FilterClause(operators=('gt', 'lt'), decoder=self.date)
+            fc = FilterClause(operators=('gt', 'lt'), decoder=parse_date)
         elif attr.is_time():
-            fc = FilterClause(operators=('gt', 'lt'), decoder=self.time)
+            fc = FilterClause(operators=('gt', 'lt'), decoder=parse_time)
         else:
-            fc = FilterClause(operators=('eq', 'ne'), multiple=dict(eq=False, ne=False))
+            fc = FilterClause(operators=('', 'eq', 'ne'), multiple=dict(eq=False, ne=False))
 
         clause = fc(attr.expr, op, val)
         if isinstance(attr, Aggregate):
