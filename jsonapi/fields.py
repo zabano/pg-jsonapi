@@ -4,8 +4,8 @@ from jsonapi.datatypes import *
 from jsonapi.db.table import Cardinality, FromItem
 from jsonapi.exc import APIError, Error, ModelError
 from jsonapi.registry import alias_registry, model_registry
-from .datatypes import DataType
-from .db.filter import BoolClause, DateClause, DateTimeClause, FloatClause, IntegerClause, StringClause, TimeClause
+from .datatypes import DataType, Integer
+from .db.filter import FilterClause
 
 
 class BaseField:
@@ -23,19 +23,9 @@ class BaseField:
         self.filter_clause = self.get_filter_clause()
 
     def get_filter_clause(self):
-        if issubclass(self.data_type, marshmallow.fields.Bool):
-            return BoolClause()
-        if self.name == 'id' or issubclass(self.data_type, marshmallow.fields.Integer):
-            return IntegerClause()
-        if issubclass(self.data_type, marshmallow.fields.Float):
-            return FloatClause()
-        if issubclass(self.data_type, marshmallow.fields.Date):
-            return DateClause()
-        if issubclass(self.data_type, marshmallow.fields.Time):
-            return TimeClause()
-        if issubclass(self.data_type, marshmallow.fields.DateTime):
-            return DateTimeClause()
-        return StringClause()
+        if self.name == 'id':
+            return FilterClause.registry[Integer.value]
+        return FilterClause.registry[self.data_type]
 
     @staticmethod
     def get_data_type(expr):

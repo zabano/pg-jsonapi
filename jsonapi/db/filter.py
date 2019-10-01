@@ -3,6 +3,7 @@ import re
 
 from sqlalchemy.sql import operators, or_
 
+from jsonapi.datatypes import DataType, Bool, Integer, Float, String, Date, Time, DateTime
 from .table import is_clause, is_from_item
 from .util import *
 
@@ -30,10 +31,20 @@ OPERATOR_LE = Operator.LE
 
 
 class FilterClause:
+    data_type = String
     operators = tuple()
     multiple = tuple()
 
+    registry = dict()
+
+    def __init_subclass__(cls, **kwargs):
+        super().__init_subclass__(**kwargs)
+        FilterClause.registry[cls.data_type.value] = cls()
+
     def __init__(self):
+
+        if not isinstance(self.data_type, DataType):
+            raise ValueError('[FilterExpression] invalid datatype: {!r}'.format(self.data_type))
 
         for op in self.operators:
             if not isinstance(op, Operator):
@@ -113,6 +124,7 @@ class FilterClause:
 
 
 class BoolClause(FilterClause):
+    data_type = Bool
     operators = (OPERATOR_NONE, OPERATOR_EQ)
 
     @staticmethod
@@ -121,6 +133,7 @@ class BoolClause(FilterClause):
 
 
 class IntegerClause(FilterClause):
+    data_type = Integer
     operators = (OPERATOR_NONE, OPERATOR_EQ, OPERATOR_NE,
                  OPERATOR_GT, OPERATOR_GE, OPERATOR_LT, OPERATOR_LE)
     multiple = (OPERATOR_NONE, OPERATOR_EQ, OPERATOR_NE)
@@ -131,6 +144,7 @@ class IntegerClause(FilterClause):
 
 
 class FloatClause(FilterClause):
+    data_type = Float
     operators = (OPERATOR_GT, OPERATOR_GE, OPERATOR_LT, OPERATOR_LE)
     multiple = (OPERATOR_NONE, OPERATOR_EQ, OPERATOR_NE)
 
@@ -140,6 +154,7 @@ class FloatClause(FilterClause):
 
 
 class DateClause(FilterClause):
+    data_type = Date
     operators = (OPERATOR_GT, OPERATOR_LT)
     multiple = (OPERATOR_NONE, OPERATOR_EQ, OPERATOR_NE)
 
@@ -149,6 +164,7 @@ class DateClause(FilterClause):
 
 
 class TimeClause(FilterClause):
+    data_type = Time
     operators = (OPERATOR_GT, OPERATOR_LT)
     multiple = (OPERATOR_NONE, OPERATOR_EQ, OPERATOR_NE)
 
@@ -158,6 +174,7 @@ class TimeClause(FilterClause):
 
 
 class DateTimeClause(FilterClause):
+    data_type = DateTime
     operators = (OPERATOR_GT, OPERATOR_LT)
     multiple = (OPERATOR_NONE, OPERATOR_EQ, OPERATOR_NE)
 
@@ -167,6 +184,7 @@ class DateTimeClause(FilterClause):
 
 
 class StringClause(FilterClause):
+    data_type = String
     operators = (OPERATOR_NONE, OPERATOR_EQ, OPERATOR_NE)
     multiple = (OPERATOR_NONE, OPERATOR_EQ, OPERATOR_NE)
 
