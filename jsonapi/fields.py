@@ -2,6 +2,7 @@ import marshmallow
 import sqlalchemy as sa
 
 from .datatypes import Bool, DATETIME_FORMAT, DataType, Date, DateTime, Float, Integer, String, Time
+from .db.filter import BoolClause, FloatClause, IntegerClause, StringClause, DateClause, TimeClause, DateTimeClause
 from .exc import Error, ModelError
 from .registry import model_registry
 
@@ -16,11 +17,27 @@ class BaseField:
 
         self.name = name
         self.expr = expr
-        self.data_type = self._get_data_type(expr).value if data_type is None else data_type.value
+        self.data_type = self.get_data_type(expr).value if data_type is None else data_type.value
         self.exclude = False
+        self.filter_clause = self.get_filter_clause()
+
+    def get_filter_clause(self):
+        if issubclass(self.data_type, marshmallow.fields.Bool):
+            return BoolClause()
+        if self.name == 'id' or issubclass(self.data_type, marshmallow.fields.Integer):
+            return IntegerClause()
+        if issubclass(self.data_type, marshmallow.fields.Float):
+            return FloatClause()
+        if issubclass(self.data_type, marshmallow.fields.Date):
+            return DateClause()
+        if issubclass(self.data_type, marshmallow.fields.Time):
+            return TimeClause()
+        if issubclass(self.data_type, marshmallow.fields.DateTime):
+            return DateTimeClause()
+        return StringClause()
 
     @staticmethod
-    def _get_data_type(expr):
+    def get_data_type(expr):
         if expr is not None:
             if hasattr(expr, 'type'):
                 if isinstance(expr.type, sa.Boolean):
@@ -31,32 +48,14 @@ class BaseField:
                     return Float
                 if isinstance(expr.type, sa.Date):
                     return Date
-                if isinstance(expr.type, sa.DateTime):
-                    return DateTime
                 if isinstance(expr.type, sa.Time):
                     return Time
+                if isinstance(expr.type, sa.DateTime):
+                    return DateTime
         return String
 
-    def is_bool(self):
-        return issubclass(self.data_type, marshmallow.fields.Bool)
-
-    def is_int(self):
-        return issubclass(self.data_type, marshmallow.fields.Integer)
-
-    def is_float(self):
-        return issubclass(self.data_type, marshmallow.fields.Float)
-
-    def is_date(self):
-        return issubclass(self.data_type, marshmallow.fields.Date)
-
-    def is_datetime(self):
-        return issubclass(self.data_type, marshmallow.fields.DateTime)
-
-    def is_time(self):
-        return issubclass(self.data_type, marshmallow.fields.Time)
-
-    def is_str(self):
-        return issubclass(self.data_type, marshmallow.fields.String)
+    def is_aggregate(self):
+        return isinstance(self, Aggregate)
 
     def __call__(self):
 

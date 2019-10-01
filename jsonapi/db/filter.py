@@ -3,7 +3,7 @@ import re
 
 from sqlalchemy.sql import operators, or_
 
-from jsonapi.fields import Aggregate
+from .table import is_clause, is_from_item
 from .util import *
 
 MODIFIERS = {'=': operators.eq, '<>': operators.ne, '!=': operators.ne,
@@ -62,7 +62,7 @@ class FilterClause:
     def parse(val):
         return val
 
-    def get_clause(self, expr, op, val):
+    def get(self, expr, op, val):
 
         #
         # multiple values
@@ -182,24 +182,23 @@ class Filter:
         return any((self.where, self.having, self.from_items))
 
     def add(self, attr, op, val):
-
-        if attr.is_bool():
-            fc = BoolClause()
-        elif attr.name == 'id' or attr.is_int():
-            fc = IntegerClause()
-        elif attr.is_float():
-            fc = FloatClause()
-        elif attr.is_date():
-            fc = DateClause()
-        elif attr.is_time():
-            fc = TimeClause()
-        elif attr.is_datetime():
-            fc = DateTimeClause()
-        else:
-            fc = StringClause()
-
-        clause = fc.get_clause(attr.expr, op, val)
-        if isinstance(attr, Aggregate):
+        clause = attr.filter_clause.get(attr.expr, op, val)
+        if attr.is_aggregate():
             self.having.append(clause)
         else:
             self.where.append(clause)
+
+    def add_custom(self, name, custom_clause):
+        if is_clause(custom_clause):
+            self.where.append(custom_clause)
+        else:
+            try:
+                if len(custom_clause) == 2 and is_clause(custom_clause[0]) \
+                        and all(is_from_item(fi for fi in custom_clause[1])):
+                    self.where.append(custom_clause[0])
+                    self.from_items.extend(custom_clause[1])
+                else:
+                    raise TypeError
+            except TypeError:
+                raise Error('filter:{} | expected a where clause and a sequence '
+                            'of from items'.format(name))

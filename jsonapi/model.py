@@ -1,18 +1,17 @@
 from collections import defaultdict
 from copy import copy
 from functools import reduce
-from functools import wraps
 from itertools import islice
 
 import sqlalchemy as sa
 from asyncpgsa import pg
-from inflection import camelize, underscore
+from inflection import camelize
 
+from jsonapi.datatypes import *
 from jsonapi.db.filter import Filter
 from jsonapi.db.query import Query
-from jsonapi.db.table import Cardinality, FromClause, FromItem, is_clause, is_from_item
+from jsonapi.db.table import Cardinality, FromClause, FromItem
 from jsonapi.db.util import get_primary_key
-from jsonapi.datatypes import *
 from jsonapi.exc import APIError, Error, Forbidden, ModelError, NotFound
 from jsonapi.fields import Aggregate, Derived, Field, Relationship
 from jsonapi.registry import alias_registry, model_registry, schema_registry
@@ -285,29 +284,18 @@ class Model:
     def get_filter(self, args):
         filter_by = Filter()
         for key, arg in self.args.filter.items():
-            name = arg['name']
             try:
-                custom_filter = getattr(self, 'filter_{}'.format(name))
-                result = custom_filter(args[key])
-                if is_clause(result):
-                    filter_by.where.append(result)
+                attr = self.get_attribute(arg['name'])
+            except Error as e:
+                try:
+                    custom_filter = getattr(self, 'filter_{}'.format(arg['name']))
+                except AttributeError:
+                    raise APIError('filter:{} | {}'.format(arg['name'], e), self)
+                except Error as e:
+                    raise ModelError(e, self)
                 else:
-                    try:
-                        iter(result)
-                    except TypeError:
-                        raise ModelError('filter:{} | invalid where clause'.format(name), self)
-                    else:
-                        if len(result) > 2:
-                            raise ModelError('filter:{} | expected a where clause and a sequence '
-                                             'of from items'.format(name), self)
-                        filter_by.where.append(result[0])
-                        for from_item in result[1]:
-                            if not is_from_item(from_item):
-                                raise ModelError('filter:{} | invalid from item'.format(name), self)
-                            filter_by.from_items.append(from_item)
-
-            except AttributeError:
-                attr = self.get_attribute(name)
+                    filter_by.add_custom(arg['name'], custom_filter(args[key]))
+            else:
                 try:
                     filter_by.add(attr, arg['op'], args[key])
                 except Error as e:
