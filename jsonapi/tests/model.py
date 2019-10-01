@@ -5,13 +5,11 @@ from jsonapi.tests.db import *
 
 
 class UserNameModel(Model):
-    type_ = 'name'
     from_ = user_names_t
     fields = 'first', 'last', Derived('full', lambda rec: rec['first'] + ' ' + rec['last'])
 
 
 class UserModel(Model):
-    type_ = 'user'
     from_ = users_t
     fields = ('email', 'created_on', 'status',
               Relationship('name', 'UserNameModel',
@@ -23,7 +21,6 @@ class UserModel(Model):
 
 
 class ArticleModel(Model):
-    type_ = 'article'
     from_ = articles_t
     fields = ('title', 'body', 'created_on', 'updated_on', 'is_published',
               Relationship('author', 'UserModel',
@@ -48,13 +45,11 @@ class ArticleModel(Model):
 
 
 class KeywordModel(Model):
-    type_ = 'keyword'
     from_ = keywords_t
     fields = 'name'
 
 
 class CommentModel(Model):
-    type_ = 'comment'
     from_ = comments_t
     fields = ('body', 'created_on', 'updated_on',
               Relationship('author', 'UserModel', MANY_TO_ONE, 'articles_user_id_fkey'),
@@ -63,7 +58,6 @@ class CommentModel(Model):
 
 
 class ReplyModel(Model):
-    type_ = 'reply'
     from_ = replies_t
     fields = 'body', 'created_on', 'updated_on'
 

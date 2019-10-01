@@ -67,7 +67,7 @@ class Field(BaseField):
     Basic field type, which maps to a database table column or expression.
 
     >>> from jsonapi.tests.db import users_t, user_names_t
-    >>> from jsonapi import Date
+    >>> from jsonapi.datatypes import Date
     >>> Field('emil_address', users_t.c.email)
     >>> Field('name', user_names_t.c.first + ' ' + user_names_t.c.last)
     >>> Field('created_on', data_type=Date)

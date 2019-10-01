@@ -5,15 +5,15 @@ from itertools import islice
 
 import sqlalchemy as sa
 from asyncpgsa import pg
-from inflection import camelize
+from inflection import camelize, underscore, dasherize
 
 from jsonapi.datatypes import *
 from jsonapi.db.filter import Filter
 from jsonapi.db.query import Query
-from jsonapi.db.table import Cardinality, FromClause
+from jsonapi.db.table import Cardinality, FromClause, is_from_item
 from jsonapi.db.util import get_primary_key
 from jsonapi.exc import APIError, Error, Forbidden, ModelError, NotFound
-from jsonapi.fields import Aggregate, Derived, Field, Relationship
+from jsonapi.fields import Aggregate, BaseField, Derived, Field, Relationship
 from jsonapi.registry import model_registry, schema_registry
 from jsonapi.util import RequestArguments
 
@@ -101,27 +101,39 @@ class Model:
     def __init__(self):
 
         if self.type_ is None:
-            raise ModelError('attribute: "type_" is not set', self)
+            self.type_ = dasherize(underscore(self.name.lower().replace('model', '')))
         if not isinstance(self.type_, str):
             raise ModelError('attribute: "type_" must be a string', self)
 
         if self.from_ is None:
             raise ModelError('attribute: "from_" is not set', self)
-        self.from_clause = FromClause(
-            *(self.from_ if isinstance(self.from_, (list, tuple)) else (self.from_,)))
-
-        if self.fields is None:
-            self.fields = tuple()
-        elif isinstance(self.fields, (list, tuple, set)):
-            self.fields = tuple(self.fields)
-        else:
-            self.fields = (self.fields,)
+        try:
+            for from_item in self.from_:
+                if not is_from_item(from_item):
+                    raise ModelError('invalid from item: {!r}'.format(from_item), self)
+            self.from_clause = FromClause(*self.from_)
+        except TypeError:
+            if not is_from_item(self.from_):
+                raise ModelError('invalid from item: {!r}'.format(self.from_), self)
+            self.from_clause = FromClause(self.from_)
 
         self.schema = None
         self.schema_fields = list()
-
         self.args = None
         self.query = Query(self)
+
+        self.fields = dict()
+        if hasattr(type(self), 'fields'):
+            fields = type(self).fields
+            if isinstance(fields, str):
+                self.load_field(fields)
+            else:
+                try:
+                    for field_spec in fields:
+                        self.load_field(field_spec)
+                except TypeError:
+                    self.load_field(fields)
+
         self.included = defaultdict(dict)
         self.errors = list()
         self.meta = dict()
@@ -156,28 +168,28 @@ class Model:
         return {field.name: field for field in self.schema_fields if
                 not isinstance(field, Relationship)}
 
+    def load_field(self, field_spec):
+        if isinstance(field_spec, str):
+            expr = self.query.get_column(field_spec)
+            if expr is None:
+                raise ModelError('database column: "{}" '
+                                 'not found'.format(field_spec), self)
+            self.fields[field_spec] = Field(field_spec, expr)
+        elif isinstance(field_spec, BaseField):
+            self.fields[field_spec.name] = field_spec
+        else:
+            raise ModelError('invalid field: {!r}'.format(field_spec), self)
+
     def get_relationship(self, name):
-        for field in self.fields:
-            if isinstance(field, Relationship) and name == field.name:
-                return field
+        if name in self.fields and isinstance(self.fields[name], Relationship):
+            return self.fields[name]
         return ModelError('relationship does not exist: "{}"'.format(name), self)
 
     def get_attribute(self, name):
-
         if name == 'id':
             return Field('id', self.primary_key, String)
-
-        for field in self.fields:
-            if not isinstance(field, Relationship):
-                if isinstance(field, str):
-                    if field == name:
-                        expr = self.query.get_column(name)
-                        if expr is None:
-                            raise ModelError('database column: "{}" not found'.format(name), self)
-                        return Field(field, expr)
-                elif name == field.name:
-                    return field
-
+        if name in self.fields and not isinstance(self.fields[name], Relationship):
+            return self.fields[name]
         raise ModelError('attribute does not exist: "{}"'.format(name), self)
 
     def parse_arguments(self, args):
@@ -189,22 +201,15 @@ class Model:
             self.args = args
 
         self.schema_fields = [self.get_attribute('id')]
-        for field in self.fields:
+        for name, field in self.fields.items():
 
-            name = field if isinstance(field, str) else field.name
             in_include = self.args.in_include(name)
             fieldset_defined = self.args.fieldset_defined(self.type_)
             in_fieldset = self.args.in_fieldset(self.type_, name)
             in_sort = self.args.in_sort(name)
             in_filter = self.args.in_filter(name)
 
-            if isinstance(field, str):
-                if not fieldset_defined or in_fieldset or in_sort or in_filter:
-                    field = self.get_attribute(name)
-                    field.exclude = (in_sort or in_filter) and fieldset_defined and not in_fieldset
-                    self.schema_fields.append(field)
-
-            elif isinstance(field, (Field, Derived)):
+            if isinstance(field, (Field, Derived)):
                 if not fieldset_defined or in_fieldset or in_sort or in_filter:
                     field.exclude = (in_sort or in_filter) and fieldset_defined and not in_fieldset
                     self.schema_fields.append(field)
