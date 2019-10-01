@@ -8,7 +8,7 @@ from jsonapi.tests.util import *
 
 
 @pytest.mark.asyncio
-async def test_sort_users_by_id_asc(cli, user_count):
+async def test_single_1(cli, user_count):
     json = await get(cli, dict(url='/users/', sort='id'), 200)
     assert isinstance(json['data'], list)
     assert len(json['data']) == user_count
@@ -18,7 +18,7 @@ async def test_sort_users_by_id_asc(cli, user_count):
 
 
 @pytest.mark.asyncio
-async def test_sort_users_by_id_asc_plus_sign(cli, user_count):
+async def test_single_2(cli, user_count):
     json = await get(cli, dict(url='/users/', sort='+id'), 200)
     assert isinstance(json['data'], list)
     assert len(json['data']) == user_count
@@ -28,7 +28,7 @@ async def test_sort_users_by_id_asc_plus_sign(cli, user_count):
 
 
 @pytest.mark.asyncio
-async def test_sort_users_by_id_desc(cli, user_count):
+async def test_single_3(cli, user_count):
     json = await get(cli, dict(url='/users/', sort='-id'), 200)
     assert isinstance(json['data'], list)
     assert len(json['data']) == user_count
@@ -42,7 +42,7 @@ async def test_sort_users_by_id_desc(cli, user_count):
 #
 
 @pytest.mark.asyncio
-async def test_sort_user_articles_keyword_count_1_as_superuser(cli, superuser_id):
+async def test_aggregate_1(cli, superuser_id):
     json = await get(cli, dict(
         url='/users/1/articles/',
         sort='keyword-count'
@@ -55,7 +55,7 @@ async def test_sort_user_articles_keyword_count_1_as_superuser(cli, superuser_id
 
 
 @pytest.mark.asyncio
-async def test_sort_user_articles_keyword_count_2_as_superuser(cli, superuser_id):
+async def test_aggregate_2(cli, superuser_id):
     json = await get(cli, dict(
         url='/users/1/articles/',
         fields=dict(article='title'),
@@ -72,7 +72,7 @@ async def test_sort_user_articles_keyword_count_2_as_superuser(cli, superuser_id
 
 
 @pytest.mark.asyncio
-async def test_sort_user_articles_keyword_count_3_as_superuser(cli, superuser_id):
+async def test_aggregate_3(cli, superuser_id):
     json = await get(cli, dict(
         url='/users/1/articles/',
         fields=dict(article='title,keyword-count'),
@@ -89,7 +89,7 @@ async def test_sort_user_articles_keyword_count_3_as_superuser(cli, superuser_id
 
 
 @pytest.mark.asyncio
-async def test_sort_user_articles_keyword_count_4_as_superuser(cli, superuser_id):
+async def test_aggregate_4(cli, superuser_id):
     json = await get(cli, dict(
         url='/users/1/articles/',
         fields=dict(article='keyword-count'),
@@ -104,9 +104,6 @@ async def test_sort_user_articles_keyword_count_4_as_superuser(cli, superuser_id
         assert_attribute_does_not_exist(article, 'created_on')
         assert_attribute_does_not_exist(article, 'body')
 
-
 #
 # multi attribute sort
 #
-
-

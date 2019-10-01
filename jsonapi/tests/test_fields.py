@@ -4,7 +4,7 @@ from jsonapi.tests.util import *
 
 
 @pytest.mark.asyncio
-async def test_fields_get_articles_as_user_1(cli, user_1_id):
+async def test_1(cli, user_1_id):
     json = await get(cli, dict(
         url='/articles/',
         fields=dict(
@@ -22,7 +22,7 @@ async def test_fields_get_articles_as_user_1(cli, user_1_id):
 
 
 @pytest.mark.asyncio
-async def test_fields_get_articles_and_authors_as_user_1(cli, user_1_id):
+async def test_2(cli, user_1_id):
     json = await get(cli, dict(
         url='/articles/',
         include='author',

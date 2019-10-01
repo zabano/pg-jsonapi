@@ -10,7 +10,7 @@ from jsonapi.tests.util import *
 
 
 @pytest.mark.asyncio
-async def test_filter_int(cli, superuser_id):
+async def test_int(cli, superuser_id):
     json = await get(cli, dict(
         url='/articles/',
         fields=dict(article='id'),
@@ -24,7 +24,7 @@ async def test_filter_int(cli, superuser_id):
 
 
 @pytest.mark.asyncio
-async def test_filter_int_eq(cli, superuser_id):
+async def test_int_eq(cli, superuser_id):
     json = await get(cli, dict(
         url='/articles/',
         filter={'id:eq': '5'},
@@ -37,7 +37,7 @@ async def test_filter_int_eq(cli, superuser_id):
 
 
 @pytest.mark.asyncio
-async def test_filter_int_ne(cli, superuser_id):
+async def test_int_ne(cli, superuser_id):
     json = await get(cli, dict(
         url='/articles/',
         filter={'id:ne': '5'},
@@ -50,7 +50,7 @@ async def test_filter_int_ne(cli, superuser_id):
 
 
 @pytest.mark.asyncio
-async def test_filter_int_lt(cli, superuser_id):
+async def test_int_lt(cli, superuser_id):
     json = await get(cli, dict(
         url='/articles/',
         filter={'id:lt': '5'},
@@ -63,7 +63,7 @@ async def test_filter_int_lt(cli, superuser_id):
 
 
 @pytest.mark.asyncio
-async def test_filter_int_le(cli, superuser_id):
+async def test_int_le(cli, superuser_id):
     json = await get(cli, dict(
         url='/articles/',
         filter={'id:le': '5'},
@@ -76,7 +76,7 @@ async def test_filter_int_le(cli, superuser_id):
 
 
 @pytest.mark.asyncio
-async def test_filter_int_gt(cli, superuser_id):
+async def test_int_gt(cli, superuser_id):
     json = await get(cli, dict(
         url='/articles/',
         filter={'id:gt': '5'},
@@ -89,7 +89,7 @@ async def test_filter_int_gt(cli, superuser_id):
 
 
 @pytest.mark.asyncio
-async def test_filter_int_ge(cli, superuser_id):
+async def test_int_ge(cli, superuser_id):
     json = await get(cli, dict(
         url='/articles/',
         filter={'id:ge': '5'},
@@ -106,7 +106,7 @@ async def test_filter_int_ge(cli, superuser_id):
 #
 
 @pytest.mark.asyncio
-async def test_filter_int_multiple_1(cli, superuser_id):
+async def test_int_multiple_1(cli, superuser_id):
     json = await get(cli, dict(
         url='/articles/',
         fields=dict(article='id'),
@@ -119,7 +119,7 @@ async def test_filter_int_multiple_1(cli, superuser_id):
 
 
 @pytest.mark.asyncio
-async def test_filter_int_multiple_2(cli, superuser_id):
+async def test_int_multiple_2(cli, superuser_id):
     json = await get(cli, dict(
         url='/articles/',
         filter={'id': '<4,6,>=8'},
@@ -138,7 +138,7 @@ async def test_filter_int_multiple_2(cli, superuser_id):
 
 
 @pytest.mark.asyncio
-async def test_filter_bool_1(cli, superuser_id):
+async def test_bool_1(cli, superuser_id):
     for val in ('t', 'T', 'true', 'True', 'TRUE', '1', 'on', 'On', 'ON'):
         json = await get(cli, dict(
             url='/articles/',
@@ -152,7 +152,7 @@ async def test_filter_bool_1(cli, superuser_id):
 
 
 @pytest.mark.asyncio
-async def test_filter_bool_2(cli, superuser_id):
+async def test_bool_2(cli, superuser_id):
     for val in ('f', 'F', 'false', 'False', 'FALSE', '0', 'off', 'Off', 'OFF'):
         json = await get(cli, dict(
             url='/articles/',
@@ -170,7 +170,7 @@ async def test_filter_bool_2(cli, superuser_id):
 #
 
 @pytest.mark.asyncio
-async def test_filter_enum(cli, superuser_id):
+async def test_enum(cli, superuser_id):
     for val in ('active', 'pending', 'active,pending'):
         json = await get(cli, dict(
             url='/users/',
@@ -190,7 +190,7 @@ async def test_filter_enum(cli, superuser_id):
 
 
 @pytest.mark.asyncio
-async def test_filter_datetime(cli, superuser_id):
+async def test_datetime(cli, superuser_id):
     for val in ('2019-09-01T00:00:00Z', '2019-09-01T00:00:00',
                 '2019-09-01T00:00', '2019-09-01', '2019-09'):
         json = await get(cli, dict(
@@ -212,7 +212,7 @@ async def test_filter_datetime(cli, superuser_id):
 
 
 @pytest.mark.asyncio
-async def test_filter_aggregate_1(cli, superuser_id):
+async def test_aggregate_1(cli, superuser_id):
     json = await get(cli, dict(
         url='/users/',
         filter={'article-count': 5},
@@ -227,7 +227,7 @@ async def test_filter_aggregate_1(cli, superuser_id):
 
 
 @pytest.mark.asyncio
-async def test_filter_aggregate_2(cli, superuser_id):
+async def test_aggregate_2(cli, superuser_id):
     json = await get(cli, dict(
         url='/users/',
         filter={'article-count:le': 3},
@@ -242,7 +242,7 @@ async def test_filter_aggregate_2(cli, superuser_id):
 
 
 @pytest.mark.asyncio
-async def test_filter_aggregate_3(cli, superuser_id):
+async def test_aggregate_3(cli, superuser_id):
     json = await get(cli, dict(
         url='/articles/',
         filter={'comment-count:gt': 30, 'keyword-count': 3},
@@ -263,7 +263,7 @@ async def test_filter_aggregate_3(cli, superuser_id):
 
 
 @pytest.mark.asyncio
-async def test_filter_mixed_1(cli, superuser_id):
+async def test_mixed_1(cli, superuser_id):
     json = await get(cli, dict(
         url='/users/',
         filter={
@@ -290,7 +290,7 @@ async def test_filter_mixed_1(cli, superuser_id):
 #
 
 @pytest.mark.asyncio
-async def test_filter_custom_1(cli, superuser_id):
+async def test_custom_1(cli, superuser_id):
     json = await get(cli, dict(
         url='/articles/',
         filter={'custom': 15},
@@ -305,7 +305,7 @@ async def test_filter_custom_1(cli, superuser_id):
 
 
 @pytest.mark.asyncio
-async def test_filter_custom_2(cli, superuser_id):
+async def test_custom_2(cli, superuser_id):
     json = await get(cli, dict(
         url='/articles/',
         filter={'custom': 15, 'is-published': False},

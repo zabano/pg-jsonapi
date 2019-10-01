@@ -5,7 +5,7 @@ from jsonapi.tests.util import *
 
 
 @pytest.mark.asyncio
-async def test_page_1(cli, superuser_id, user_count):
+async def test_1(cli, superuser_id, user_count):
     for step in (3, 10, 50):
         for offset in range(0, 100, step):
             json = await get(cli, dict(
@@ -23,7 +23,7 @@ async def test_page_1(cli, superuser_id, user_count):
 
 
 @pytest.mark.asyncio
-async def test_page_2(cli, superuser_id, article_count):
+async def test_2(cli, superuser_id, article_count):
     for step in (3, 5, 10, 20, 25, 50, 100):
         json = await get(cli, dict(
             url='/articles/',
@@ -39,7 +39,7 @@ async def test_page_2(cli, superuser_id, article_count):
 
 
 @pytest.mark.asyncio
-async def test_page_3(cli, superuser_id, user_count):
+async def test_3(cli, superuser_id, user_count):
     json = await get(cli, dict(
         url='/users/',
         fields=dict(user='id'),
@@ -55,7 +55,7 @@ async def test_page_3(cli, superuser_id, user_count):
 
 
 @pytest.mark.asyncio
-async def test_page_4(cli, superuser_id, user_count):
+async def test_4(cli, superuser_id, user_count):
     json = await get(cli, dict(
         url='/users/',
         fields=dict(user='id'),

@@ -12,7 +12,7 @@ def _check_user(user):
 
 
 @pytest.mark.asyncio
-async def test_aggregate_get_keyword_and_comment_counts_as_user_1(cli, user_1_id):
+async def test_1(cli, user_1_id):
     json = await get(cli, dict(
         url='/articles/',
         fields=dict(
@@ -32,7 +32,7 @@ async def test_aggregate_get_keyword_and_comment_counts_as_user_1(cli, user_1_id
 
 
 @pytest.mark.asyncio
-async def test_aggregate_get_article_count_as_user_1(cli, user_1_id):
+async def test_2(cli, user_1_id):
     json = await get(cli, dict(
         url='/users/{}'.format(user_1_id),
         fields=dict(
@@ -43,7 +43,7 @@ async def test_aggregate_get_article_count_as_user_1(cli, user_1_id):
 
 
 @pytest.mark.asyncio
-async def test_aggregate_get_users_article_count_as_user_1(cli, user_1_id):
+async def test_3(cli, user_1_id):
     json = await get(cli, dict(
         url='/users/',
         fields=dict(
@@ -56,7 +56,7 @@ async def test_aggregate_get_users_article_count_as_user_1(cli, user_1_id):
 
 
 @pytest.mark.asyncio
-async def test_aggregate_get_articles_count_as_user_1(cli, user_1_id):
+async def test_4(cli, user_1_id):
     json = await get(cli, dict(
         url='/articles/',
         include='author',
@@ -70,7 +70,7 @@ async def test_aggregate_get_articles_count_as_user_1(cli, user_1_id):
 
 
 @pytest.mark.asyncio
-async def test_aggregate_get_author_article_count_as_user_1(cli, user_1_id):
+async def test_5(cli, user_1_id):
     qs = 'fields[user]=email,article-count'
     json = await get(cli, dict(
         url='/articles/52/author',
@@ -82,7 +82,7 @@ async def test_aggregate_get_author_article_count_as_user_1(cli, user_1_id):
 
 
 @pytest.mark.asyncio
-async def test_aggregate_get_author_count_as_user_1(cli, user_1_id):
+async def test_6(cli, user_1_id):
     json = await get(cli, dict(
         url='/articles/',
         fields=dict(

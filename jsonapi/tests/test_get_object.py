@@ -9,29 +9,29 @@ from jsonapi.tests.util import *
 
 
 @pytest.mark.asyncio
-async def test_get_user_1(cli, user_1_id):
+async def test_1(cli, user_1_id):
     json = await get(cli, '/users/{}'.format(user_1_id))
     assert isinstance(json['data'], dict)
     check_user(json['data'], user_1_id)
 
 
 @pytest.mark.asyncio
-async def test_get_article_forbidden(cli):
+async def test_2(cli, user_1_id):
+    json = await get(cli, '/users/{}?include=articles'.format(user_1_id), 200)
+    assert_relationship(json['data'], 'articles', 0)
+    assert 'included' not in json
+
+
+@pytest.mark.asyncio
+async def test_forbidden(cli):
     json = await get(cli, '/articles/1', 403)
     assert_error(json, 403, 'access denied')
 
 
 @pytest.mark.asyncio
-async def test_get_article_not_found(cli):
+async def test_not_found(cli):
     json = await get(cli, '/articles/5000', 404)
     assert_error(json, 404, 'not found')
-
-
-@pytest.mark.asyncio
-async def test_get_user_1_articles(cli, user_1_id):
-    json = await get(cli, '/users/{}?include=articles'.format(user_1_id), 200)
-    assert_relationship(json['data'], 'articles', 0)
-    assert 'included' not in json
 
 
 def _check_articles(json, id_list):
@@ -49,19 +49,19 @@ def _check_articles(json, id_list):
 
 
 @pytest.mark.asyncio
-async def test_get_user_1_articles_as_user_1(cli, user_1_id):
+async def test_logged_in_1(cli, user_1_id):
     json = await get(cli, '/users/{}?include=articles'.format(user_1_id), 200, user_1_id)
     _check_articles(json, (52, 53, 54, 55))
 
 
 @pytest.mark.asyncio
-async def test_get_user_2_articles_as_user_1(cli, user_1_id, user_2_id):
+async def test_logged_in_2(cli, user_1_id, user_2_id):
     json = await get(cli, '/users/{}?include=articles'.format(user_2_id), 200, user_1_id)
     _check_articles(json, (263,))
 
 
 @pytest.mark.asyncio
-async def test_get_superuser_articles_as_user_1(cli, superuser_id, user_1_id):
+async def test_logged_in_3(cli, superuser_id, user_1_id):
     json = await get(cli, '/users/{}?include=articles'.format(superuser_id), 200, user_1_id)
     assert_relationship(json['data'], 'articles', 0)
     assert 'included' not in json
@@ -72,12 +72,12 @@ async def test_get_superuser_articles_as_user_1(cli, superuser_id, user_1_id):
 #
 
 @pytest.mark.asyncio
-async def test_get_user_1_articles_as_superuser(cli, superuser_id, user_1_id):
+async def test_superuser_1(cli, superuser_id, user_1_id):
     json = await get(cli, '/users/{}?include=articles'.format(user_1_id), 200, superuser_id)
     _check_articles(json, (52, 53, 54, 55))
 
 
 @pytest.mark.asyncio
-async def test_get_user_2_articles_as_superuser(cli, superuser_id, user_2_id):
+async def test_superuser_2(cli, superuser_id, user_2_id):
     json = await get(cli, '/users/{}?include=articles'.format(user_2_id), 200, superuser_id)
     _check_articles(json, (260, 261, 262, 263, 264))
