@@ -1,10 +1,11 @@
-import marshmallow
 import sqlalchemy as sa
 
-from .datatypes import Bool, DATETIME_FORMAT, DataType, Date, DateTime, Float, Integer, String, Time
-from .db.filter import BoolClause, FloatClause, IntegerClause, StringClause, DateClause, TimeClause, DateTimeClause
-from .exc import Error, ModelError
-from .registry import model_registry
+from jsonapi.datatypes import *
+from jsonapi.db.table import Cardinality, FromItem
+from jsonapi.exc import APIError, Error, ModelError
+from jsonapi.registry import alias_registry, model_registry
+from .datatypes import DataType
+from .db.filter import BoolClause, DateClause, DateTimeClause, FloatClause, IntegerClause, StringClause, TimeClause
 
 
 class BaseField:
@@ -103,6 +104,28 @@ class Aggregate(BaseField):
         self.rel_name = rel_name
         self.rel = None
         self.from_items = None
+
+    def load(self, model):
+        self.rel = model.get_relationship(self.rel_name)
+        pkey = self.rel.model.primary_key
+        fkey = self.rel.fkey
+        alias_name = '{}_alias_for_{}'.format(self.rel.name, self.name)
+        if alias_name in alias_registry:
+            alias = alias_registry[alias_name]
+        else:
+            alias = pkey.table.alias()
+        alias_pkey = getattr(alias.c, pkey.name)
+        self.expr = self.func(alias_pkey.distinct())
+        if self.rel.cardinality == Cardinality.MANY_TO_MANY:
+            self.from_items = FromItem(alias, left=True), FromItem(fkey.parent.table, left=True)
+        elif self.rel.cardinality == Cardinality.ONE_TO_MANY:
+            self.from_items = FromItem(
+                alias,
+                fkey.column == getattr(alias.c, fkey.parent.name),
+                left=True),
+        else:
+            raise APIError('aggregate field support only TO_MANY '
+                           'relationships: "{}"'.format(self.name), model)
 
 
 class Derived(BaseField):
