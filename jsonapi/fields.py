@@ -19,8 +19,8 @@ class BaseField:
         self.name = name
         self.expr = expr
         self.data_type = self.get_data_type(expr).value if data_type is None else data_type.value
-        self.exclude = False
         self.filter_clause = self.get_filter_clause()
+        self.exclude = False
 
     def get_filter_clause(self):
         if self.name == 'id':
@@ -93,10 +93,10 @@ class Aggregate(BaseField):
         self.func = func
         self.rel_name = rel_name
         self.rel = None
-        self.from_items = None
+        self.from_items = tuple()
 
     def load(self, model):
-        self.rel = model.get_relationship(self.rel_name)
+        self.rel = model.relationship(self.rel_name)
         pkey = self.rel.model.primary_key
         fkey = self.rel.fkey
         alias_name = '{}_alias_for_{}'.format(self.rel.name, self.name)

@@ -20,11 +20,13 @@ class Query:
         self.model = model
 
     def is_aggregate(self):
-        return any(isinstance(field, Aggregate) for field in self.model.schema_fields)
+        return any(isinstance(field, Aggregate) for field in self.model.fields.values()
+                   if field.expr is not None)
 
     def col_list(self, group_by=False, search=None):
-        col_list = [field.expr.label(field.name) for field in self.model.schema_fields if
-                    isinstance(field, Field if group_by else (Field, Aggregate))]
+        col_list = [field.expr.label(name)
+                    for name, field in self.model.attributes.items()
+                    if isinstance(field, Field if group_by else (Field, Aggregate))]
         if self.model.search is not None and search is not None:
             col_list.append(self.rank_column(search))
         return col_list
@@ -32,16 +34,11 @@ class Query:
     def from_obj(self, *additional):
         from_clause = copy(self.model.from_clause)
         from_clause.extend(additional)
-        for field in self.model.schema_fields:
-            if isinstance(field, Aggregate):
+        for field in self.model.fields.values():
+            if isinstance(field, Aggregate) and field.expr is not None:
                 for from_item in field.from_items:
                     from_clause.append(from_item)
         return from_clause()
-
-    def get_column(self, name):
-        for col in self.from_obj().c:
-            if col.name == name:
-                return col
 
     def rank_column(self, search):
         if self.model.search is not None and search is not None:
@@ -59,7 +56,7 @@ class Query:
         order_by = list()
         for name, desc in self.model.args.sort.items():
             try:
-                expr = self.model.attributes[name].expr
+                expr = self.model.fields[name].expr
             except KeyError:
                 raise APIError('column does not exist: {}'.format(name), self.model)
             else:

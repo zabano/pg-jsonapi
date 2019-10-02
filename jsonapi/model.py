@@ -94,49 +94,103 @@ class Model:
     A full-text index table.
     """
 
+    ################################################################################################
+    # initialization
+    ################################################################################################
+
     def __init_subclass__(cls, **kwargs):
         super().__init_subclass__(**kwargs)
         model_registry[cls.__name__] = cls
 
     def __init__(self):
 
+        self.type_ = self.get_type()
+        self.from_clause = self.get_from_items()
+
+        self.schema = None
+        self.args = None
+
+        self.fields = self.get_fields()
+        self.query = Query(self)
+
+        self.included = defaultdict(dict)
+        self.errors = list()
+        self.meta = dict()
+
+    def get_type(self):
         if self.type_ is None:
-            self.type_ = dasherize(underscore(self.name.lower().replace('model', '')))
+            return dasherize(underscore(self.name.lower().replace('model', '')))
         if not isinstance(self.type_, str):
             raise ModelError('attribute: "type_" must be a string', self)
 
+    def get_from_items(self):
         if self.from_ is None:
             raise ModelError('attribute: "from_" is not set', self)
         try:
             for from_item in self.from_:
                 if not is_from_item(from_item):
                     raise ModelError('invalid from item: {!r}'.format(from_item), self)
-            self.from_clause = FromClause(*self.from_)
+            return FromClause(*self.from_)
         except TypeError:
             if not is_from_item(self.from_):
                 raise ModelError('invalid from item: {!r}'.format(self.from_), self)
-            self.from_clause = FromClause(self.from_)
+            return FromClause(self.from_)
 
-        self.schema = None
-        self.schema_fields = list()
-        self.args = None
-        self.query = Query(self)
-
-        self.fields = dict()
-        if hasattr(type(self), 'fields'):
-            fields = type(self).fields
-            if isinstance(fields, str):
-                self.load_field(fields)
+    def get_fields(self):
+        fields = dict()
+        if hasattr(self, 'fields'):
+            if isinstance(self.fields, str):
+                field = self.get_field(self.fields)
+                fields[field.name] = field
             else:
                 try:
-                    for field_spec in fields:
-                        self.load_field(field_spec)
+                    iter(self.fields)
                 except TypeError:
-                    self.load_field(fields)
+                    field = self.get_field(self.fields)
+                    fields[field.name] = field
+                else:
+                    for field_spec in self.fields:
+                        field = self.get_field(field_spec)
+                        fields[field.name] = field
 
-        self.included = defaultdict(dict)
-        self.errors = list()
-        self.meta = dict()
+        if 'id' in fields.keys():
+            raise APIError('illegal field name: "id"', self)
+        elif 'type' in fields.keys():
+            raise APIError('illegal field name: "type"', self)
+
+        fields['id'] = Field('id', self.primary_key, String)
+        return fields
+
+    def get_field(self, field_spec):
+        if isinstance(field_spec, str):
+            expr = self.get_db_column(field_spec)
+            if expr is None:
+                raise ModelError('db column: "{}" '
+                                 'not found'.format(field_spec), self)
+            return Field(field_spec, expr)
+        elif isinstance(field_spec, BaseField):
+            return field_spec
+        else:
+            raise ModelError('invalid field: {!r}'.format(field_spec), self)
+
+    def get_db_column(self, name):
+        for col in self.from_clause().columns:
+            if col.name == name:
+                return col
+
+    def attribute(self, name):
+        if name in self.fields.keys() and not isinstance(self.fields[name], Relationship):
+            return self.fields[name]
+        raise ModelError('attribute does not exist: "{}"'.format(name), self)
+
+    def relationship(self, name):
+        if name in self.fields.keys() and isinstance(self.fields[name], Relationship):
+            return self.fields[name]
+        return ModelError('relationship does not exist: "{}"'.format(name), self)
+
+    ################################################################################################
+    # properties
+    ################################################################################################
 
     @property
     def name(self):
@@ -157,40 +211,22 @@ class Model:
         """
         A dictionary of relationship fields keyed by name.
         """
-        return {field.name: field for field in self.schema_fields if
-                isinstance(field, Relationship)}
+        return {name: field for name, field in self.fields.items()
+                if isinstance(field, Relationship) and not field.exclude}
 
     @property
     def attributes(self):
         """
         A dictionary of attribute fields keyed by name.
         """
-        return {field.name: field for field in self.schema_fields if
-                not isinstance(field, Relationship)}
+        return {name: field for name, field in self.fields.items()
+                if not isinstance(field, Relationship)
+                and not field.exclude
+                and field.expr is not None}
 
-    def load_field(self, field_spec):
-        if isinstance(field_spec, str):
-            expr = self.query.get_column(field_spec)
-            if expr is None:
-                raise ModelError('database column: "{}" '
-                                 'not found'.format(field_spec), self)
-            self.fields[field_spec] = Field(field_spec, expr)
-        elif isinstance(field_spec, BaseField):
-            self.fields[field_spec.name] = field_spec
-        else:
-            raise ModelError('invalid field: {!r}'.format(field_spec), self)
-
-    def get_relationship(self, name):
-        if name in self.fields and isinstance(self.fields[name], Relationship):
-            return self.fields[name]
-        return ModelError('relationship does not exist: "{}"'.format(name), self)
-
-    def get_attribute(self, name):
-        if name == 'id':
-            return Field('id', self.primary_key, String)
-        if name in self.fields and not isinstance(self.fields[name], Relationship):
-            return self.fields[name]
-        raise ModelError('attribute does not exist: "{}"'.format(name), self)
+    ################################################################################################
+    # core functionality
+    ################################################################################################
 
     def parse_arguments(self, args):
         self.args = RequestArguments(args)
@@ -200,7 +236,6 @@ class Model:
         if args is not None:
             self.args = args
 
-        self.schema_fields = [self.get_attribute('id')]
         for name, field in self.fields.items():
 
             in_include = self.args.in_include(name)
@@ -210,18 +245,15 @@ class Model:
             in_filter = self.args.in_filter(name)
 
             if isinstance(field, (Field, Derived)):
-                if not fieldset_defined or in_fieldset or in_sort or in_filter:
-                    field.exclude = (in_sort or in_filter) and fieldset_defined and not in_fieldset
-                    self.schema_fields.append(field)
+                field.exclude = fieldset_defined and not in_fieldset
 
             elif isinstance(field, Aggregate):
+                field.exclude = not in_fieldset
                 if in_fieldset or in_sort or in_filter:
-                    field.exclude = (in_sort or in_filter) and not (
-                            fieldset_defined and in_fieldset)
                     field.load(self)
-                    self.schema_fields.append(field)
 
             elif isinstance(field, Relationship):
+                field.exclude = not in_include
                 if in_include:
                     rel_args = copy(self.args)
                     rel_args.include = rel_args.include[field.name]
@@ -230,14 +262,13 @@ class Model:
                         schema_registry['{}Schema'.format(field.model.name)](),
                         many=field.cardinality in (Cardinality.ONE_TO_MANY,
                                                    Cardinality.MANY_TO_MANY))
-                    self.schema_fields.append(field)
 
             else:
                 raise ModelError('unsupported field: {!r}'.format(field), self)
 
         schema = type('{}Schema'.format(self.name),
                       (JSONSchema,),
-                      {field.name: field() for field in self.schema_fields if not field.exclude})
+                      {name: field() for name, field in self.fields.items() if not field.exclude})
         schema_registry[schema.__name__] = schema
         self.schema = schema()
         self.schema.context['root'] = self
@@ -267,7 +298,7 @@ class Model:
         filter_by = Filter()
         for key, arg in self.args.filter.items():
             try:
-                attr = self.get_attribute(arg['name'])
+                attr = self.attribute(arg['name'])
             except Error as e:
                 try:
                     custom_filter = getattr(self, 'filter_{}'.format(arg['name']))
@@ -316,6 +347,10 @@ class Model:
                 reduce(lambda a, b: a + b if isinstance(b, list) else a + [b],
                        [rec[rel.name] for rec in data if rec[rel.name] is not None],
                        list()))
+
+    ################################################################################################
+    # public interface
+    ################################################################################################
 
     async def get_object(self, args, object_id):
         """
@@ -398,7 +433,7 @@ class Model:
         if result is None:
             raise Forbidden(object_id, self)
 
-        rel = self.get_relationship(relationship_name)
+        rel = self.relationship(relationship_name)
         rel.model.parse_arguments(args)
         rel.model.init_schema()
         query = rel.model.query.related(object_id, rel)
