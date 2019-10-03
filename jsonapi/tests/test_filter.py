@@ -1,6 +1,5 @@
 import pytest
 
-from jsonapi.db.util import parse_datetime
 from jsonapi.tests.util import *
 
 

@@ -3,9 +3,10 @@ import re
 
 from sqlalchemy.sql import operators, or_
 
+from jsonapi.exc import Error
 from jsonapi.datatypes import DataType, Bool, Integer, Float, String, Date, Time, DateTime
+from jsonapi.registry import filter_registry
 from .table import is_clause, is_from_item
-from .util import *
 
 MODIFIERS = {'=': operators.eq, '<>': operators.ne, '!=': operators.ne,
              '>=': operators.ge, '<=': operators.le, '>': operators.gt, '<': operators.lt}
@@ -30,29 +31,69 @@ OPERATOR_LT = Operator.LT
 OPERATOR_LE = Operator.LE
 
 
+class Filter:
+
+    def __init__(self, where=None, *from_items):
+        self.where = list(where) if where is not None else list()
+        self.from_items = list(from_items)
+        self.having = list()
+
+    def __bool__(self):
+        return any((self.where, self.having, self.from_items))
+
+    def add(self, attr, op, val):
+        clause = attr.filter_clause.get(attr.expr, op, val)
+        if attr.is_aggregate():
+            self.having.append(clause)
+        else:
+            self.where.append(clause)
+
+    def add_custom(self, name, custom_clause):
+        if is_clause(custom_clause):
+            self.where.append(custom_clause)
+        else:
+            try:
+                if len(custom_clause) == 2 and is_clause(custom_clause[0]) \
+                        and all(is_from_item(fi for fi in custom_clause[1])):
+                    self.where.append(custom_clause[0])
+                    self.from_items.extend(custom_clause[1])
+                else:
+                    raise TypeError
+            except TypeError:
+                raise Error('filter:{} | expected a where clause and a sequence '
+                            'of from items'.format(name))
+
+
 class FilterClause:
-    data_type = String
-    operators = tuple()
-    multiple = tuple()
 
-    registry = dict()
+    def __init__(self, data_type, *ops, **kwargs):
 
-    def __init_subclass__(cls, **kwargs):
-        super().__init_subclass__(**kwargs)
-        FilterClause.registry[cls.data_type.value] = cls()
+        if not issubclass(data_type, DataType):
+            raise ValueError('[{}}] invalid data type: {!r}'.format(op, self.__class__.__name__))
 
-    def __init__(self):
+        self.parse = data_type.parse
 
-        if not isinstance(self.data_type, DataType):
-            raise ValueError('[FilterExpression] invalid datatype: {!r}'.format(self.data_type))
+        for op in ops:
+            self.check_operator(op)
+        self.operators = tuple(set(ops))
 
-        for op in self.operators:
-            if not isinstance(op, Operator):
-                raise ValueError('[FilterExpression] invalid operator: {!r}'.format(op))
+        multiple = kwargs.get('multiple', None)
+        if multiple:
+            try:
+                iter(multiple)
+            except TypeError:
+                self.check_operator(multiple)
+                self.multiple = (multiple,)
+            else:
+                for op in multiple:
+                    self.check_operator(op)
+                self.multiple = tuple(set(multiple))
 
-        for op in self.multiple:
-            if not isinstance(op, Operator):
-                raise ValueError('[FilterExpression] invalid operator: {!r}'.format(op))
+        filter_registry[data_type] = self
+
+    def check_operator(self, op):
+        if not isinstance(op, Operator):
+            raise ValueError('[{}}] invalid operator: {!r}'.format(op, self.__class__.__name__))
 
     def is_op(self, op, multiple=False):
         return op in (o.value for o in (self.multiple if multiple else self.operators))
@@ -68,10 +109,6 @@ class FilterClause:
             return values
         else:
             return [('=', self.parse(v)) for v in val.split(',')]
-
-    @staticmethod
-    def parse(val):
-        return val
 
     def get(self, expr, op, val):
 
@@ -123,100 +160,23 @@ class FilterClause:
             return getattr(operators, op)(expr, v)
 
 
-class BoolClause(FilterClause):
-    data_type = Bool
-    operators = (OPERATOR_NONE, OPERATOR_EQ)
+BoolClause = FilterClause(Bool, OPERATOR_NONE, OPERATOR_EQ)
 
-    @staticmethod
-    def parse(val):
-        return parse_bool(val)
+IntegerClause = FilterClause(Integer, OPERATOR_NONE, OPERATOR_EQ, OPERATOR_NE,
+                             OPERATOR_GT, OPERATOR_GE, OPERATOR_LT, OPERATOR_LE,
+                             multiple=(OPERATOR_NONE, OPERATOR_EQ, OPERATOR_NE))
 
+FloatClause = FilterClause(Float, OPERATOR_GT, OPERATOR_GE, OPERATOR_LT, OPERATOR_LE,
+                           multiple=(OPERATOR_NONE, OPERATOR_EQ, OPERATOR_NE))
 
-class IntegerClause(FilterClause):
-    data_type = Integer
-    operators = (OPERATOR_NONE, OPERATOR_EQ, OPERATOR_NE,
-                 OPERATOR_GT, OPERATOR_GE, OPERATOR_LT, OPERATOR_LE)
-    multiple = (OPERATOR_NONE, OPERATOR_EQ, OPERATOR_NE)
+DateClause = FilterClause(Date, OPERATOR_GT, OPERATOR_LT,
+                          multiple=(OPERATOR_NONE, OPERATOR_EQ, OPERATOR_NE))
 
-    @staticmethod
-    def parse(val):
-        return parse_int(val)
+TimeClause = FilterClause(Time, OPERATOR_GT, OPERATOR_LT,
+                          multiple=(OPERATOR_NONE, OPERATOR_EQ, OPERATOR_NE))
 
+DateTimeClause = FilterClause(DateTime, OPERATOR_GT, OPERATOR_LT,
+                              multiple=(OPERATOR_NONE, OPERATOR_EQ, OPERATOR_NE))
 
-class FloatClause(FilterClause):
-    data_type = Float
-    operators = (OPERATOR_GT, OPERATOR_GE, OPERATOR_LT, OPERATOR_LE)
-    multiple = (OPERATOR_NONE, OPERATOR_EQ, OPERATOR_NE)
-
-    @staticmethod
-    def parse(val):
-        return parse_float(val)
-
-
-class DateClause(FilterClause):
-    data_type = Date
-    operators = (OPERATOR_GT, OPERATOR_LT)
-    multiple = (OPERATOR_NONE, OPERATOR_EQ, OPERATOR_NE)
-
-    @staticmethod
-    def parse(val):
-        return parse_date(val)
-
-
-class TimeClause(FilterClause):
-    data_type = Time
-    operators = (OPERATOR_GT, OPERATOR_LT)
-    multiple = (OPERATOR_NONE, OPERATOR_EQ, OPERATOR_NE)
-
-    @staticmethod
-    def parse(val):
-        return parse_time(val)
-
-
-class DateTimeClause(FilterClause):
-    data_type = DateTime
-    operators = (OPERATOR_GT, OPERATOR_LT)
-    multiple = (OPERATOR_NONE, OPERATOR_EQ, OPERATOR_NE)
-
-    @staticmethod
-    def parse(val):
-        return parse_datetime(val)
-
-
-class StringClause(FilterClause):
-    data_type = String
-    operators = (OPERATOR_NONE, OPERATOR_EQ, OPERATOR_NE)
-    multiple = (OPERATOR_NONE, OPERATOR_EQ, OPERATOR_NE)
-
-
-class Filter:
-
-    def __init__(self, where=None, *from_items):
-        self.where = list(where) if where is not None else list()
-        self.from_items = list(from_items)
-        self.having = list()
-
-    def __bool__(self):
-        return any((self.where, self.having, self.from_items))
-
-    def add(self, attr, op, val):
-        clause = attr.filter_clause.get(attr.expr, op, val)
-        if attr.is_aggregate():
-            self.having.append(clause)
-        else:
-            self.where.append(clause)
-
-    def add_custom(self, name, custom_clause):
-        if is_clause(custom_clause):
-            self.where.append(custom_clause)
-        else:
-            try:
-                if len(custom_clause) == 2 and is_clause(custom_clause[0]) \
-                        and all(is_from_item(fi for fi in custom_clause[1])):
-                    self.where.append(custom_clause[0])
-                    self.from_items.extend(custom_clause[1])
-                else:
-                    raise TypeError
-            except TypeError:
-                raise Error('filter:{} | expected a where clause and a sequence '
-                            'of from items'.format(name))
+StringClause = FilterClause(String, OPERATOR_NONE, OPERATOR_EQ, OPERATOR_NE,
+                            multiple=(OPERATOR_NONE, OPERATOR_EQ, OPERATOR_NE))

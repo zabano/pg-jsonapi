@@ -1,12 +1,14 @@
 class Error(Exception):
-    """ Generic error """
+
+    def __init__(self, message):
+        super().__init__(message)
+        self.message = message
 
 
 class ModelError(Error):
 
     def __init__(self, message, model):
         super().__init__(message)
-        self.message = message
         self.model = model
 
     def __str__(self):
@@ -18,6 +20,16 @@ class APIError(ModelError):
     def __init__(self, message, model, status=400):
         super().__init__(message, model)
         self.status = status
+
+
+class DataTypeError(Error):
+
+    def __init__(self, message, data_type):
+        super().__init__(message)
+        self.data_type = data_type
+
+    def __str__(self):
+        return 'datatype {} {}'.format(self.data_type.__class__.__name__.lower(), self.message)
 
 
 class NotFound(APIError):

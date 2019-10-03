@@ -9,3 +9,5 @@ Example: {'UserModel': UserModel, 'ArticleModel': ArticleMode}.
 schema_registry = {}
 
 alias_registry = {}
+
+filter_registry = {}

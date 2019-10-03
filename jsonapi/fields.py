@@ -1,11 +1,9 @@
-import sqlalchemy as sa
+import marshmallow as ma
 
-from jsonapi.datatypes import *
+from jsonapi.datatypes import DataType, Date, DateTime, Integer, get_data_type
 from jsonapi.db.table import Cardinality, FromItem
 from jsonapi.exc import APIError, Error, ModelError
-from jsonapi.registry import alias_registry, model_registry
-from .datatypes import DataType, Integer
-from .db.filter import FilterClause
+from jsonapi.registry import alias_registry, model_registry, filter_registry
 
 
 class BaseField:
@@ -13,50 +11,31 @@ class BaseField:
 
     def __init__(self, name, expr=None, data_type=None):
 
-        if data_type is not None and not isinstance(data_type, DataType):
-            raise Error('invalid attribute type provided: "{}"'.format(data_type))
+        if data_type is not None and not issubclass(data_type, DataType):
+            raise Error('invalid data type provided: "{}"'.format(data_type))
 
         self.name = name
         self.expr = expr
-        self.data_type = self.get_data_type(expr).value if data_type is None else data_type.value
-        self.filter_clause = self.get_filter_clause()
+        self.data_type = get_data_type(expr) if data_type is None else data_type
         self.exclude = False
 
-    def get_filter_clause(self):
-        if self.name == 'id':
-            return FilterClause.registry[Integer.value]
-        return FilterClause.registry[self.data_type]
+        self.filter_clause = self.get_filter_clause()
 
-    @staticmethod
-    def get_data_type(expr):
-        if expr is not None:
-            if hasattr(expr, 'type'):
-                if isinstance(expr.type, sa.Boolean):
-                    return Bool
-                if isinstance(expr.type, (sa.Integer, sa.SmallInteger, sa.BigInteger)):
-                    return Integer
-                if isinstance(expr.type, (sa.Float, sa.Numeric)):
-                    return Float
-                if isinstance(expr.type, sa.Date):
-                    return Date
-                if isinstance(expr.type, sa.Time):
-                    return Time
-                if isinstance(expr.type, sa.DateTime):
-                    return DateTime
-        return String
+    def get_filter_clause(self):
+        data_type = Integer if self.name == 'id' else self.data_type
+        return filter_registry[data_type] if data_type is not None else None
 
     def is_aggregate(self):
         return isinstance(self, Aggregate)
 
-    def __call__(self):
-
-        if isinstance(self.data_type, (marshmallow.fields.Nested, marshmallow.fields.Function)):
+    def get_ma_field(self):
+        if isinstance(self, Relationship):
+            return self.nested
+        if isinstance(self.data_type.ma_type, ma.fields.Function):
             return self.data_type
-
-        args = list()
-        if issubclass(self.data_type, marshmallow.fields.DateTime):
-            args = [DATETIME_FORMAT]
-        return self.data_type(*args)
+        if issubclass(self.data_type.ma_type, ma.fields.DateTime):
+            return self.data_type.ma_type(DateTime.FORMAT)
+        return self.data_type.ma_type()
 
     def __repr__(self):
         return '<{}({})>'.format(self.__class__.__name__, self.name)
@@ -82,14 +61,14 @@ class Aggregate(BaseField):
     along with one or more from items to add to the model's from clause.
     """
 
-    def __init__(self, name, rel_name, func, data_type=Integer):
+    def __init__(self, name, rel_name, func, data_type=None):
         """
         :param str name: field name
         :param rel_name: relationship name
         :param func: SQLAlchemy aggregate function (ex. sa.func.count)
         :param DataType data_type: one of the supported data types (optional)
         """
-        super().__init__(name, expr=None, data_type=data_type)
+        super().__init__(name, expr=None, data_type=data_type if data_type is not None else Integer)
         self.func = func
         self.rel_name = rel_name
         self.rel = None
@@ -106,6 +85,7 @@ class Aggregate(BaseField):
             alias = pkey.table.alias()
         alias_pkey = getattr(alias.c, pkey.name)
         self.expr = self.func(alias_pkey.distinct())
+        self.filter_clause = self.get_filter_clause()
         if self.rel.cardinality == Cardinality.MANY_TO_MANY:
             self.from_items = FromItem(alias, left=True), FromItem(fkey.parent.table, left=True)
         elif self.rel.cardinality == Cardinality.ONE_TO_MANY:
@@ -131,14 +111,14 @@ class Derived(BaseField):
         :param lambda expr: a lambda function that accepts a single record as the first argument
         """
         super().__init__(name)
-        self.data_type = marshmallow.fields.Function(expr)
+        self.func = ma.fields.Function(expr)
 
 
 class Relationship(BaseField):
     """
     Represents a relationship field.
 
-    >>> from jsonapi import ONE_TO_MANY
+    >>> from jsonapi.db.table import ONE_TO_MANY
     >>> Relationship('articles', 'ArticleModel',
     >>>              ONE_TO_MANY, 'articles_author_id_fkey'))
     """
@@ -152,6 +132,7 @@ class Relationship(BaseField):
         """
         super().__init__(name)
         self.cardinality = cardinality
+        self.nested = None
 
         self._model_name = model_name
         self._fkey_name = fkey_name

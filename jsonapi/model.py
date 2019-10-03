@@ -3,11 +3,12 @@ from copy import copy
 from functools import reduce
 from itertools import islice
 
+import marshmallow as ma
 import sqlalchemy as sa
 from asyncpgsa import pg
 from inflection import camelize, dasherize, underscore
 
-from jsonapi.datatypes import *
+from jsonapi.datatypes import String
 from jsonapi.db.filter import Filter
 from jsonapi.db.query import Query
 from jsonapi.db.table import Cardinality, FromClause, is_from_item
@@ -15,7 +16,7 @@ from jsonapi.db.util import get_primary_key
 from jsonapi.exc import APIError, Error, Forbidden, ModelError, NotFound
 from jsonapi.fields import Aggregate, BaseField, Derived, Field, Relationship
 from jsonapi.registry import model_registry, schema_registry
-from jsonapi.util import RequestArguments
+from jsonapi.args import RequestArguments
 
 MIME_TYPE = 'application/vnd.api+json'
 
@@ -28,9 +29,9 @@ def get_error_object(e):
     raise e
 
 
-class JSONSchema(marshmallow.Schema):
+class JSONSchema(ma.Schema):
 
-    @marshmallow.post_dump(pass_many=False, pass_original=True)
+    @ma.post_dump(pass_many=False, pass_original=True)
     def wrap(self, data, orig, many):
 
         if len(data) == 0:
@@ -42,9 +43,9 @@ class JSONSchema(marshmallow.Schema):
             resource['meta'] = dict(rank=orig['_ts_rank'])
 
         for name, field in self.declared_fields.items():
-            if name not in ('id', 'type') and not isinstance(field, marshmallow.fields.Nested):
+            if name not in ('id', 'type') and not isinstance(field, ma.fields.Nested):
                 resource['attributes'][camelize(name, False)] = data[name]
-            elif isinstance(field, marshmallow.fields.Nested) and not field.load_only:
+            elif isinstance(field, ma.fields.Nested) and not field.load_only:
                 if 'relationships' not in resource:
                     resource['relationships'] = dict()
                 included = self.context['root'].included
@@ -258,7 +259,7 @@ class Model:
                     rel_args = copy(self.args)
                     rel_args.include = rel_args.include[field.name]
                     field.model.init_schema(rel_args)
-                    field.data_type = marshmallow.fields.Nested(
+                    field.nested = ma.fields.Nested(
                         schema_registry['{}Schema'.format(field.model.name)](),
                         many=field.cardinality in (Cardinality.ONE_TO_MANY,
                                                    Cardinality.MANY_TO_MANY))
@@ -268,7 +269,8 @@ class Model:
 
         schema = type('{}Schema'.format(self.name),
                       (JSONSchema,),
-                      {name: field() for name, field in self.fields.items() if not field.exclude})
+                      {name: field.get_ma_field() for name, field in self.fields.items()
+                       if not field.exclude})
         schema_registry[schema.__name__] = schema
         self.schema = schema()
         self.schema.context['root'] = self
@@ -395,7 +397,6 @@ class Model:
         >>> })
 
         :param dict args: a dictionary representing the request query string
-        :param Filter filter_by: a Filter object for row filtering (optional)
         :param str search: an optional search term
         :return: a dictionary representing a JSON API response
         """
@@ -422,7 +423,7 @@ class Model:
         :param dict args: a dictionary representing the request query string
         :param object_id: the resource object id
         :param relationship_name: relationship name
-        :param Filter filter_by: a Filter object for row filtering (optional)
+        :param str search: an optional search term
         :return: a dictionary representing a JSON API response
         """
 
