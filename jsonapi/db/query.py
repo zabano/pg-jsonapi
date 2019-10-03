@@ -4,7 +4,6 @@ import sqlalchemy as sa
 
 from jsonapi.exc import APIError, ModelError
 from jsonapi.fields import Aggregate, Field
-from .filter import Filter
 from .table import FromItem, MANY_TO_MANY, MANY_TO_ONE, ONE_TO_MANY, ONE_TO_ONE
 from .util import get_primary_key
 
@@ -48,6 +47,16 @@ class Query:
     def group_by(self, query, *columns):
         if self.is_aggregate():
             query = query.group_by(*[*self.col_list(group_by=True), *columns])
+        return query
+
+    @staticmethod
+    def filter_by(query, filter_by):
+        if not filter_by:
+            return query
+        if filter_by.where:
+            query = query.where(sa.and_(*filter_by.where))
+        if filter_by.having:
+            query = query.having(sa.and_(*filter_by.having))
         return query
 
     def sort_by(self, query, search=None):
@@ -103,15 +112,7 @@ class Query:
         if not count:
             query = self.sort_by(query, search)
 
-        if filter_by is not None:
-            if isinstance(filter_by, Filter):
-                if filter_by.where:
-                    query = query.where(sa.and_(*filter_by.where))
-                if filter_by.having:
-                    query = query.having(sa.and_(*filter_by.having))
-            else:
-                return query.where(filter_by)
-
+        query = self.filter_by(query, filter_by)
         query = self.check_access(query)
 
         if paginate and self.model.args.limit is not None:
@@ -128,7 +129,7 @@ class Query:
         query = self._search(query, term)
         return self.check_access(query)
 
-    def related(self, resource_id, rel):
+    def related(self, resource_id, rel, filter_by=None, paginate=True, count=False, search=None):
         pkey_column = get_primary_key(rel.fkey.parent.table)
         where_col = pkey_column if rel.cardinality in (ONE_TO_ONE, MANY_TO_ONE) \
             else rel.fkey.parent
@@ -141,7 +142,13 @@ class Query:
         query = self.group_by(query)
         if rel.cardinality in (ONE_TO_MANY, MANY_TO_MANY):
             query = self.sort_by(query)
+
+        query = self.filter_by(query, filter_by)
         query = self.check_access(query)
+
+        if paginate and self.model.args.limit is not None:
+            query = query.offset(self.model.args.offset).limit(self.model.args.limit)
+
         return query
 
     def included(self, rel, id_list):

@@ -42,9 +42,9 @@ async def test_single_3(cli, user_count):
 #
 
 @pytest.mark.asyncio
-async def test_aggregate_1(cli, superuser_id):
+async def test_aggregate_1(cli, user_1_id, superuser_id):
     json = await get(cli, dict(
-        url='/users/1/articles/',
+        url='/users/{}/articles/'.format(user_1_id),
         sort='keyword-count'
     ), 200, superuser_id)
     assert isinstance(json['data'], list)
@@ -55,9 +55,9 @@ async def test_aggregate_1(cli, superuser_id):
 
 
 @pytest.mark.asyncio
-async def test_aggregate_2(cli, superuser_id):
+async def test_aggregate_2(cli, user_1_id, superuser_id):
     json = await get(cli, dict(
-        url='/users/1/articles/',
+        url='/users/{}/articles/'.format(user_1_id),
         fields=dict(article='title'),
         sort='keyword-count'
     ), 200, superuser_id)
@@ -72,9 +72,9 @@ async def test_aggregate_2(cli, superuser_id):
 
 
 @pytest.mark.asyncio
-async def test_aggregate_3(cli, superuser_id):
+async def test_aggregate_3(cli, user_1_id, superuser_id):
     json = await get(cli, dict(
-        url='/users/1/articles/',
+        url='/users/{}/articles/'.format(user_1_id),
         fields=dict(article='title,keyword-count'),
         sort='keyword-count'
     ), 200, superuser_id)
@@ -89,9 +89,9 @@ async def test_aggregate_3(cli, superuser_id):
 
 
 @pytest.mark.asyncio
-async def test_aggregate_4(cli, superuser_id):
+async def test_aggregate_4(cli, user_1_id, superuser_id):
     json = await get(cli, dict(
-        url='/users/1/articles/',
+        url='/users/{}/articles/'.format(user_1_id),
         fields=dict(article='keyword-count'),
         sort='keyword-count'
     ), 200, superuser_id)

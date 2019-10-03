@@ -308,12 +308,12 @@ async def test_custom_1(cli, superuser_id):
 async def test_custom_2(cli, superuser_id):
     json = await get(cli, dict(
         url='/articles/',
-        filter={'custom': 15, 'is-published': False},
+        filter={'custom': 15, 'is-published': True},
         fields=dict(article='title,is-published')
     ), 200, superuser_id)
     assert isinstance(json['data'], list)
-    assert len(json['data']) == 1
+    assert len(json['data']) > 0
     for article in json['data']:
         assert_object(article, 'article')
         assert_attribute(article, 'title', lambda v: len(v) == 15)
-        assert_attribute(article, 'isPublished', lambda v: v is False)
+        assert_attribute(article, 'isPublished', lambda v: v is True)

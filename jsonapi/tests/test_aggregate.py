@@ -70,13 +70,12 @@ async def test_4(cli, user_1_id):
 
 
 @pytest.mark.asyncio
-async def test_5(cli, user_1_id):
-    qs = 'fields[user]=email,article-count'
+async def test_5(cli, superuser_id):
     json = await get(cli, dict(
         url='/articles/52/author',
         fields=dict(
             user='email,article-count'
-        )), 200, user_1_id)
+        )), 200, superuser_id)
     assert isinstance(json['data'], dict)
     _check_user(json['data'])
 

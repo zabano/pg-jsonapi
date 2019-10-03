@@ -1,0 +1,12 @@
+DROP TABLE users CASCADE;
+DROP TABLE user_names CASCADE;
+DROP TABLE articles CASCADE;
+DROP TABLE keywords CASCADE;
+DROP TABLE comments CASCADE;
+DROP TABLE replies CASCADE;
+DROP TABLE users_ts CASCADE;
+DROP TABLE articles_ts CASCADE;
+DROP TABLE article_read_access CASCADE;
+DROP TABLE article_keywords CASCADE;
+DROP TYPE user_status CASCADE;
+DROP FUNCTION check_article_read_access(p_article_id integer, p_user_id integer);

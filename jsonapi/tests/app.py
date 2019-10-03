@@ -1,16 +1,11 @@
 import logging
 import os
 
-from quart import Quart
-from quart import jsonify
-from quart import request
+from quart import Quart, jsonify, request
 
-from jsonapi.model import MIME_TYPE
-from jsonapi.model import get_error_object
+from jsonapi.model import MIME_TYPE, get_error_object
+from jsonapi.tests.auth import login, logout
 from jsonapi.tests.model import *
-from jsonapi.tests.db import init_db
-from jsonapi.tests.auth import login
-from jsonapi.tests.auth import logout
 
 app = Quart('jsonapi-test')
 app.config['JSONIFY_MIMETYPE'] = MIME_TYPE
@@ -21,11 +16,6 @@ if 'JSONAPI_DEBUG' in os.environ:
     logger = logging.getLogger('asyncpgsa.query')
     logger.addHandler(app.logger.handlers[0])
     logger.setLevel(logging.DEBUG)
-
-
-@app.before_first_request
-async def init():
-    await init_db()
 
 
 @app.before_request

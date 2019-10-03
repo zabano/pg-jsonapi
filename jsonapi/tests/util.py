@@ -73,11 +73,12 @@ def assert_attribute_does_not_exist(json, name):
     assert name not in attributes
 
 
-def assert_relationship(json, name, length):
+def assert_relationship(json, name, length=None):
     assert 'relationships' in json
     relationships = json['relationships']
     assert name in relationships
-    assert len(relationships[name]) == length
+    if length is not None:
+        assert len(relationships[name]) == length
 
 
 def assert_error(json, status, text=None):

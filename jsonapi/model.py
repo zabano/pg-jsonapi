@@ -5,7 +5,7 @@ from itertools import islice
 
 import sqlalchemy as sa
 from asyncpgsa import pg
-from inflection import camelize, underscore, dasherize
+from inflection import camelize, dasherize, underscore
 
 from jsonapi.datatypes import *
 from jsonapi.db.filter import Filter
@@ -382,7 +382,7 @@ class Model:
         await self.fetch_included([rec])
         return self.response(rec)
 
-    async def get_collection(self, args, filter_by=None, search=None):
+    async def get_collection(self, args, search=None):
         """
         Fetch a collection of resources.
 
@@ -408,7 +408,7 @@ class Model:
         await self.fetch_included(recs)
         return self.response(recs)
 
-    async def get_related(self, args, object_id, relationship_name, filter_by=None):
+    async def get_related(self, args, object_id, relationship_name, search=None):
         """
         Fetch a collection of related resources.
 
@@ -436,7 +436,9 @@ class Model:
         rel = self.relationship(relationship_name)
         rel.model.parse_arguments(args)
         rel.model.init_schema()
-        query = rel.model.query.related(object_id, rel)
+        filter_by = rel.model.get_filter(args)
+        query = rel.model.query.related(
+            object_id, rel, filter_by=filter_by, paginate=True, search=search)
         if rel.cardinality in (Cardinality.ONE_TO_ONE, Cardinality.MANY_TO_ONE):
             result = await pg.fetchrow(query)
             data = dict(result) if result is not None else None

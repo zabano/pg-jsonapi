@@ -1,5 +1,6 @@
 import logging
 import random
+from math import ceil
 
 import faker
 from werkzeug.security import generate_password_hash
@@ -83,14 +84,18 @@ async def populate_test_db():
         for user_id in user_data.keys():
             logger.info('generating articles for user: {:d}'.format(user_id))
             user = user_data[user_id]
-            publish_probability = random.uniform(0, 1)
             for _ in range(1, random.randint(1, MAX_ARTICLES_PER_USER)):
                 article_id += 1
+                publish_probability = random.uniform(0, 1)
+                created_on = fake.date_time_between(start_date=user['created_on'], tzinfo=None)
+                updated_on = fake.date_time_between(created_on, tzinfo=None) \
+                    if random.randint(1, 10) == 5 else None
                 article_data[article_id] = dict(
                     id=article_id,
                     title=fake.sentence(),
                     body='\n'.join(fake.sentences(random.randint(3, 10))),
-                    created_on=fake.date_time_between(start_date=user['created_on'], tzinfo=None),
+                    created_on=created_on,
+                    updated_on=updated_on,
                     author_id=user_id,
                     is_published=publish_probability <= PUBLISHED_PROBABILITY,
                     published_by=random.randint(1, SUPERUSER_MAX_ID)
@@ -135,13 +140,17 @@ async def populate_test_db():
                     user_dt = user_data[user_id]['created_on']
                     article_dt = article['created_on']
                     created_on_start = user_dt if user_dt > article_dt else article_dt
+                    created_on = fake.date_time_between(
+                        start_date=created_on_start, end_date="now", tzinfo=None)
+                    updated_on = fake.date_time_between(created_on, tzinfo=None) \
+                        if random.randint(1, 50) == 5 else None
                     comment_data[comment_id] = dict(
                         id=comment_id,
                         article_id=article_id,
                         user_id=user_id,
                         body=' '.join(fake.sentences(random.randint(1, 3))),
-                        created_on=fake.date_time_between(
-                            start_date=created_on_start, end_date="now", tzinfo=None)
+                        created_on=created_on,
+                        updated_on=updated_on
                     )
 
         logger.info('creating {:,d} comment records ...'.format(len(comment_data)))
@@ -157,14 +166,18 @@ async def populate_test_db():
                 reply_probability = random.uniform(0, 1)
                 if reply_probability <= REPLY_PROBABILITY_PER_COMMENT:
                     reply_id += 1
+                    created_on = fake.date_time_between(
+                        start_date=comment_data[comment_id]['created_on'], end_date="now",
+                        tzinfo=None)
+                    updated_on = fake.date_time_between(created_on, tzinfo=None) \
+                        if random.randint(1, 50) == 5 else None
                     reply_data.append(dict(
                         id=reply_id,
                         comment_id=comment_id,
                         user_id=random.choice(list(user_data.keys())),
                         body=' '.join(fake.sentences(random.randint(1, 2))),
-                        created_on=fake.date_time_between(
-                            start_date=comment_data[comment_id]['created_on'], end_date="now",
-                            tzinfo=None)
+                        created_on=created_on,
+                        updated_on=updated_on
                     ))
 
         logger.info('creating {:,d} reply records ...'.format(len(reply_data)))
@@ -196,7 +209,7 @@ async def populate_test_db():
 
         # grant access to all other random users
         for article in article_data.values():
-            users = random.sample(user_data.keys(), random.randint(0, TOTAL_USERS / 20))
+            users = random.sample(user_data.keys(), random.randint(0, ceil(TOTAL_USERS / 20)))
             if article['author_id'] in users:
                 users.remove(article['author_id'])
             read_access_data[(article_id, user_id)] = dict(
