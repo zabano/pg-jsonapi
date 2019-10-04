@@ -15,7 +15,7 @@ async def test_1(cli, user_1_id):
     assert_object(json['data'], 'user', lambda v: int(v) == user_1_id)
     assert_attribute(json['data'], 'email', lambda v: '@' in v)
     assert_attribute(json['data'], 'status', lambda v: v in ('active', 'pending'))
-    assert_attribute(json['data'], 'createdOn', lambda v: is_date(v))
+    assert_attribute(json['data'], 'createdOn', lambda v: is_datetime(v))
     assert_attribute_does_not_exist(json['data'], 'article-count')
 
 

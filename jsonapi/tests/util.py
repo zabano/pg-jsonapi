@@ -1,9 +1,8 @@
 import datetime as dt
 import os
-import re
 from urllib.parse import quote
 
-from jsonapi.datatypes import DateTime
+from jsonapi.datatypes import Date, DateTime, Time
 
 
 def _parse_url_object(url):
@@ -44,11 +43,6 @@ async def get(cli, url, status=200, user_id=None):
     if status == 200:
         assert 'data' in json
     return json
-
-
-def parse_datetime(val):
-    if val is not None:
-        return DateTime.parse(val)
 
 
 def assert_object(json, object_type, validator=None):
@@ -101,11 +95,6 @@ def get_relationship(json, name):
     return json['relationships'][name]
 
 
-def is_date(v):
-    return v is not None and \
-           re.match('[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z$', v) is not None
-
-
 def is_positive(v):
     return isinstance(v, int) and v >= 0
 
@@ -114,7 +103,7 @@ def check_user(user, user_id=None):
     assert_object(user, 'user', None if user_id is None else lambda uid: uid == str(user_id))
     assert_attribute(user, 'email', lambda v: '@' in v)
     assert_attribute(user, 'status', lambda v: v in ('active', 'pending'))
-    assert_attribute(user, 'createdOn', lambda v: is_date(v))
+    assert_attribute(user, 'createdOn', lambda v: is_datetime(v))
 
 
 def check_article(json):
@@ -122,5 +111,55 @@ def check_article(json):
     assert_attribute(json, 'body', lambda v: isinstance(v, str) and len(v) > 0)
     assert_attribute(json, 'title', lambda v: isinstance(v, str) and len(v) > 0)
     assert_attribute(json, 'isPublished', lambda v: isinstance(v, bool))
-    assert_attribute(json, 'createdOn', lambda v: is_date(v))
-    assert_attribute(json, 'updatedOn', lambda v: is_date(v) or v is None)
+    assert_attribute(json, 'createdOn', lambda v: is_datetime(v))
+    assert_attribute(json, 'updatedOn', lambda v: is_datetime(v, nullable=True))
+
+
+####################################################################################################
+# Date & Time
+####################################################################################################
+
+def _parse_timestamp(v, data_type):
+    return dt.datetime.strptime(v, data_type.FORMAT)
+
+
+def parse_date(v):
+    if v is not None:
+        return _parse_timestamp(v, Date)
+
+
+def parse_time(v):
+    if v is not None:
+        return _parse_timestamp(v, Time)
+
+
+def parse_datetime(v):
+    if v is not None:
+        return _parse_timestamp(v, DateTime)
+
+
+def _is_timestamp(v, parser):
+    try:
+        parser(v)
+    except ValueError:
+        return False
+    else:
+        return True
+
+
+def is_date(v, nullable=False):
+    if v is None:
+        return nullable
+    return _is_timestamp(v, parse_date)
+
+
+def is_time(v, nullable=False):
+    if v is None:
+        return nullable
+    return _is_timestamp(v, parse_time)
+
+
+def is_datetime(v, nullable=False):
+    if v is None:
+        return nullable
+    return _is_timestamp(v, parse_datetime)

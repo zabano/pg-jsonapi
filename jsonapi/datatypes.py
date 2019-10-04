@@ -9,13 +9,16 @@ from jsonapi.exc import DataTypeError
 
 
 class DataType:
-    FORMATS_DATETIME = ('%Y-%m-%dT%H:%M:%SZ',
-                        '%Y-%m-%dT%H:%M:%S',
-                        '%Y-%m-%dT%H:%M',
-                        '%Y-%m-%d',
-                        '%Y-%m',
-                        '%H:%M:%S',
-                        '%H:%M')
+    FORMAT_DATETIME = '%Y-%m-%dT%H:%M:%SZ'
+    FORMAT_DATE = '%Y-%m-%d'
+    FORMAT_TIME = '%H:%M:%S'
+    DATETIME_ACCEPT = (FORMAT_DATETIME,
+                       FORMAT_DATETIME.rstrip('Z'),
+                       FORMAT_DATETIME.rstrip(':%SZ'),
+                       FORMAT_DATE,
+                       FORMAT_DATE.rstrip('-%d'),
+                       FORMAT_TIME,
+                       FORMAT_TIME.rstrip(':%S'))
 
     VALUES_TRUE = ('t', 'true', 'on', '1')
     VALUES_FALSE = ('f', 'false', 'off', '0')
@@ -54,7 +57,7 @@ class DataType:
 
     @classmethod
     def get_datetime_format(cls, val):
-        for fmt in cls.FORMATS_DATETIME:
+        for fmt in cls.DATETIME_ACCEPT:
             length = len(val) - 2 if '-' in val else len(val)
             if len(fmt) == length:
                 if len(fmt) > 8:
@@ -63,7 +66,7 @@ class DataType:
                     return fmt
                 if ':' in fmt and ':' in val:
                     return fmt
-        return cls.FORMATS_DATETIME[0]
+        return cls.FORMAT_DATETIME
 
     def parse(self, val):
         if val.lower() in DataType.VALUES_NULL:
@@ -155,5 +158,6 @@ class JSONField(ma.fields.Field):
 
 JSON = DataType(JSONField, sqltypes.JSON)
 
-DateTime.FORMAT = DataType.FORMATS_DATETIME[0]
-Date.FORMAT = DataType.FORMATS_DATETIME[3]
+Date.FORMAT = DataType.FORMAT_TIME
+Time.FORMAT = DataType.FORMAT_DATE
+DateTime.FORMAT = DataType.FORMAT_DATETIME
