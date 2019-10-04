@@ -29,7 +29,7 @@ class DataTypeError(Error):
         self.data_type = data_type
 
     def __str__(self):
-        return 'datatype {} {}'.format(self.data_type.__class__.__name__.lower(), self.message)
+        return '{} {}'.format(self.data_type, self.message)
 
 
 class NotFound(APIError):

@@ -4,7 +4,6 @@ import re
 from sqlalchemy.sql import operators, or_
 
 from jsonapi.exc import Error
-from jsonapi.datatypes import DataType, Bool, Integer, Float, String, Date, Time, DateTime
 from .table import is_clause, is_from_item
 
 MODIFIERS = {'=': operators.eq, '<>': operators.ne, '!=': operators.ne,
@@ -19,15 +18,6 @@ class Operator(enum.Enum):
     GE = 'ge'
     LT = 'lt'
     LE = 'le'
-
-
-OPERATOR_NONE = Operator.NONE
-OPERATOR_EQ = Operator.EQ
-OPERATOR_NE = Operator.NE
-OPERATOR_GT = Operator.GT
-OPERATOR_GE = Operator.GE
-OPERATOR_LT = Operator.LT
-OPERATOR_LE = Operator.LE
 
 
 class Filter:
@@ -67,11 +57,7 @@ class FilterClause:
 
     def __init__(self, data_type, *ops, **kwargs):
 
-        if not isinstance(data_type, DataType):
-            raise ValueError('[{}}] invalid data type: {!r}'.format(
-                data_type, self.__name__))
         self.data_type = data_type
-        self.data_type.filter_clause = self
 
         for op in ops:
             self.check_operator(op)
@@ -157,24 +143,3 @@ class FilterClause:
                 raise Error('invalid operator: {}'.format(op))
             return getattr(operators, op)(expr, v)
 
-
-BoolClause = FilterClause(Bool, OPERATOR_NONE, OPERATOR_EQ)
-
-IntegerClause = FilterClause(Integer, OPERATOR_NONE, OPERATOR_EQ, OPERATOR_NE,
-                             OPERATOR_GT, OPERATOR_GE, OPERATOR_LT, OPERATOR_LE,
-                             multiple=(OPERATOR_NONE, OPERATOR_EQ, OPERATOR_NE))
-
-FloatClause = FilterClause(Float, OPERATOR_GT, OPERATOR_GE, OPERATOR_LT, OPERATOR_LE,
-                           multiple=(OPERATOR_NONE, OPERATOR_EQ, OPERATOR_NE))
-
-DateClause = FilterClause(Date, OPERATOR_GT, OPERATOR_LT,
-                          multiple=(OPERATOR_NONE, OPERATOR_EQ, OPERATOR_NE))
-
-TimeClause = FilterClause(Time, OPERATOR_GT, OPERATOR_LT,
-                          multiple=(OPERATOR_NONE, OPERATOR_EQ, OPERATOR_NE))
-
-DateTimeClause = FilterClause(DateTime, OPERATOR_GT, OPERATOR_LT,
-                              multiple=(OPERATOR_NONE, OPERATOR_EQ, OPERATOR_NE))
-
-StringClause = FilterClause(String, OPERATOR_NONE, OPERATOR_EQ, OPERATOR_NE,
-                            multiple=(OPERATOR_NONE, OPERATOR_EQ, OPERATOR_NE))
