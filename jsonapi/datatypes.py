@@ -1,4 +1,5 @@
 import datetime as dt
+import json
 
 import marshmallow as ma
 from sqlalchemy.sql import sqltypes
@@ -77,7 +78,9 @@ class DataType:
     @staticmethod
     def get(expr):
         if expr is not None and hasattr(expr, 'type'):
-            return DataType.registry[type(expr.type)]
+            for sa_type, data_type in DataType.registry.items():
+                if isinstance(expr.type, sa_type):
+                    return data_type
 
     def __repr__(self):
         return '<{}>'.format(self.name)
@@ -101,7 +104,7 @@ Bool = DataType(
 
 Integer = DataType(
     ma.fields.Integer,
-    sqltypes.Integer, sqltypes.SmallInteger, sqltypes.BigInteger,
+    sqltypes.Integer,
     parser=int,
     filter=((Operator.NONE, Operator.EQ, Operator.NE,
              Operator.GT, Operator.GE, Operator.LT, Operator.LE),
@@ -109,33 +112,48 @@ Integer = DataType(
 
 Float = DataType(
     ma.fields.Float,
-    sqltypes.Float, sqltypes.Numeric,
+    sqltypes.Numeric,
     parser=float,
     filter=((Operator.GT, Operator.GE, Operator.LT, Operator.LE),
             (Operator.NONE, Operator.EQ, Operator.NE)))
 
 String = DataType(
     ma.fields.String,
-    sqltypes.Text, sqltypes.String, sqltypes.Unicode, sqltypes.Enum,
+    sqltypes.Text, sqltypes.String, sqltypes.Enum,
     filter=((Operator.NONE, Operator.EQ, Operator.NE),
             (Operator.NONE, Operator.EQ, Operator.NE)))
 
 Date = DataType(
-    ma.fields.Date, sqltypes.Date,
+    ma.fields.Date,
+    sqltypes.Date,
     parser=parse_datetime,
     filter=((Operator.GT, Operator.LT),
             (Operator.NONE, Operator.EQ, Operator.NE)))
 
 Time = DataType(
-    ma.fields.Time, sqltypes.Time,
+    ma.fields.Time,
+    sqltypes.Time,
     parser=parse_datetime,
     filter=((Operator.GT, Operator.LT),
             (Operator.NONE, Operator.EQ, Operator.NE)))
 
 DateTime = DataType(
-    ma.fields.DateTime, sqltypes.DateTime,
+    ma.fields.DateTime,
+    sqltypes.DateTime,
     parser=parse_datetime,
     filter=((Operator.GT, Operator.LT),
             (Operator.NONE, Operator.EQ, Operator.NE)))
 
+
+class JSONField(ma.fields.Field):
+    def _serialize(self, value, attr, obj, **kwargs):
+        return json.loads(value) if value is not None else None
+
+    def _deserialize(self, value, attr, data, **kwargs):
+        return json.dumps(value)
+
+
+JSON = DataType(JSONField, sqltypes.JSON)
+
 DateTime.FORMAT = DataType.FORMATS_DATETIME[0]
+Date.FORMAT = DataType.FORMATS_DATETIME[3]

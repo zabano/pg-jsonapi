@@ -8,7 +8,7 @@ SELECT articles.id,
        setweight(to_tsvector(articles.body), 'C')
 FROM articles
          JOIN users author ON articles.author_id = author.id
-         JOIN user_names author_name ON author.id = author_name.id
+         JOIN user_names author_name ON author.id = author_name.user_id
          LEFT JOIN article_keywords ON articles.id = article_keywords.article_id
          LEFT JOIN keywords ON article_keywords.keyword_id = keywords.id
 GROUP BY articles.id,
@@ -25,5 +25,5 @@ SELECT users.id,
        setweight(to_tsvector(user_names.last), 'B') ||
        setweight(to_tsvector(user_names.first), 'B')
 FROM users
-         JOIN user_names ON users.id = user_names.id
+         JOIN user_names ON users.id = user_names.user_id
 ORDER BY users.id;

@@ -4,20 +4,31 @@ from jsonapi.tests.auth import current_user
 from jsonapi.tests.db import *
 
 
-class UserNameModel(Model):
-    from_ = user_names_t
-    fields = 'first', 'last', Derived('full', lambda rec: '{first} {last}'.format(**rec))
+class TestModel(Model):
+    from_ = test_data_t
+    fields = ('test_bool',
+              'test_smallint', 'test_int', 'test_bigint',
+              'test_float', 'test_double', 'test_numeric',
+              'test_char', 'test_varchar', 'test_text', 'test_enum',
+              'test_time', 'test_date', 'test_timestamp', 'test_timestamp_tz',
+              'test_json', 'test_jsonb')
 
 
 class UserModel(Model):
-    from_ = users_t
-    fields = ('email', 'created_on', 'status',
-              Relationship('name', 'UserNameModel',
-                           ONE_TO_ONE, 'user_names_id_fkey'),
+    from_ = users_t, user_names_t
+    fields = ('email', 'first', 'last', 'created_on', 'status',
+              Derived('name', lambda rec: '{first} {last}'.format(**rec)),
+              Relationship('bio', 'UserBioModel',
+                           ONE_TO_ONE, 'user_bios_id_fkey'),
               Relationship('articles', 'ArticleModel',
                            ONE_TO_MANY, 'articles_author_id_fkey'),
               Aggregate('article_count', 'articles', sa.func.count))
     search = users_ts
+
+
+class UserBioModel(Model):
+    from_ = user_bios_t
+    fields = 'birthday', 'summary'
 
 
 class ArticleModel(Model):

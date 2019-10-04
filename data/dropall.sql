@@ -1,3 +1,4 @@
+DROP TABLE test_data CASCADE;
 DROP TABLE users CASCADE;
 DROP TABLE user_names CASCADE;
 DROP TABLE articles CASCADE;

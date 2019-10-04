@@ -15,12 +15,13 @@ logger.setLevel(logging.INFO)
 RANDOM_SEED = 1980
 TOTAL_USERS = 1000
 MAX_ARTICLES_PER_USER = 6
-SUPERUSER_MAX_ID = 5  # any user with an id under this value is a superuser
+SUPERUSER_MAX_ID = 10  # any user with an id under this value is a superuser
 PUBLISHED_PROBABILITY = 0.90
 COMMENT_PROBABILITY_PER_USER = 0.03  # probability of commenting on published articles
 REPLY_PROBABILITY_PER_COMMENT = 0.75
 MAX_COMMENT_REPLIES = 3
 SQL_INSERT_LIMIT = 1000
+DEFAULT_PASSWORD = generate_password_hash('welcome')
 
 
 async def insert_data(conn, table, data):
@@ -44,6 +45,9 @@ async def populate_test_db():
         # truncate all tables
         #
 
+        await conn.fetchrow('TRUNCATE TABLE test_data CASCADE')
+        await conn.fetchrow('INSERT INTO test_data DEFAULT VALUES')
+
         logger.info('truncating user data ...')
         await conn.fetchrow('TRUNCATE TABLE users CASCADE')
 
@@ -61,7 +65,7 @@ async def populate_test_db():
             email=fake.email(),
             created_on=fake.date_time_between(start_date="-1y", end_date="now", tzinfo=None),
             is_superuser=user_id < SUPERUSER_MAX_ID,
-            password=generate_password_hash(fake.password()),
+            password=DEFAULT_PASSWORD,
             status='pending' if user_id % 100 == 0 else 'active'
         ) for user_id in range(1, TOTAL_USERS + 1)}
 
@@ -70,23 +74,32 @@ async def populate_test_db():
 
         logger.info('creating user name records ...')
         await conn.fetch(user_names_t.insert().values([dict(
-            id=user_id,
+            user_id=user_id,
             first=fake.first_name(),
             last=fake.last_name()
         ) for user_id in user_data.keys()]))
+
+        logger.info('creating user bio records ...')
+        await conn.fetch(user_bios_t.insert().values([dict(
+            user_id=user_id,
+            birthday=dt.datetime.strptime(fake.date(), '%Y-%m-%d')
+            if user_id % 10 in (2, 6) else None,
+            summary='\n'.join(fake.sentences(random.randint(3, 10)))
+            if user_id % 10 in (6, 9) else None
+        ) for user_id in user_data.keys() if random.randint(1, 10) == 5]))
 
         #
         # populate article data
         #
 
+        logger.info('generating articles ...')
         article_data = dict()
         article_id = 0
         for user_id in user_data.keys():
-            logger.info('generating articles for user: {:d}'.format(user_id))
             user = user_data[user_id]
             for _ in range(1, random.randint(1, MAX_ARTICLES_PER_USER)):
                 article_id += 1
-                publish_probability = random.uniform(0, 1)
+                is_published = random.uniform(0, 1) <= PUBLISHED_PROBABILITY
                 created_on = fake.date_time_between(start_date=user['created_on'], tzinfo=None)
                 updated_on = fake.date_time_between(created_on, tzinfo=None) \
                     if random.randint(1, 10) == 5 else None
@@ -97,9 +110,8 @@ async def populate_test_db():
                     created_on=created_on,
                     updated_on=updated_on,
                     author_id=user_id,
-                    is_published=publish_probability <= PUBLISHED_PROBABILITY,
-                    published_by=random.randint(1, SUPERUSER_MAX_ID)
-                    if publish_probability <= PUBLISHED_PROBABILITY else None)
+                    is_published=is_published,
+                    published_by=random.randint(1, SUPERUSER_MAX_ID) if is_published else None)
 
         logger.info('creating {:,d} article records ...'.format(len(article_data)))
         await conn.fetch(articles_t.insert().values(list(article_data.values())))
@@ -150,8 +162,7 @@ async def populate_test_db():
                         user_id=user_id,
                         body=' '.join(fake.sentences(random.randint(1, 3))),
                         created_on=created_on,
-                        updated_on=updated_on
-                    )
+                        updated_on=updated_on)
 
         logger.info('creating {:,d} comment records ...'.format(len(comment_data)))
         await insert_data(conn, comments_t, comment_data)
@@ -187,6 +198,7 @@ async def populate_test_db():
         # grant read access
         #
 
+        logger.info('generating user access data ...')
         read_access_data = dict()
 
         # grant access to all users who commented on an article

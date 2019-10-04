@@ -37,6 +37,11 @@ def handle_api_error(e):
     return jsonify(get_error_object(e)), e.status if hasattr(e, 'status') else 500
 
 
+@app.route('/test')
+async def test():
+    return jsonify(await TestModel().get_object(request.args, 1))
+
+
 @app.route('/users/')
 async def users():
     return jsonify(await UserModel().get_collection(request.args))
