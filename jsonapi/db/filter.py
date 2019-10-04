@@ -70,8 +70,8 @@ class FilterClause:
         if not isinstance(data_type, DataType):
             raise ValueError('[{}}] invalid data type: {!r}'.format(
                 data_type, self.__name__))
-
-        self.parse = data_type.parse
+        self.data_type = data_type
+        self.data_type.filter_clause = self
 
         for op in ops:
             self.check_operator(op)
@@ -89,8 +89,6 @@ class FilterClause:
                     self.check_operator(op)
                 self.multiple = tuple(set(multiple))
 
-        data_type.filter_clause = self
-
     def check_operator(self, op):
         if not isinstance(op, Operator):
             raise ValueError('[{}}] invalid operator: {!r}'.format(op, self.__class__.__name__))
@@ -105,10 +103,10 @@ class FilterClause:
                 match = re.match('({})?(\w+)'.format('|'.join(MODIFIERS)), v)
                 if match:
                     mod = '=' if not match[1] else match[1]
-                    values.append((mod, self.parse(match[2])))
+                    values.append((mod, self.data_type.parse(match[2])))
             return values
         else:
-            return [('=', self.parse(v)) for v in val.split(',')]
+            return [('=', self.data_type.parse(v)) for v in val.split(',')]
 
     def get(self, expr, op, val):
 
@@ -150,7 +148,7 @@ class FilterClause:
             if op == '':
                 op = 'eq'
 
-            v = self.parse(val)
+            v = self.data_type.parse(val)
             if v is False or v is True or v is None:
                 if op == 'eq':
                     return expr.is_(v)
