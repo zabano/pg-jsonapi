@@ -259,10 +259,6 @@ class Model:
                     rel_args = copy(self.args)
                     rel_args.include = rel_args.include[field.name]
                     field.model.init_schema(rel_args)
-                    field.nested = ma.fields.Nested(
-                        schema_registry['{}Schema'.format(field.model.name)](),
-                        many=field.cardinality in (Cardinality.ONE_TO_MANY,
-                                                   Cardinality.MANY_TO_MANY))
 
             else:
                 raise ModelError('unsupported field: {!r}'.format(field), self)

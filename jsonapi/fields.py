@@ -3,7 +3,7 @@ import marshmallow as ma
 from jsonapi.datatypes import DataType, Date, DateTime, Integer
 from jsonapi.db.table import Cardinality, FromItem
 from jsonapi.exc import APIError, Error, ModelError
-from jsonapi.registry import alias_registry, model_registry
+from jsonapi.registry import alias_registry, model_registry, schema_registry
 
 
 class BaseField:
@@ -31,9 +31,11 @@ class BaseField:
 
     def get_ma_field(self):
         if isinstance(self, Relationship):
-            return self.nested
-        if isinstance(self.data_type.ma_type, ma.fields.Function):
-            return self.data_type
+            return ma.fields.Nested(
+                schema_registry['{}Schema'.format(self.model.name)](),
+                many=self.cardinality in (Cardinality.ONE_TO_MANY, Cardinality.MANY_TO_MANY))
+        if isinstance(self, Derived):
+            return ma.fields.Function(self.func)
         if issubclass(self.data_type.ma_type, ma.fields.DateTime):
             return self.data_type.ma_type(DateTime.FORMAT)
         return self.data_type.ma_type()
@@ -112,7 +114,7 @@ class Derived(BaseField):
         :param lambda expr: a lambda function that accepts a single record as the first argument
         """
         super().__init__(name)
-        self.func = ma.fields.Function(expr)
+        self.func = expr
 
 
 class Relationship(BaseField):

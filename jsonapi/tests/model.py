@@ -6,7 +6,7 @@ from jsonapi.tests.db import *
 
 class UserNameModel(Model):
     from_ = user_names_t
-    fields = 'first', 'last', Derived('full', lambda rec: rec['first'] + ' ' + rec['last'])
+    fields = 'first', 'last', Derived('full', lambda rec: '{first} {last}'.format(**rec))
 
 
 class UserModel(Model):
