@@ -5,7 +5,6 @@ from sqlalchemy.sql import operators, or_
 
 from jsonapi.exc import Error
 from jsonapi.datatypes import DataType, Bool, Integer, Float, String, Date, Time, DateTime
-from jsonapi.registry import filter_registry
 from .table import is_clause, is_from_item
 
 MODIFIERS = {'=': operators.eq, '<>': operators.ne, '!=': operators.ne,
@@ -68,8 +67,9 @@ class FilterClause:
 
     def __init__(self, data_type, *ops, **kwargs):
 
-        if not issubclass(data_type, DataType):
-            raise ValueError('[{}}] invalid data type: {!r}'.format(op, self.__class__.__name__))
+        if not isinstance(data_type, DataType):
+            raise ValueError('[{}}] invalid data type: {!r}'.format(
+                data_type, self.__name__))
 
         self.parse = data_type.parse
 
@@ -89,7 +89,7 @@ class FilterClause:
                     self.check_operator(op)
                 self.multiple = tuple(set(multiple))
 
-        filter_registry[data_type] = self
+        data_type.filter_clause = self
 
     def check_operator(self, op):
         if not isinstance(op, Operator):

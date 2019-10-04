@@ -1,9 +1,9 @@
 import marshmallow as ma
 
-from jsonapi.datatypes import DataType, Date, DateTime, Integer, get_data_type
+from jsonapi.datatypes import DataType, Date, DateTime, Integer
 from jsonapi.db.table import Cardinality, FromItem
 from jsonapi.exc import APIError, Error, ModelError
-from jsonapi.registry import alias_registry, model_registry, filter_registry
+from jsonapi.registry import alias_registry, model_registry
 
 
 class BaseField:
@@ -11,19 +11,20 @@ class BaseField:
 
     def __init__(self, name, expr=None, data_type=None):
 
-        if data_type is not None and not issubclass(data_type, DataType):
+        if data_type is not None and not isinstance(data_type, DataType):
             raise Error('invalid data type provided: "{}"'.format(data_type))
 
         self.name = name
         self.expr = expr
-        self.data_type = get_data_type(expr) if data_type is None else data_type
+        self.data_type = DataType.get(expr) if data_type is None else data_type
         self.exclude = False
 
         self.filter_clause = self.get_filter_clause()
 
     def get_filter_clause(self):
         data_type = Integer if self.name == 'id' else self.data_type
-        return filter_registry[data_type] if data_type is not None else None
+        if data_type is not None:
+            return data_type.filter_clause
 
     def is_aggregate(self):
         return isinstance(self, Aggregate)

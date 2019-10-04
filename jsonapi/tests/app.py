@@ -18,6 +18,11 @@ if 'JSONAPI_DEBUG' in os.environ:
     logger.setLevel(logging.DEBUG)
 
 
+@app.before_first_request
+async def init():
+    await init_db()
+
+
 @app.before_request
 async def login_user():
     if 'JSONAPI_LOGIN' in os.environ:
