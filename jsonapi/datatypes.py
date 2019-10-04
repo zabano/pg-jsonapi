@@ -24,24 +24,11 @@ class DataType:
 
     def __init__(self, ma_type, *sa_types, **kwargs):
         self.ma_type = self.get_ma_type(ma_type)
-
-        try:
-            iter(sa_types)
-        except TypeError:
-            self.check_sa_type(sa_types)
-            self.sa_types = sa_types,
-        else:
-            for sa_type in sa_types:
-                self.check_sa_type(sa_type)
-            self.sa_types = tuple(sa_types)
-
-        parser = kwargs.get('parser', None)
-        if parser is not None:
-            self.parser = parser
-        else:
-            self.parser = lambda v: v
-
-        operators, operators_multi = kwargs.get('filter', None)
+        self.sa_types = tuple(self.get_sa_type(sa_type) for sa_type in sa_types)
+        self.parser = kwargs.get('parser', str)
+        operators, operators_multi = kwargs.get(
+            'filter', ((Operator.NONE, Operator.EQ, Operator.NE),
+                       (Operator.NONE, Operator.EQ, Operator.NE)))
         self.filter_clause = FilterClause(self, *operators, multiple=operators_multi)
 
     @property
@@ -51,19 +38,18 @@ class DataType:
     def get_ma_type(self, ma_type):
         if not issubclass(ma_type, ma.fields.Field):
             raise ValueError('[{}] ma_type | invalid marshmallow'
-                             ' field: {!r}'.format(self.__name__, ma_type))
+                             ' field: {!r}'.format(self.name, ma_type))
         return ma_type
 
-    def check_sa_type(self, sa_type):
+    def get_sa_type(self, sa_type):
         if not issubclass(sa_type, sqltypes.TypeEngine):
-            raise ValueError('[{}] ma_type | invalid SQLAlchemy'
-                             ' sql type: {!r}'.format(self.__name__, sa_type))
+            raise ValueError('[{}] sa_type | invalid SQLAlchemy'
+                             ' sql type: {!r}'.format(self.name, sa_type))
         if sa_type in DataType.registry.keys():
             raise ValueError('[{}] sa_type | {!r} sql type is already registered '
-                             'to: {!r}'.format(self.__name__,
-                                               sa_type,
-                                               DataType.registry[sa_type]))
+                             'to: {!r}'.format(self.name, sa_type, DataType.registry[sa_type]))
         DataType.registry[sa_type] = self
+        return sa_type
 
     @classmethod
     def get_datetime_format(cls, val):
@@ -108,17 +94,17 @@ def parse_datetime(val):
 
 
 Bool = DataType(
-    ma.fields.Boolean,
+    ma.fields.Bool,
     sqltypes.Boolean,
     parser=parse_bool,
-    filter=((Operator.NONE, Operator.EQ),
-            None))
+    filter=((Operator.NONE, Operator.EQ), None))
 
 Integer = DataType(
     ma.fields.Integer,
     sqltypes.Integer, sqltypes.SmallInteger, sqltypes.BigInteger,
     parser=int,
-    filter=((Operator.NONE, Operator.EQ, Operator.NE, Operator.GT, Operator.GE, Operator.LT, Operator.LE),
+    filter=((Operator.NONE, Operator.EQ, Operator.NE,
+             Operator.GT, Operator.GE, Operator.LT, Operator.LE),
             (Operator.NONE, Operator.EQ, Operator.NE)))
 
 Float = DataType(
