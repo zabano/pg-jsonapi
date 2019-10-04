@@ -28,9 +28,9 @@ class UserStatus(enum.Enum):
 test_data_t = sa.Table(
     'test_data', metadata,
     sa.Column('test_bool', sa.Boolean, nullable=False, index=True),
-    sa.Column('test_smallint', sa.SmallInteger, nullable=False, index=True),
+    sa.Column('test_small_int', sa.SmallInteger, nullable=False, index=True),
     sa.Column('test_int', sa.Integer, primary_key=True),
-    sa.Column('test_bigint', sa.BigInteger, nullable=False, index=True),
+    sa.Column('test_big_int', sa.BigInteger, nullable=False, index=True),
     sa.Column('test_float', sa.Float, nullable=False, index=True),
     sa.Column('test_double', sa.Float, nullable=False, index=True),
     sa.Column('test_numeric', sa.Numeric(6, 4), nullable=False, index=True),
@@ -43,7 +43,7 @@ test_data_t = sa.Table(
     sa.Column('test_timestamp', sa.DateTime, nullable=False, index=True),
     sa.Column('test_timestamp_tz', sa.DateTime(True), nullable=False, index=True),
     sa.Column('test_json', sa.JSON, nullable=False, index=True),
-    sa.Column('test_jsonb', sa.JSON, nullable=False, index=True))
+    sa.Column('test_json_b', sa.JSON, nullable=False, index=True))
 
 users_t = sa.Table(
     'users', metadata,

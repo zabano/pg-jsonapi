@@ -5,6 +5,7 @@ import pytest
 from jsonapi.tests.app import app
 from jsonapi.tests.db import *
 from jsonapi.tests.data import TOTAL_USERS
+from jsonapi.tests.util import get
 
 
 @pytest.yield_fixture(scope='session')
@@ -19,6 +20,12 @@ def event_loop(request):
 async def cli():
     await init_db()
     return app.test_client()
+
+
+@pytest.fixture('session')
+async def test_data(cli):
+    json = await get(cli, '/test')
+    return json
 
 
 @pytest.fixture('session')

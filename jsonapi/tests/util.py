@@ -2,7 +2,7 @@ import datetime as dt
 import os
 from urllib.parse import quote
 
-from jsonapi.datatypes import Date, DateTime, Time
+from jsonapi.datatypes import DataType
 
 
 def _parse_url_object(url):
@@ -43,6 +43,17 @@ async def get(cli, url, status=200, user_id=None):
     if status == 200:
         assert 'data' in json
     return json
+
+
+####################################################################################################
+# asserts
+####################################################################################################
+
+
+def assert_datatype(test_data, name, validator):
+    json = test_data['data']['attributes']
+    assert name in json
+    assert validator(json[name]) is True
 
 
 def assert_object(json, object_type, validator=None):
@@ -119,23 +130,20 @@ def check_article(json):
 # Date & Time
 ####################################################################################################
 
-def _parse_timestamp(v, data_type):
-    return dt.datetime.strptime(v, data_type.FORMAT)
-
 
 def parse_date(v):
     if v is not None:
-        return _parse_timestamp(v, Date)
+        return dt.datetime.strptime(v, DataType.FORMAT_DATE)
 
 
 def parse_time(v):
     if v is not None:
-        return _parse_timestamp(v, Time)
+        return dt.datetime.strptime(v, DataType.FORMAT_TIME)
 
 
 def parse_datetime(v):
     if v is not None:
-        return _parse_timestamp(v, DateTime)
+        return dt.datetime.strptime(v, DataType.FORMAT_DATETIME)
 
 
 def _is_timestamp(v, parser):

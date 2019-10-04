@@ -157,7 +157,3 @@ class JSONField(ma.fields.Field):
 
 
 JSON = DataType(JSONField, sqltypes.JSON)
-
-Date.FORMAT = DataType.FORMAT_TIME
-Time.FORMAT = DataType.FORMAT_DATE
-DateTime.FORMAT = DataType.FORMAT_DATETIME

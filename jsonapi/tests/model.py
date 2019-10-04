@@ -7,11 +7,11 @@ from jsonapi.tests.db import *
 class TestModel(Model):
     from_ = test_data_t
     fields = ('test_bool',
-              'test_smallint', 'test_int', 'test_bigint',
+              'test_int', 'test_small_int', 'test_big_int',
               'test_float', 'test_double', 'test_numeric',
               'test_char', 'test_varchar', 'test_text', 'test_enum',
               'test_time', 'test_date', 'test_timestamp', 'test_timestamp_tz',
-              'test_json', 'test_jsonb')
+              'test_json', 'test_json_b')
 
 
 class UserModel(Model):

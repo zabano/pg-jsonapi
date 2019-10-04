@@ -37,9 +37,9 @@ class BaseField:
         if isinstance(self, Derived):
             return ma.fields.Function(self.func)
         if issubclass(self.data_type.ma_type, ma.fields.Date):
-            return self.data_type.ma_type(format=Date.FORMAT)
+            return self.data_type.ma_type(format=DataType.FORMAT_DATE)
         if issubclass(self.data_type.ma_type, ma.fields.DateTime):
-            return self.data_type.ma_type(format=DateTime.FORMAT)
+            return self.data_type.ma_type(format=DataType.FORMAT_DATETIME)
         return self.data_type.ma_type()
 
     def __repr__(self):
