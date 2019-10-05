@@ -78,12 +78,12 @@ def assert_attribute_does_not_exist(json, name):
     assert name not in attributes
 
 
-def assert_relationship(json, name, length=None):
+def assert_relationship(json, name, validate_length):
     assert 'relationships' in json
     relationships = json['relationships']
     assert name in relationships
-    if length is not None:
-        assert len(relationships[name]) == length
+    if validate_length is not None:
+        assert validate_length(len(relationships[name])) is True
 
 
 def assert_error(json, status, text=None):
@@ -110,15 +110,19 @@ def is_positive(v):
     return isinstance(v, int) and v >= 0
 
 
-def check_user(user, user_id=None):
-    assert_object(user, 'user', None if user_id is None else lambda uid: uid == str(user_id))
+def check_user(user, validator=None):
+    assert_object(user, 'user', validator)
     assert_attribute(user, 'email', lambda v: '@' in v)
+    assert_attribute(user, 'name', lambda v: isinstance(v, str))
+    assert_attribute(user, 'first', lambda v: isinstance(v, str))
+    assert_attribute(user, 'last', lambda v: isinstance(v, str))
+    assert user['attributes']['first'] + ' ' + user['attributes']['last'] == user['attributes']['name']
     assert_attribute(user, 'status', lambda v: v in ('active', 'pending'))
     assert_attribute(user, 'createdOn', lambda v: is_datetime(v))
 
 
-def check_article(json):
-    assert_object(json, 'article')
+def check_article(json, validator=None):
+    assert_object(json, 'article', validator)
     assert_attribute(json, 'body', lambda v: isinstance(v, str) and len(v) > 0)
     assert_attribute(json, 'title', lambda v: isinstance(v, str) and len(v) > 0)
     assert_attribute(json, 'isPublished', lambda v: isinstance(v, bool))

@@ -109,7 +109,7 @@ def parse_time(val):
 def parse_datetime(val):
     if not isinstance(val, str):
         raise ValueError
-    for fmt in accept_datetime:
+    for fmt in (*accept_datetime, *accept_date):
         try:
             return dt.datetime.strptime(val, fmt)
         except ValueError:

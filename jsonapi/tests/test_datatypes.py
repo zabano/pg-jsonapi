@@ -195,6 +195,8 @@ async def test_parse_time_error():
 async def test_parse_datetime():
     for val in test_input['datetime']['good']:
         assert parse_datetime(val) == dt.datetime(2019, 9, 1, 16, 9)
+    for val in test_input['date']['good']:
+        assert parse_datetime(val) == dt.datetime(2019, 9, 1)
 
 
 @pytest.mark.asyncio
@@ -202,7 +204,6 @@ async def test_parse_datetime_error():
     for val in (*test_input['datetime']['bad'],
                 *test_input['time']['good'],
                 *test_input['time']['bad'],
-                *test_input['date']['good'],
                 *test_input['date']['bad'],
                 *test_input['other']):
         try:
