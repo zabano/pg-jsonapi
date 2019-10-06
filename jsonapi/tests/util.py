@@ -80,7 +80,7 @@ def assert_attribute_does_not_exist(json, name):
     assert name not in attributes
 
 
-def assert_relationship(json, name, validate_length):
+def assert_relationship(json, name, validate_length=None):
     assert 'relationships' in json
     relationships = json['relationships']
     assert name in relationships
@@ -128,6 +128,20 @@ def check_article(json, validator=None):
     assert_attribute(json, 'body', lambda v: isinstance(v, str) and len(v) > 0)
     assert_attribute(json, 'title', lambda v: isinstance(v, str) and len(v) > 0)
     assert_attribute(json, 'isPublished', lambda v: isinstance(v, bool))
+    assert_attribute(json, 'createdOn', lambda v: is_datetime(v))
+    assert_attribute(json, 'updatedOn', lambda v: is_datetime(v, nullable=True))
+
+
+def check_comment(json, validator=None):
+    assert_object(json, 'comment', validator)
+    assert_attribute(json, 'body', lambda v: isinstance(v, str) and len(v) > 0)
+    assert_attribute(json, 'createdOn', lambda v: is_datetime(v))
+    assert_attribute(json, 'updatedOn', lambda v: is_datetime(v, nullable=True))
+
+
+def check_reply(json, validator=None):
+    assert_object(json, 'reply', validator)
+    assert_attribute(json, 'body', lambda v: isinstance(v, str) and len(v) > 0)
     assert_attribute(json, 'createdOn', lambda v: is_datetime(v))
     assert_attribute(json, 'updatedOn', lambda v: is_datetime(v, nullable=True))
 
