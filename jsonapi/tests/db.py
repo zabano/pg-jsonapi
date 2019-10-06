@@ -1,22 +1,12 @@
 import datetime as dt
 import enum
 
-from asyncpgsa import pg
 import sqlalchemy as sa
 from sqlalchemy.dialects.postgresql import TSVECTOR
 
 PASSWORD_HASH_LENGTH = 128
 
 metadata = sa.MetaData(schema='public')
-
-
-async def init_db():
-    if not pg.initialized:
-        await pg.init(database='jsonapi',
-                      user='jsonapi',
-                      password='jsonapi',
-                      min_size=5,
-                      max_size=10)
 
 
 @enum.unique

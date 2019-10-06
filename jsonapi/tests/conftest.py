@@ -1,10 +1,11 @@
 import asyncio
 
 import pytest
+from asyncpgsa import pg
 
 from jsonapi.tests.data import TOTAL_USERS
 from jsonapi.tests.db import *
-from jsonapi.tests.model import ArticleModel, UserModel, TestModel
+from jsonapi.tests.model import ArticleModel, TestModel, UserModel
 
 
 @pytest.yield_fixture(scope='session')
@@ -15,19 +16,28 @@ def event_loop(request):
     loop.close()
 
 
+@pytest.fixture(scope='session', autouse=True)
+def init_pg(event_loop):
+    event_loop.run_until_complete(pg.init(
+        database='jsonapi',
+        user='jsonapi',
+        password='jsonapi',
+        min_size=5,
+        max_size=10
+    ))
+
+
 #
 # models
 #
 
-@pytest.fixture('session')
-async def users():
-    await init_db()
+@pytest.fixture()
+def users():
     return UserModel()
 
 
-@pytest.fixture('session')
-async def articles():
-    await init_db()
+@pytest.fixture()
+def articles():
     return ArticleModel()
 
 
@@ -38,7 +48,6 @@ async def articles():
 
 @pytest.fixture('session')
 async def test_data():
-    await init_db()
     return await TestModel().get_object({}, 1)
 
 

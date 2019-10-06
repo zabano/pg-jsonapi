@@ -9,40 +9,43 @@ from jsonapi.tests.auth import login, logout
 # model interface
 ####################################################################################################
 
-@asynccontextmanager
-async def get_object(model, object_id, args=None, **kwargs):
+def login_user(**kwargs):
     user_id = kwargs.pop('login', None)
     if user_id is not None:
         login(user_id)
+    return user_id
+
+
+def logout_user(user_id):
+    if user_id is not None:
+        logout()
+
+
+@asynccontextmanager
+async def get_object(model, object_id, args=None, **kwargs):
+    user_id = login_user(**kwargs)
     try:
         yield await model.get_object(args, object_id)
     finally:
-        if user_id is not None:
-            logout()
+        logout_user(user_id)
 
 
 @asynccontextmanager
 async def get_collection(model, args=None, **kwargs):
-    user_id = kwargs.pop('login', None)
-    if user_id is not None:
-        login(user_id)
+    user_id = login_user(**kwargs)
     try:
         yield await model.get_collection(args)
     finally:
-        if user_id is not None:
-            logout()
+        logout_user(user_id)
 
 
 @asynccontextmanager
 async def get_related(model, object_id, name, args=None, **kwargs):
-    user_id = kwargs.pop('login', None)
-    if user_id is not None:
-        login(user_id)
+    user_id = login_user(**kwargs)
     try:
         yield await model.get_related(args, object_id, name)
     finally:
-        if user_id is not None:
-            logout()
+        logout_user(user_id)
 
 
 ####################################################################################################
