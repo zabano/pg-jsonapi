@@ -27,7 +27,10 @@ def rec():
                               'datetime': '2019-09-01T10:00:00Z'},
                  'testJsonB': {'bool': True, 'date': '2019-09-01', 'time': '10:00:00',
                                'float': 1.5, 'string': 'This is a test.', 'integer': 1,
-                               'datetime': '2019-09-01T10:00:00Z'}}}
+                               'datetime': '2019-09-01T10:00:00Z'}},
+            'relationships':
+                {'oneToOne': None,
+                 'oneToMany': []}}
 
 
 def test_assert_object(rec):
@@ -51,6 +54,8 @@ def test_assert_attribute(rec):
     with pytest.raises(AssertionError):
         assert assert_attribute(rec, 'testINT')
     with pytest.raises(AssertionError):
+        assert assert_attribute(rec, 'oneToMany')
+    with pytest.raises(AssertionError):
         assert assert_attribute(rec, 'testInt', lambda v: int(v) == 2)
 
 
@@ -61,3 +66,12 @@ def test_assert_attribute_does_not_exist(rec):
         assert assert_attribute_does_not_exist(rec, 'testFloat')
     with pytest.raises(AssertionError):
         assert assert_attribute_does_not_exist(rec, 'testInt')
+
+
+def test_assert_relationship(rec):
+    assert_relationship(rec, 'oneToOne')
+    assert_relationship(rec, 'oneToMany')
+    with pytest.raises(AssertionError):
+        assert_relationship(rec, 'doesNotExist')
+    with pytest.raises(AssertionError):
+        assert_relationship(rec, 'testInt')

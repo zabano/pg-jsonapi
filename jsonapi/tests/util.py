@@ -52,12 +52,6 @@ async def get_related(model, object_id, name, args=None, **kwargs):
 # asserts
 ####################################################################################################
 
-def assert_datatype(test_data, name, validator):
-    json = test_data['data']['attributes']
-    assert name in json
-    assert validator(json[name]) is True
-
-
 def assert_object(json, object_type, validator=None):
     assert 'type' in json
     assert json['type'] == object_type
@@ -86,6 +80,7 @@ def assert_relationship(json, name, validate_length=None):
     assert name in relationships
     if validate_length is not None:
         assert validate_length(len(relationships[name])) is True
+    return json['relationships'][name]
 
 
 def assert_error(json, status, text=None):
@@ -104,29 +99,25 @@ def assert_meta(json, name, validator=None):
         assert validator(json['meta'][name])
 
 
-def get_relationship(json, name):
-    return json['relationships'][name]
-
-
-def is_size(v):
-    return isinstance(v, int) and v >= 0
-
+####################################################################################################
+# check resources
+####################################################################################################
 
 def check_user(user, validator=None):
     assert_object(user, 'user', validator)
     assert_attribute(user, 'email', lambda v: '@' in v)
-    assert_attribute(user, 'name', lambda v: isinstance(v, str))
-    assert_attribute(user, 'first', lambda v: isinstance(v, str))
-    assert_attribute(user, 'last', lambda v: isinstance(v, str))
-    assert user['attributes']['first'] + ' ' + user['attributes']['last'] == user['attributes']['name']
+    assert_attribute(user, 'name', lambda v: is_string(v))
+    assert_attribute(user, 'first', lambda v: is_string(v))
+    assert_attribute(user, 'last', lambda v: is_string(v))
+    assert user['attributes']['name'] == '{first} {last}'.format(**user['attributes'])
     assert_attribute(user, 'status', lambda v: v in ('active', 'pending'))
     assert_attribute(user, 'createdOn', lambda v: is_datetime(v))
 
 
 def check_article(json, validator=None):
     assert_object(json, 'article', validator)
-    assert_attribute(json, 'body', lambda v: isinstance(v, str) and len(v) > 0)
-    assert_attribute(json, 'title', lambda v: isinstance(v, str) and len(v) > 0)
+    assert_attribute(json, 'body', lambda v: is_string(v))
+    assert_attribute(json, 'title', lambda v: is_string(v))
     assert_attribute(json, 'isPublished', lambda v: isinstance(v, bool))
     assert_attribute(json, 'createdOn', lambda v: is_datetime(v))
     assert_attribute(json, 'updatedOn', lambda v: is_datetime(v, nullable=True))
@@ -134,22 +125,27 @@ def check_article(json, validator=None):
 
 def check_comment(json, validator=None):
     assert_object(json, 'comment', validator)
-    assert_attribute(json, 'body', lambda v: isinstance(v, str) and len(v) > 0)
+    assert_attribute(json, 'body', lambda v: is_string(v))
     assert_attribute(json, 'createdOn', lambda v: is_datetime(v))
     assert_attribute(json, 'updatedOn', lambda v: is_datetime(v, nullable=True))
 
 
 def check_reply(json, validator=None):
     assert_object(json, 'reply', validator)
-    assert_attribute(json, 'body', lambda v: isinstance(v, str) and len(v) > 0)
+    assert_attribute(json, 'body', lambda v: is_string(v))
     assert_attribute(json, 'createdOn', lambda v: is_datetime(v))
     assert_attribute(json, 'updatedOn', lambda v: is_datetime(v, nullable=True))
 
 
-####################################################################################################
-# Date & Time
-####################################################################################################
+def check_user_bio(json, validator=None):
+    assert_object(json, 'user-bio', validator)
+    assert_attribute(json, 'summary', lambda v: is_string(v, nullable=True))
+    assert_attribute(json, 'birthday', lambda v: is_date(v, nullable=True))
 
+
+####################################################################################################
+# date and time
+####################################################################################################
 
 def parse_date(v):
     if v is not None:
@@ -191,3 +187,17 @@ def is_datetime(v, nullable=False):
     if v is None:
         return nullable
     return _is_timestamp(v, parse_datetime)
+
+
+####################################################################################################
+# other
+####################################################################################################
+
+def is_size(v):
+    return isinstance(v, int) and v >= 0
+
+
+def is_string(v, nullable=False):
+    if v is None:
+        return nullable
+    return isinstance(v, str) and len(v) > 0

@@ -43,8 +43,7 @@ async def test_not_found(articles, article_count):
 async def test_logged_in_1(users, user_1_id):
     async with get_object(users, user_1_id, {'include': 'articles'}, login=user_1_id) as json:
         assert_object(json['data'], 'user', lambda v: int(v) == user_1_id)
-        assert_relationship(json['data'], 'articles', lambda size: size > 0)
-        for article in get_relationship(json['data'], 'articles'):
+        for article in assert_relationship(json['data'], 'articles', lambda size: size > 0):
             assert_object(article, 'article')
         assert 'included' in json
         assert len(json['included']) > 0

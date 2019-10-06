@@ -119,7 +119,7 @@ class Model:
 
     def get_type(self):
         if self.type_ is None:
-            return dasherize(underscore(self.name.lower().replace('model', '')))
+            return dasherize(underscore(self.name)).replace('model', '').strip('-')
         if not isinstance(self.type_, str):
             raise ModelError('attribute: "type_" must be a string', self)
 

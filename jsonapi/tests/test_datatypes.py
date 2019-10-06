@@ -3,7 +3,13 @@ import datetime as dt
 import pytest
 
 from jsonapi.datatypes import parse_bool, parse_date, parse_datetime, parse_time
-from jsonapi.tests.util import assert_datatype, is_date, is_datetime, is_time
+from jsonapi.tests.util import is_date, is_datetime, is_time
+
+
+def assert_datatype(test_data, name, validator):
+    json = test_data['data']['attributes']
+    assert name in json
+    assert validator(json[name]) is True
 
 
 #
