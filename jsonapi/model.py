@@ -4,12 +4,11 @@ from functools import reduce
 from itertools import islice
 
 import marshmallow as ma
-import sqlalchemy as sa
 from asyncpgsa import pg
 from inflection import camelize, dasherize, underscore
 
 from jsonapi.args import RequestArguments
-from jsonapi.datatypes import String
+from jsonapi.datatypes import Integer, String
 from jsonapi.db.filter import Filter
 from jsonapi.db.query import Query
 from jsonapi.db.table import Cardinality, FromClause, is_from_item
@@ -501,7 +500,8 @@ class MixedModel:
                 result.extend(model.schema.dump(
                     [{'type': model.type_, **rec} for rec in await pg.fetch(
                         model.query.all(filter_by=model.primary_key.in_(
-                            [int(object_id) if isinstance(model.primary_key.type, sa.Integer)
+                            [int(object_id) if isinstance(model.primary_key.type,
+                                                          Integer.sa_types)
                              else object_id for object_id in id_list]
                         )))], many=True))
 

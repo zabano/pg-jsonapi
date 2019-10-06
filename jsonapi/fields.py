@@ -70,7 +70,7 @@ class Aggregate(BaseField):
         """
         :param str name: field name
         :param rel_name: relationship name
-        :param func: SQLAlchemy aggregate function (ex. sa.func.count)
+        :param func: SQLAlchemy aggregate function (ex. func.count)
         :param DataType data_type: one of the supported data types (optional)
         """
         super().__init__(name, expr=None, data_type=data_type if data_type is not None else Integer)

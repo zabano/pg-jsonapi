@@ -1,6 +1,6 @@
 from copy import copy
 
-from sqlalchemy import sql
+from sqlalchemy.sql import and_, exists, func, select
 
 from jsonapi.exc import APIError, ModelError
 from jsonapi.fields import Aggregate, Field
@@ -41,8 +41,8 @@ class Query:
 
     def rank_column(self, search):
         if self.model.search is not None and search is not None:
-            return sql.func.ts_rank_cd(
-                self.model.search.c.tsvector, sql.func.to_tsquery(search)).label('_ts_rank')
+            return func.ts_rank_cd(
+                self.model.search.c.tsvector, func.to_tsquery(search)).label('_ts_rank')
 
     ################################################################################################
     # query
@@ -58,9 +58,9 @@ class Query:
         if not filter_by:
             return query
         if filter_by.where:
-            query = query.where(sql.and_(*filter_by.where))
+            query = query.where(and_(*filter_by.where))
         if filter_by.having:
-            query = query.having(sql.and_(*filter_by.having))
+            query = query.having(and_(*filter_by.having))
         return query
 
     def sort_query(self, query, search=None):
@@ -98,13 +98,13 @@ class Query:
     ################################################################################################
 
     def exists(self, resource_id):
-        return sql.select([sql.exists(sql.select([self.model.primary_key]).where(
+        return select([exists(select([self.model.primary_key]).where(
             self.model.primary_key == resource_id))])
 
     def get(self, resource_id):
-        query = sql.select(from_obj=self.from_obj(),
-                           columns=self.col_list(),
-                           whereclause=self.model.primary_key == resource_id)
+        query = select(from_obj=self.from_obj(),
+                       columns=self.col_list(),
+                       whereclause=self.model.primary_key == resource_id)
         query = self.group_query(query)
         if self.model.access is not None:
             query = self.protect_query(query)
@@ -114,7 +114,7 @@ class Query:
 
         search_t = self.model.search
         from_obj = self.from_obj(search_t) if search is not None else self.from_obj()
-        query = sql.select(columns=self.col_list(search=search), from_obj=from_obj)
+        query = select(columns=self.col_list(search=search), from_obj=from_obj)
         query = self.group_query(query)
 
         if not count:
@@ -128,14 +128,14 @@ class Query:
 
         query = self.search_query(query, search)
         if count:
-            return sql.select([sql.func.count()]).select_from(query.alias('count'))
+            return select([func.count()]).select_from(query.alias('count'))
 
         return query
 
     def search(self, term):
         search_t = self.model.search
-        query = sql.select(columns=[self.model.primary_key, self.rank_column(term)],
-                           from_obj=self.from_obj(search_t))
+        query = select(columns=[self.model.primary_key, self.rank_column(term)],
+                       from_obj=self.from_obj(search_t))
         query = self.search_query(query, term)
         return self.protect_query(query)
 
@@ -143,12 +143,12 @@ class Query:
         pkey_column = get_primary_key(rel.fkey.parent.table)
         where_col = pkey_column if rel.cardinality in (ONE_TO_ONE, MANY_TO_ONE) \
             else rel.fkey.parent
-        query = sql.select(columns=self.col_list(),
-                           from_obj=self.from_obj(
-                               FromItem(rel.fkey.parent.table,
-                                        onclause=rel.fkey.column == rel.fkey.parent,
-                                        left=True)),
-                           whereclause=where_col == resource_id)
+        query = select(columns=self.col_list(),
+                       from_obj=self.from_obj(
+                           FromItem(rel.fkey.parent.table,
+                                    onclause=rel.fkey.column == rel.fkey.parent,
+                                    left=True)),
+                       whereclause=where_col == resource_id)
         query = self.group_query(query)
         if rel.cardinality in (ONE_TO_MANY, MANY_TO_MANY):
             query = self.sort_query(query)
@@ -164,11 +164,11 @@ class Query:
     def included(self, rel, id_list):
         where_col = get_primary_key(rel.fkey.parent.table) \
             if rel.cardinality is MANY_TO_ONE else rel.fkey.parent
-        query = sql.select(columns=[*self.col_list(), where_col.label('parent_id')],
-                           from_obj=self.from_obj(
-                               FromItem(rel.fkey.parent.table,
-                                        onclause=rel.fkey.column == rel.fkey.parent,
-                                        left=True)))
+        query = select(columns=[*self.col_list(), where_col.label('parent_id')],
+                       from_obj=self.from_obj(
+                           FromItem(rel.fkey.parent.table,
+                                    onclause=rel.fkey.column == rel.fkey.parent,
+                                    left=True)))
         query = self.group_query(query, where_col)
         query = self.protect_query(query)
         return (query.where(where_col.in_(x))

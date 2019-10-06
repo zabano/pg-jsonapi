@@ -2,7 +2,7 @@ import asyncio
 
 import pytest
 from asyncpgsa import pg
-from sqlalchemy import sql
+from sqlalchemy.sql import and_, func, select
 
 from jsonapi.tests.data import TOTAL_USERS
 from jsonapi.tests.db import *
@@ -54,7 +54,7 @@ async def test_data():
 
 @pytest.fixture(scope='session')
 async def article_count():
-    return await pg.fetchval(sql.select([sql.func.count()]).select_from(articles_t))
+    return await pg.fetchval(select([func.count()]).select_from(articles_t))
 
 
 @pytest.fixture(scope='session')
@@ -64,42 +64,42 @@ def user_count():
 
 @pytest.fixture(scope='session')
 async def superuser_id():
-    return await pg.fetchval(sql.select([users_t.c.id]).select_from(
+    return await pg.fetchval(select([users_t.c.id]).select_from(
         users_t.join(articles_t, articles_t.c.author_id == users_t.c.id)).where(
         users_t.c.is_superuser).group_by(users_t.c.id).limit(1))
 
 
 @pytest.fixture(scope='session')
 async def user_1_id():
-    return await pg.fetchval(sql.select([users_t.c.id]).select_from(
+    return await pg.fetchval(select([users_t.c.id]).select_from(
         users_t.join(articles_t, articles_t.c.author_id == users_t.c.id)).where(
         ~users_t.c.is_superuser).group_by(users_t.c.id).limit(1))
 
 
 @pytest.fixture(scope='session')
 async def user_1_article_id(user_1_id):
-    return await pg.fetchval(sql.select([articles_t.c.id]).where(
+    return await pg.fetchval(select([articles_t.c.id]).where(
         articles_t.c.author_id == user_1_id).limit(1))
 
 
 @pytest.fixture(scope='session')
 async def user_1_article_id_forbidden(user_1_id):
-    return await pg.fetchval(sql.select([articles_t.c.id]).where(
-        articles_t.c.author_id.notin_(sql.select([article_read_access_t.c.article_id]).where(
+    return await pg.fetchval(select([articles_t.c.id]).where(
+        articles_t.c.author_id.notin_(select([article_read_access_t.c.article_id]).where(
             article_read_access_t == user_1_id))).limit(1))
 
 
 @pytest.fixture(scope='session')
 async def user_1_article_id_readable(user_1_id):
-    return await pg.fetchval(sql.select([article_read_access_t.c.article_id]).select_from(
+    return await pg.fetchval(select([article_read_access_t.c.article_id]).select_from(
         article_read_access_t.join(articles_t)).where(
-        sql.and_(article_read_access_t.c.user_id == user_1_id,
-                 articles_t.c.author_id != user_1_id)).limit(1))
+        and_(article_read_access_t.c.user_id == user_1_id,
+             articles_t.c.author_id != user_1_id)).limit(1))
 
 
 @pytest.fixture(scope='session')
 async def user_2_id():
-    return await pg.fetchval(sql.select([users_t.c.id]).select_from(
+    return await pg.fetchval(select([users_t.c.id]).select_from(
         users_t.outerjoin(articles_t, articles_t.c.author_id == users_t.c.id)).where(
-        sql.and_(~users_t.c.is_superuser,
-                 articles_t.c.id.is_(None))).group_by(users_t.c.id).limit(1))
+        and_(~users_t.c.is_superuser,
+             articles_t.c.id.is_(None))).group_by(users_t.c.id).limit(1))

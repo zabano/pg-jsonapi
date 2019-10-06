@@ -1,7 +1,10 @@
+from sqlalchemy.sql import func
+
 from jsonapi.db.table import MANY_TO_MANY, MANY_TO_ONE, ONE_TO_MANY, ONE_TO_ONE
 from jsonapi.model import Aggregate, Derived, MixedModel, Model, Relationship
 from jsonapi.tests.auth import current_user
-from jsonapi.tests.db import *
+from jsonapi.tests.db import articles_t, articles_ts, comments_t, keywords_t, replies_t, \
+    test_data_t, user_bios_t, user_names_t, users_t, users_ts
 
 
 class TestModel(Model):
@@ -22,7 +25,7 @@ class UserModel(Model):
                            ONE_TO_ONE, 'user_bios_id_fkey'),
               Relationship('articles', 'ArticleModel',
                            ONE_TO_MANY, 'articles_author_id_fkey'),
-              Aggregate('article_count', 'articles', sa.func.count))
+              Aggregate('article_count', 'articles', func.count))
     search = users_ts
 
 
@@ -42,16 +45,16 @@ class ArticleModel(Model):
                            MANY_TO_MANY, 'article_keywords_article_id_fkey'),
               Relationship('comments', 'CommentModel',
                            ONE_TO_MANY, 'articles_article_id_fkey'),
-              Aggregate('keyword_count', 'keywords', sa.func.count),
-              Aggregate('comment_count', 'comments', sa.func.count),
-              Aggregate('author_count', 'author', sa.func.count))
+              Aggregate('keyword_count', 'keywords', func.count),
+              Aggregate('comment_count', 'comments', func.count),
+              Aggregate('author_count', 'author', func.count))
 
     @staticmethod
     def filter_custom(v):
-        return sa.func.char_length(articles_t.c.title) == int(v)
+        return func.char_length(articles_t.c.title) == int(v)
 
     search = articles_ts
-    access = sa.func.check_article_read_access
+    access = func.check_article_read_access
     user = current_user
 
 
@@ -65,7 +68,7 @@ class CommentModel(Model):
     fields = ('body', 'created_on', 'updated_on',
               Relationship('author', 'UserModel', MANY_TO_ONE, 'articles_user_id_fkey'),
               Relationship('replies', 'ReplyModel', ONE_TO_MANY, 'replies_comment_id_fkey'),
-              Aggregate('reply_count', 'replies', sa.func.count))
+              Aggregate('reply_count', 'replies', func.count))
 
 
 class ReplyModel(Model):
