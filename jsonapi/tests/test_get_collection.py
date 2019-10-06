@@ -9,19 +9,19 @@ from jsonapi.tests.util import *
 
 
 @pytest.mark.asyncio
-async def test_1(cli, user_count):
-    json = await get(cli, '/users/')
-    assert isinstance(json['data'], list)
-    assert len(json['data']) == user_count
-    check_user(json['data'][0])
-    check_user(json['data'][-1])
+async def test_1(users, user_count):
+    async with get_collection(users) as json:
+        assert isinstance(json['data'], list)
+        assert len(json['data']) == user_count
+        check_user(json['data'][0])
+        check_user(json['data'][-1])
 
 
 @pytest.mark.asyncio
-async def test_2(cli):
-    json = await get(cli, '/articles/')
-    assert isinstance(json['data'], list)
-    assert len(json['data']) == 0
+async def test_2(articles):
+    async with get_collection(articles) as json:
+        assert isinstance(json['data'], list)
+        assert len(json['data']) == 0
 
 
 #
@@ -30,17 +30,17 @@ async def test_2(cli):
 
 
 @pytest.mark.asyncio
-async def test_logged_in_1(cli, user_1_id, article_count):
-    json = await get(cli, '/articles/', 200, user_1_id)
-    assert isinstance(json['data'], list)
-    assert 0 < len(json['data']) < article_count
+async def test_logged_in_1(articles, user_1_id, article_count):
+    async with get_collection(articles, login=user_1_id) as json:
+        assert isinstance(json['data'], list)
+        assert 0 < len(json['data']) < article_count
 
 
 @pytest.mark.asyncio
-async def test_logged_in_2(cli, user_2_id, article_count):
-    json = await get(cli, '/articles/', 200, user_2_id)
-    assert isinstance(json['data'], list)
-    assert 0 < len(json['data']) < article_count
+async def test_logged_in_2(articles, user_2_id, article_count):
+    async with get_collection(articles, login=user_2_id) as json:
+        assert isinstance(json['data'], list)
+        assert 0 < len(json['data']) < article_count
 
 
 #
@@ -48,7 +48,7 @@ async def test_logged_in_2(cli, user_2_id, article_count):
 #
 
 @pytest.mark.asyncio
-async def test_superuser_1(cli, superuser_id, article_count):
-    json = await get(cli, '/articles/', 200, superuser_id)
-    assert isinstance(json['data'], list)
-    assert len(json['data']) == article_count
+async def test_superuser_1(articles, superuser_id, article_count):
+    async with get_collection(articles, login=superuser_id) as json:
+        assert isinstance(json['data'], list)
+        assert len(json['data']) == article_count

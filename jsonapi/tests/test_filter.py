@@ -1,7 +1,6 @@
-import datetime as dt
 import pytest
 
-from jsonapi.tests.util import assert_attribute, assert_object, get, parse_datetime
+from jsonapi.tests.util import *
 
 
 #
@@ -10,95 +9,94 @@ from jsonapi.tests.util import assert_attribute, assert_object, get, parse_datet
 
 
 @pytest.mark.asyncio
-async def test_int(cli, superuser_id):
-    json = await get(cli, dict(
-        url='/articles/',
-        fields=dict(article='id'),
-        filter={'id': '5'},
-        page=dict(size=10)
-    ), 200, superuser_id)
-    assert isinstance(json['data'], list)
-    assert len(json['data']) == 1
-    for article in json['data']:
-        assert_object(article, 'article', lambda v: int(v) == 5)
+async def test_int(articles, superuser_id):
+    async with get_collection(articles,
+                              {'fields[article]': 'id',
+                               'filter[id]': '5',
+                               'page[size]': 10},
+                              login=superuser_id) as json:
+        assert isinstance(json['data'], list)
+        assert len(json['data']) == 1
+        for article in json['data']:
+            assert_object(article, 'article', lambda v: int(v) == 5)
 
 
 @pytest.mark.asyncio
-async def test_int_eq(cli, superuser_id):
-    json = await get(cli, dict(
-        url='/articles/',
-        filter={'id:eq': '5'},
-        page=dict(size=10)
-    ), 200, superuser_id)
-    assert isinstance(json['data'], list)
-    assert len(json['data']) == 1
-    for article in json['data']:
-        assert_object(article, 'article', lambda v: int(v) == 5)
+async def test_int_eq(articles, superuser_id):
+    async with get_collection(articles,
+                              {'fields[article]': 'id',
+                               'filter[id:eq]': '5',
+                               'page[size]': 10},
+                              login=superuser_id) as json:
+        assert isinstance(json['data'], list)
+        assert len(json['data']) == 1
+        for article in json['data']:
+            assert_object(article, 'article', lambda v: int(v) == 5)
 
 
 @pytest.mark.asyncio
-async def test_int_ne(cli, superuser_id):
-    json = await get(cli, dict(
-        url='/articles/',
-        filter={'id:ne': '5'},
-        page=dict(size=10)
-    ), 200, superuser_id)
-    assert isinstance(json['data'], list)
-    assert len(json['data']) == 10
-    for article in json['data']:
-        assert_object(article, 'article', lambda v: v != '5')
+async def test_int_ne(articles, superuser_id):
+    async with get_collection(articles,
+                              {'fields[article]': 'id',
+                               'filter[id:ne]': '5',
+                               'page[size]': 10},
+                              login=superuser_id) as json:
+        assert isinstance(json['data'], list)
+        assert len(json['data']) == 10
+        for article in json['data']:
+            assert_object(article, 'article', lambda v: v != '5')
 
 
 @pytest.mark.asyncio
-async def test_int_lt(cli, superuser_id):
-    json = await get(cli, dict(
-        url='/articles/',
-        filter={'id:lt': '5'},
-        page=dict(size=10)
-    ), 200, superuser_id)
-    assert isinstance(json['data'], list)
+async def test_int_lt(articles, superuser_id):
+    async with get_collection(articles,
+                              {'fields[article]': 'id',
+                               'filter[id:lt]': '5',
+                               'page[size]': 10},
+                              login=superuser_id) as json:
+        assert isinstance(json['data'], list)
     assert len(json['data']) == 4
     for article in json['data']:
         assert_object(article, 'article', lambda v: int(v) < 5)
 
 
 @pytest.mark.asyncio
-async def test_int_le(cli, superuser_id):
-    json = await get(cli, dict(
-        url='/articles/',
-        filter={'id:le': '5'},
-        page=dict(size=10)
-    ), 200, superuser_id)
-    assert isinstance(json['data'], list)
-    assert len(json['data']) == 5
-    for article in json['data']:
-        assert_object(article, 'article', lambda v: int(v) <= 5)
+async def test_int_le(articles, superuser_id):
+    async with get_collection(articles,
+                              {'fields[article]': 'id',
+                               'filter[id:le]': '5',
+                               'page[size]': 10},
+                              login=superuser_id) as json:
+        assert isinstance(json['data'], list)
+        assert len(json['data']) == 5
+        for article in json['data']:
+            assert_object(article, 'article', lambda v: int(v) <= 5)
 
 
 @pytest.mark.asyncio
-async def test_int_gt(cli, superuser_id):
-    json = await get(cli, dict(
-        url='/articles/',
-        filter={'id:gt': '5'},
-        page=dict(size=10)
-    ), 200, superuser_id)
-    assert isinstance(json['data'], list)
-    assert len(json['data']) == 10
-    for article in json['data']:
-        assert_object(article, 'article', lambda v: int(v) > 5)
+async def test_int_gt(articles, superuser_id):
+    async with get_collection(articles,
+                              {'fields[article]': 'id',
+                               'filter[id:gt]': '5',
+                               'page[size]': 10},
+                              login=superuser_id) as json:
+        assert isinstance(json['data'], list)
+        assert len(json['data']) == 10
+        for article in json['data']:
+            assert_object(article, 'article', lambda v: int(v) > 5)
 
 
 @pytest.mark.asyncio
-async def test_int_ge(cli, superuser_id):
-    json = await get(cli, dict(
-        url='/articles/',
-        filter={'id:ge': '5'},
-        page=dict(size=10)
-    ), 200, superuser_id)
-    assert isinstance(json['data'], list)
-    assert len(json['data']) == 10
-    for article in json['data']:
-        assert_object(article, 'article', lambda v: int(v) >= 5)
+async def test_int_ge(articles, superuser_id):
+    async with get_collection(articles,
+                              {'fields[article]': 'id',
+                               'filter[id:ge]': '5',
+                               'page[size]': 10},
+                              login=superuser_id) as json:
+        assert isinstance(json['data'], list)
+        assert len(json['data']) == 10
+        for article in json['data']:
+            assert_object(article, 'article', lambda v: int(v) >= 5)
 
 
 #
@@ -106,30 +104,27 @@ async def test_int_ge(cli, superuser_id):
 #
 
 @pytest.mark.asyncio
-async def test_int_multiple_1(cli, superuser_id):
-    json = await get(cli, dict(
-        url='/articles/',
-        fields=dict(article='id'),
-        filter=dict(id='1,2,3,4,5,6,7,8,9,10')
-    ), 200, superuser_id)
-    assert isinstance(json['data'], list)
-    assert len(json['data']) == 10
-    for article in json['data']:
-        assert_object(article, 'article', lambda v: int(v) <= 10)
+async def test_int_multiple_1(articles, superuser_id):
+    async with get_collection(articles,
+                              {'fields[article]': 'id',
+                               'filter[id]': '1,2,3,4,5,6,7,8,9,10'},
+                              login=superuser_id) as json:
+        assert isinstance(json['data'], list)
+        assert len(json['data']) == 10
+        for article in json['data']:
+            assert_object(article, 'article', lambda v: int(v) <= 10)
 
 
 @pytest.mark.asyncio
-async def test_int_multiple_2(cli, superuser_id):
-    json = await get(cli, dict(
-        url='/articles/',
-        filter={'id': '<4,6,>=8'},
-        sort='id',
-        page=dict(size=7)
-    ), 200, superuser_id)
-    assert isinstance(json['data'], list)
-    assert len(json['data']) == 7
-    for article in json['data']:
-        assert_object(article, 'article', lambda v: int(v) in (1, 2, 3, 6, 8, 9, 10))
+async def test_int_multiple_2(articles, article_count, superuser_id):
+    async with get_collection(articles,
+                              {'fields[article]': 'id',
+                               'filter[id]': '<4,6,>={:d}'.format(article_count - 1)},
+                              login=superuser_id) as json:
+        assert isinstance(json['data'], list)
+        assert len(json['data']) == 6
+        for article in json['data']:
+            assert_object(article, 'article', lambda v: int(v) in (1, 2, 3, 6, article_count - 1, article_count))
 
 
 #
@@ -138,50 +133,48 @@ async def test_int_multiple_2(cli, superuser_id):
 
 
 @pytest.mark.asyncio
-async def test_bool_1(cli, superuser_id):
-    for val in ('t', 'T', 'true', 'True', 'TRUE', '1', 'on', 'On', 'ON'):
-        json = await get(cli, dict(
-            url='/articles/',
-            filter={'is-published': val},
-            page=dict(size=10)
-        ), 200, superuser_id)
-        assert isinstance(json['data'], list)
-        assert len(json['data']) == 10
-        for article in json['data']:
-            assert_attribute(article, 'isPublished', lambda v: v is True)
+async def test_bool_1(articles, superuser_id):
+    for val in ('t', 'T', 'true', 'True', 'TRUE', '1', 'on', 'On', 'ON', 'yes', 'Yes', 'YES'):
+        async with get_collection(articles,
+                                  {'fields[article]': 'is-published',
+                                   'filter[is-published]': val,
+                                   'page[size]': 10},
+                                  login=superuser_id) as json:
+            assert isinstance(json['data'], list)
+            assert len(json['data']) == 10
+            for article in json['data']:
+                assert_attribute(article, 'isPublished', lambda v: v is True)
 
 
 @pytest.mark.asyncio
-async def test_bool_2(cli, superuser_id):
-    for val in ('f', 'F', 'false', 'False', 'FALSE', '0', 'off', 'Off', 'OFF'):
-        json = await get(cli, dict(
-            url='/articles/',
-            filter={'is-published': val},
-            page=dict(size=10)
-        ), 200, superuser_id)
-        assert isinstance(json['data'], list)
-        assert len(json['data']) == 10
-        for article in json['data']:
-            assert_attribute(article, 'isPublished', lambda v: v is False)
+async def test_bool_2(articles, superuser_id):
+    for val in ('f', 'F', 'false', 'False', 'FALSE', '0', 'off', 'Off', 'OFF', 'no', 'No', 'NO'):
+        async with get_collection(articles,
+                                  {'fields[article]': 'is-published',
+                                   'filter[is-published]': val,
+                                   'page[size]': 10},
+                                  login=superuser_id) as json:
+            assert isinstance(json['data'], list)
+            assert len(json['data']) == 10
+            for article in json['data']:
+                assert_attribute(article, 'isPublished', lambda v: v is False)
 
 
 #
-# bool
+# enum
 #
 
 @pytest.mark.asyncio
-async def test_enum(cli, superuser_id):
+async def test_enum(users, superuser_id):
     for val in ('active', 'pending', 'active,pending'):
-        json = await get(cli, dict(
-            url='/users/',
-            filter={'status': val},
-            page=dict(size=5)
-        ), 200, superuser_id)
-        assert isinstance(json['data'], list)
-        assert len(json['data']) == 5
-        for user in json['data']:
-            assert_attribute(user, 'status',
-                             lambda v: v in val.split(',') if ',' in val else v == val)
+        async with get_collection(users,
+                                  {'filter[status]': val,
+                                   'page[size]': 5}) as json:
+            assert isinstance(json['data'], list)
+            assert len(json['data']) == 5
+            for user in json['data']:
+                assert_attribute(user, 'status',
+                                 lambda v: v in val.split(',') if ',' in val else v == val)
 
 
 #
@@ -190,20 +183,18 @@ async def test_enum(cli, superuser_id):
 
 
 @pytest.mark.asyncio
-async def test_datetime(cli, superuser_id):
+async def test_datetime(users):
     for val in ('2019-09-01T00:00:00Z', '2019-09-01T00:00:00',
                 '2019-09-01T00:00', '2019-09-01', '2019-09'):
-        json = await get(cli, dict(
-            url='/users/',
-            filter={'created-on:gt': val},
-            page=dict(size=5),
-            sort='created-on'
-        ), 200, superuser_id)
-        assert isinstance(json['data'], list)
-        assert len(json['data']) == 5
-        for user in json['data']:
-            assert_attribute(user, 'createdOn',
-                             lambda v: parse_datetime(v) > dt.datetime(2019, 9, 1))
+        async with get_collection(users,
+                                  {'filter[created-on:gt]': val,
+                                   'page[size]': 5,
+                                   'sort': 'created-on'}) as json:
+            assert isinstance(json['data'], list)
+            assert len(json['data']) == 5
+            for user in json['data']:
+                assert_attribute(user, 'createdOn',
+                                 lambda v: parse_datetime(v) > dt.datetime(2019, 9, 1))
 
 
 #
@@ -212,49 +203,46 @@ async def test_datetime(cli, superuser_id):
 
 
 @pytest.mark.asyncio
-async def test_aggregate_1(cli, superuser_id):
-    json = await get(cli, dict(
-        url='/users/',
-        filter={'article-count': 5},
-        fields=dict(user='article-count'),
-        page=dict(size=5),
-    ), 200, superuser_id)
-    assert isinstance(json['data'], list)
-    assert len(json['data']) == 5
-    for user in json['data']:
-        assert_object(user, 'user')
-        assert_attribute(user, 'articleCount', lambda v: v == 5)
+async def test_aggregate_1(users):
+    async with get_collection(users,
+                              {'filter[article-count]': '5',
+                               'fields[user]': 'article-count',
+                               'page[size]': 5,
+                               'sort': 'created-on'}) as json:
+        assert isinstance(json['data'], list)
+        assert len(json['data']) == 5
+        for user in json['data']:
+            assert_object(user, 'user')
+            assert_attribute(user, 'articleCount', lambda v: v == 5)
 
 
 @pytest.mark.asyncio
-async def test_aggregate_2(cli, superuser_id):
-    json = await get(cli, dict(
-        url='/users/',
-        filter={'article-count:le': 3},
-        fields=dict(user='article-count'),
-        page=dict(size=10),
-    ), 200, superuser_id)
-    assert isinstance(json['data'], list)
-    assert len(json['data']) == 10
-    for user in json['data']:
-        assert_object(user, 'user')
-        assert_attribute(user, 'articleCount', lambda v: v <= 3)
+async def test_aggregate_2(users):
+    async with get_collection(users,
+                              {'filter[article-count:le]': '3',
+                               'fields[user]': 'article-count',
+                               'page[size]': 10}) as json:
+        assert isinstance(json['data'], list)
+        assert len(json['data']) == 10
+        for user in json['data']:
+            assert_object(user, 'user')
+            assert_attribute(user, 'articleCount', lambda v: v <= 3)
 
 
 @pytest.mark.asyncio
-async def test_aggregate_3(cli, superuser_id):
-    json = await get(cli, dict(
-        url='/articles/',
-        filter={'comment-count:gt': 30, 'keyword-count': 3},
-        fields=dict(article='comment-count,keyword-count'),
-        page=dict(size=10),
-    ), 200, superuser_id)
-    assert isinstance(json['data'], list)
-    assert len(json['data']) == 10
-    for article in json['data']:
-        assert_object(article, 'article')
-        assert_attribute(article, 'commentCount', lambda v: v > 30)
-        assert_attribute(article, 'keywordCount', lambda v: v == 3)
+async def test_aggregate_3(articles, superuser_id):
+    async with get_collection(articles,
+                              {'filter[comment-count:gt]': '30',
+                               'filter[keyword-count]': '3',
+                               'fields[article]': 'comment-count,keyword-count',
+                               'page[size]': 10},
+                              login=superuser_id) as json:
+        assert isinstance(json['data'], list)
+        assert len(json['data']) == 10
+        for article in json['data']:
+            assert_object(article, 'article')
+            assert_attribute(article, 'commentCount', lambda v: v > 30)
+            assert_attribute(article, 'keywordCount', lambda v: v == 3)
 
 
 #
@@ -263,26 +251,23 @@ async def test_aggregate_3(cli, superuser_id):
 
 
 @pytest.mark.asyncio
-async def test_mixed_1(cli, superuser_id):
-    json = await get(cli, dict(
-        url='/users/',
-        filter={
-            'created-on:lt': '2019-09-01',
-            'status': 'pending',
-            'id:gt': 100,
-            'article-count:le': 2
-        },
-        fields=dict(user='created-on,status,article-count'),
-        page=dict(size=3),
-    ), 200, superuser_id)
-    assert isinstance(json['data'], list)
-    assert len(json['data']) > 0
-    for user in json['data']:
-        assert_object(user, 'user', lambda v: int(v) > 100)
-        assert_attribute(user, 'status', lambda v: v == 'pending')
-        assert_attribute(user, 'articleCount', lambda v: v <= 2)
-        assert_attribute(user, 'createdOn',
-                         lambda v: parse_datetime(v) < dt.datetime(2019, 9, 1))
+async def test_mixed_1(users, superuser_id):
+    async with get_collection(users,
+                              {'filter[created-on:lt]': '2019-09-01',
+                               'filter[status]': 'pending',
+                               'filter[id:gt]': '100',
+                               'filter[article-count]:le': '2',
+                               'fields[user]': 'created-on,status,article-count',
+                               'page[size]': 3},
+                              login=superuser_id) as json:
+        assert isinstance(json['data'], list)
+        assert len(json['data']) > 0
+        for user in json['data']:
+            assert_object(user, 'user', lambda v: int(v) > 100)
+            assert_attribute(user, 'status', lambda v: v == 'pending')
+            assert_attribute(user, 'articleCount', lambda v: v <= 2)
+            assert_attribute(user, 'createdOn',
+                             lambda v: parse_datetime(v) < dt.datetime(2019, 9, 1))
 
 
 #
@@ -290,30 +275,29 @@ async def test_mixed_1(cli, superuser_id):
 #
 
 @pytest.mark.asyncio
-async def test_custom_1(cli, superuser_id):
-    json = await get(cli, dict(
-        url='/articles/',
-        filter={'custom': 15},
-        fields=dict(article='title'),
-        page=dict(size=5),
-    ), 200, superuser_id)
-    assert isinstance(json['data'], list)
-    assert len(json['data']) == 5
-    for article in json['data']:
-        assert_object(article, 'article')
-        assert_attribute(article, 'title', lambda v: len(v) == 15)
+async def test_custom_1(articles, superuser_id):
+    async with get_collection(articles,
+                              {'filter[custom]': '15',
+                               'fields[article]': 'title',
+                               'page[size]': 5},
+                              login=superuser_id) as json:
+        assert isinstance(json['data'], list)
+        assert len(json['data']) == 5
+        for article in json['data']:
+            assert_object(article, 'article')
+            assert_attribute(article, 'title', lambda v: len(v) == 15)
 
 
 @pytest.mark.asyncio
-async def test_custom_2(cli, superuser_id):
-    json = await get(cli, dict(
-        url='/articles/',
-        filter={'custom': 15, 'is-published': True},
-        fields=dict(article='title,is-published')
-    ), 200, superuser_id)
-    assert isinstance(json['data'], list)
-    assert len(json['data']) > 0
-    for article in json['data']:
-        assert_object(article, 'article')
-        assert_attribute(article, 'title', lambda v: len(v) == 15)
-        assert_attribute(article, 'isPublished', lambda v: v is True)
+async def test_custom_2(articles, superuser_id):
+    async with get_collection(articles,
+                              {'filter[custom]': '15',
+                               'filter[is-published]': 't',
+                               'fields[article]': 'title,is-published'},
+                              login=superuser_id) as json:
+        assert isinstance(json['data'], list)
+        assert len(json['data']) > 0
+        for article in json['data']:
+            assert_object(article, 'article')
+            assert_attribute(article, 'title', lambda v: len(v) == 15)
+            assert_attribute(article, 'isPublished', lambda v: v is True)

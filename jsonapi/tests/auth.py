@@ -1,5 +1,7 @@
-from quart import g
 from werkzeug.local import LocalProxy
+
+g = dict()
+current_user = LocalProxy(lambda: g.get('user'))
 
 
 class User:
@@ -8,12 +10,9 @@ class User:
         self.id = int(user_id)
 
 
-current_user = LocalProxy(lambda: g.get('user'))
-
-
 def login(user_id):
-    g.user = User(user_id)
+    g['user'] = User(user_id)
 
 
 def logout():
-    g.user = None
+    g['user'] = None

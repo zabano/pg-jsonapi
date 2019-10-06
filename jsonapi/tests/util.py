@@ -1,54 +1,53 @@
 import datetime as dt
-import os
-from urllib.parse import quote
+from contextlib import asynccontextmanager
 
 from jsonapi.datatypes import DataType
+from jsonapi.tests.auth import login, logout
 
 
-def _parse_url_object(url):
-    url_string = url.pop('url', '/')
-    if len(url) == 0:
-        return url_string
-    fields = list()
-    for name1, val1 in url.items():
-        if isinstance(val1, dict):
-            for name2, val2 in val1.items():
-                fields.append('{}[{}]={}'.format(name1, name2, quote(str(val2))))
-        else:
-            fields.append('{}={}'.format(name1, quote(str(val1))))
-    return '{}?{}'.format(url_string, '&'.join(fields))
+####################################################################################################
+# model interface
+####################################################################################################
+
+@asynccontextmanager
+async def get_object(model, object_id, args=None, **kwargs):
+    user_id = kwargs.pop('login', None)
+    if user_id is not None:
+        login(user_id)
+    try:
+        yield await model.get_object(args, object_id)
+    finally:
+        if user_id is not None:
+            logout()
 
 
-async def get(cli, url, status=200, user_id=None):
-    """
-    Perform a GET request.
+@asynccontextmanager
+async def get_collection(model, args=None, **kwargs):
+    user_id = kwargs.pop('login', None)
+    if user_id is not None:
+        login(user_id)
+    try:
+        yield await model.get_collection(args)
+    finally:
+        if user_id is not None:
+            logout()
 
-    :param cli: http client instant
-    :param mixed url: url string or object
-    :param status: expected http status code
-    :param user_id: user_id to use for login
-    :return:
-    """
 
-    if user_id is None:
-        if 'JSONAPI_LOGIN' in os.environ:
-            del os.environ['JSONAPI_LOGIN']
-    else:
-        os.environ['JSONAPI_LOGIN'] = str(user_id)
-
-    url_string = _parse_url_object(url) if isinstance(url, dict) else str(url)
-    response = await cli.get(url_string)
-    assert response.status_code == status
-    json = await response.json
-    if status == 200:
-        assert 'data' in json
-    return json
+@asynccontextmanager
+async def get_related(model, object_id, name, args=None, **kwargs):
+    user_id = kwargs.pop('login', None)
+    if user_id is not None:
+        login(user_id)
+    try:
+        yield await model.get_related(args, object_id, name)
+    finally:
+        if user_id is not None:
+            logout()
 
 
 ####################################################################################################
 # asserts
 ####################################################################################################
-
 
 def assert_datatype(test_data, name, validator):
     json = test_data['data']['attributes']
@@ -106,7 +105,7 @@ def get_relationship(json, name):
     return json['relationships'][name]
 
 
-def is_positive(v):
+def is_size(v):
     return isinstance(v, int) and v >= 0
 
 

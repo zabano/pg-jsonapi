@@ -1,6 +1,7 @@
 import asyncio
-import uvloop
 from functools import update_wrapper
+
+import uvloop
 
 asyncio.set_event_loop_policy(uvloop.EventLoopPolicy())
 

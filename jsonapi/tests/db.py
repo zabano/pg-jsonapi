@@ -11,11 +11,12 @@ metadata = sa.MetaData(schema='public')
 
 
 async def init_db():
-    await pg.init(database='jsonapi',
-                  user='jsonapi',
-                  password='jsonapi',
-                  min_size=5,
-                  max_size=10)
+    if not pg.initialized:
+        await pg.init(database='jsonapi',
+                      user='jsonapi',
+                      password='jsonapi',
+                      min_size=5,
+                      max_size=10)
 
 
 @enum.unique

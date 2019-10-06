@@ -2,10 +2,9 @@ import asyncio
 
 import pytest
 
-from jsonapi.tests.app import app
-from jsonapi.tests.db import *
 from jsonapi.tests.data import TOTAL_USERS
-from jsonapi.tests.util import get
+from jsonapi.tests.db import *
+from jsonapi.tests.model import ArticleModel, UserModel, TestModel
 
 
 @pytest.yield_fixture(scope='session')
@@ -16,16 +15,31 @@ def event_loop(request):
     loop.close()
 
 
+#
+# models
+#
+
 @pytest.fixture('session')
-async def cli():
+async def users():
     await init_db()
-    return app.test_client()
+    return UserModel()
 
 
 @pytest.fixture('session')
-async def test_data(cli):
-    json = await get(cli, '/test')
-    return json
+async def articles():
+    await init_db()
+    return ArticleModel()
+
+
+#
+# test data
+#
+
+
+@pytest.fixture('session')
+async def test_data():
+    await init_db()
+    return await TestModel().get_object({}, 1)
 
 
 @pytest.fixture('session')
