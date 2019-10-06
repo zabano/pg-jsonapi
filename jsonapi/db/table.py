@@ -53,22 +53,22 @@ class FromItem:
 
     """
 
-    def __init__(self, table, onclause=None, left=False):
+    def __init__(self, table, **kwargs):
         """
         :param table: an SQLAlchemy Table or Alias object
         :param onclause: an onclause join expression (optional)
         :param left: if set perform outer left join, otherwise perform inner join (optional)
         """
         self.table = table
-        self.onclause = onclause
-        self.left = bool(left)
+        self.onclause = kwargs.get('onclause', None)
+        self.left = bool(kwargs.get('left', False))
 
-        if not isinstance(table, (sa.Table, Alias)):
-            raise Error('[FromItem] invalid "table" argument: {}'.format(table))
+        if not isinstance(self.table, (sa.Table, Alias)):
+            raise Error('[FromItem] invalid "table" argument: {}'.format(self.table))
 
-        if onclause is not None:
-            if not is_clause(onclause):
-                raise Error('[FromItem] invalid "onclause" argument: {}'.format(onclause))
+        if self.onclause is not None:
+            if not is_clause(self.onclause):
+                raise Error('[FromItem] invalid "onclause" argument: {}'.format(self.onclause))
 
     @property
     def name(self):
