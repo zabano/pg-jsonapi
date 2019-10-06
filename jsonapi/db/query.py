@@ -1,6 +1,6 @@
 from copy import copy
 
-import sqlalchemy as sa
+from sqlalchemy import sql
 
 from jsonapi.exc import APIError, ModelError
 from jsonapi.fields import Aggregate, Field
@@ -41,25 +41,29 @@ class Query:
 
     def rank_column(self, search):
         if self.model.search is not None and search is not None:
-            return sa.func.ts_rank_cd(
-                self.model.search.c.tsvector, sa.func.to_tsquery(search)).label('_ts_rank')
+            return sql.func.ts_rank_cd(
+                self.model.search.c.tsvector, sql.func.to_tsquery(search)).label('_ts_rank')
 
-    def group_by(self, query, *columns):
+    ################################################################################################
+    # query
+    ################################################################################################
+
+    def group_query(self, query, *columns):
         if self.is_aggregate():
             query = query.group_by(*[*self.col_list(group_by=True), *columns])
         return query
 
     @staticmethod
-    def filter_by(query, filter_by):
+    def filter_query(query, filter_by):
         if not filter_by:
             return query
         if filter_by.where:
-            query = query.where(sa.and_(*filter_by.where))
+            query = query.where(sql.and_(*filter_by.where))
         if filter_by.having:
-            query = query.having(sa.and_(*filter_by.having))
+            query = query.having(sql.and_(*filter_by.having))
         return query
 
-    def sort_by(self, query, search=None):
+    def sort_query(self, query, search=None):
         if self.model.search is not None and search is not None:
             return query.order_by(self.rank_column(search).desc())
         order_by = list()
@@ -72,7 +76,7 @@ class Query:
                 order_by.append(getattr(expr, 'desc' if desc else 'asc')().nullslast())
         return query.order_by(*order_by)
 
-    def check_access(self, query):
+    def protect_query(self, query):
 
         if self.model.access is None:
             return query
@@ -83,68 +87,74 @@ class Query:
         return query.where(self.model.access(
             self.model.primary_key, self.model.user.id if self.model.user else None))
 
-    def _search(self, query, search):
+    def search_query(self, query, search):
         if self.model.search is None or search is None:
             return query
         query = query.where(self.model.search.c.tsvector.match(search))
         return query
 
+    ################################################################################################
+    # interface
+    ################################################################################################
+
     def exists(self, resource_id):
-        return sa.select([sa.exists(sa.select([self.model.primary_key]).where(
+        return sql.select([sql.exists(sql.select([self.model.primary_key]).where(
             self.model.primary_key == resource_id))])
 
     def get(self, resource_id):
-        query = sa.select(from_obj=self.from_obj(),
-                          columns=self.col_list(),
-                          whereclause=self.model.primary_key == resource_id)
-        query = self.group_by(query)
+        query = sql.select(from_obj=self.from_obj(),
+                           columns=self.col_list(),
+                           whereclause=self.model.primary_key == resource_id)
+        query = self.group_query(query)
         if self.model.access is not None:
-            query = self.check_access(query)
+            query = self.protect_query(query)
         return query
 
     def all(self, filter_by=None, paginate=True, count=False, search=None):
 
         search_t = self.model.search
         from_obj = self.from_obj(search_t) if search is not None else self.from_obj()
-        query = sa.select(columns=self.col_list(search=search), from_obj=from_obj)
-        query = self.group_by(query)
+        query = sql.select(columns=self.col_list(search=search), from_obj=from_obj)
+        query = self.group_query(query)
 
         if not count:
-            query = self.sort_by(query, search)
+            query = self.sort_query(query, search)
 
-        query = self.filter_by(query, filter_by)
-        query = self.check_access(query)
+        query = self.filter_query(query, filter_by)
+        query = self.protect_query(query)
 
         if paginate and self.model.args.limit is not None:
             query = query.offset(self.model.args.offset).limit(self.model.args.limit)
 
-        query = self._search(query, search)
+        query = self.search_query(query, search)
+        if count:
+            return sql.select([sql.func.count()]).select_from(query.alias('count'))
 
-        return query.alias('count').count() if count else query
+        return query
 
     def search(self, term):
         search_t = self.model.search
-        query = sa.select(columns=[self.model.primary_key, self.rank_column(term)],
-                          from_obj=self.from_obj(search_t))
-        query = self._search(query, term)
-        return self.check_access(query)
+        query = sql.select(columns=[self.model.primary_key, self.rank_column(term)],
+                           from_obj=self.from_obj(search_t))
+        query = self.search_query(query, term)
+        return self.protect_query(query)
 
     def related(self, resource_id, rel, filter_by=None, paginate=True, count=False, search=None):
         pkey_column = get_primary_key(rel.fkey.parent.table)
         where_col = pkey_column if rel.cardinality in (ONE_TO_ONE, MANY_TO_ONE) \
             else rel.fkey.parent
-        query = sa.select(columns=self.col_list(),
-                          from_obj=self.from_obj(
-                              FromItem(rel.fkey.parent.table,
-                                       onclause=rel.fkey.column == rel.fkey.parent,
-                                       left=True)),
-                          whereclause=where_col == resource_id)
-        query = self.group_by(query)
+        query = sql.select(columns=self.col_list(),
+                           from_obj=self.from_obj(
+                               FromItem(rel.fkey.parent.table,
+                                        onclause=rel.fkey.column == rel.fkey.parent,
+                                        left=True)),
+                           whereclause=where_col == resource_id)
+        query = self.group_query(query)
         if rel.cardinality in (ONE_TO_MANY, MANY_TO_MANY):
-            query = self.sort_by(query)
+            query = self.sort_query(query)
 
-        query = self.filter_by(query, filter_by)
-        query = self.check_access(query)
+        query = self.filter_query(query, filter_by)
+        query = self.protect_query(query)
 
         if paginate and self.model.args.limit is not None:
             query = query.offset(self.model.args.offset).limit(self.model.args.limit)
@@ -154,13 +164,13 @@ class Query:
     def included(self, rel, id_list):
         where_col = get_primary_key(rel.fkey.parent.table) \
             if rel.cardinality is MANY_TO_ONE else rel.fkey.parent
-        query = sa.select(columns=[*self.col_list(), where_col.label('parent_id')],
-                          from_obj=self.from_obj(
-                              FromItem(rel.fkey.parent.table,
-                                       onclause=rel.fkey.column == rel.fkey.parent,
-                                       left=True)))
-        query = self.group_by(query, where_col)
-        query = self.check_access(query)
+        query = sql.select(columns=[*self.col_list(), where_col.label('parent_id')],
+                           from_obj=self.from_obj(
+                               FromItem(rel.fkey.parent.table,
+                                        onclause=rel.fkey.column == rel.fkey.parent,
+                                        left=True)))
+        query = self.group_query(query, where_col)
+        query = self.protect_query(query)
         return (query.where(where_col.in_(x))
                 for x in (id_list[i:i + SQL_PARAM_LIMIT]
                           for i in range(0, len(id_list), SQL_PARAM_LIMIT)))
