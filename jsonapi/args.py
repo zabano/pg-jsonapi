@@ -21,6 +21,9 @@ class RequestArguments:
         self.limit = None
         self.filter = dict()
 
+        if args is None:
+            return
+
         #
         # include
         #
