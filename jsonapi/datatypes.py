@@ -10,8 +10,10 @@ from jsonapi.exc import DataTypeError
 accept_date = ('%Y-%m-%d', '%Y-%m')
 accept_time = ('%H:%M:%S', '%H:%M', '%I:%M%p', '%I:%M %p')
 accept_datetime = ('%Y-%m-%dT%H:%M:%SZ',
-                   '%Y-%m-%dT%H:%M:%S', '%Y-%m-%d %H:%M:%S', '%Y-%m-%d %I:%M:%S%p', '%Y-%m-%d %I:%M:%S %p',
-                   '%Y-%m-%dT%H:%M', '%Y-%m-%d %H:%M', '%Y-%m-%d %I:%M', '%Y-%m-%d %I:%M%p', '%Y-%m-%d %I:%M %p')
+                   '%Y-%m-%dT%H:%M:%S', '%Y-%m-%d %H:%M:%S', '%Y-%m-%d %I:%M:%S%p',
+                   '%Y-%m-%d %I:%M:%S %p',
+                   '%Y-%m-%dT%H:%M', '%Y-%m-%d %H:%M', '%Y-%m-%d %I:%M', '%Y-%m-%d %I:%M%p',
+                   '%Y-%m-%d %I:%M %p')
 
 
 class DataType:
@@ -30,10 +32,8 @@ class DataType:
         self.sa_types = tuple(self.get_sa_type(sa_type) for sa_type in sa_types)
         self.parser = kwargs.get('parser', str)
         self.accept = kwargs.get('accept', tuple())
-        operators, operators_multi = kwargs.get(
-            'filter', ((Operator.NONE, Operator.EQ, Operator.NE),
-                       (Operator.NONE, Operator.EQ, Operator.NE)))
-        self.filter_clause = FilterClause(self, *operators, multiple=operators_multi)
+        self.filter_clause = FilterClause(self, *kwargs.get('filter_ops', (Operator.NONE,)),
+                                          multiple=kwargs.get('filter_ops_multi', None))
 
     @property
     def name(self):
@@ -121,49 +121,50 @@ Bool = DataType(
     ma.fields.Bool,
     sqltypes.Boolean,
     parser=parse_bool,
-    filter=((Operator.NONE, Operator.EQ), None))
+    filter_ops=(Operator.NONE, Operator.EQ, Operator.NE),
+    filter_ops_multi=(Operator.NONE, Operator.EQ, Operator.NE))
 
 Integer = DataType(
     ma.fields.Integer,
     sqltypes.Integer,
     parser=int,
-    filter=((Operator.NONE, Operator.EQ, Operator.NE,
-             Operator.GT, Operator.GE, Operator.LT, Operator.LE),
-            (Operator.NONE, Operator.EQ, Operator.NE)))
+    filter_ops=(Operator.NONE, Operator.EQ, Operator.NE,
+                Operator.GT, Operator.GE, Operator.LT, Operator.LE),
+    filter_ops_multi=(Operator.NONE, Operator.EQ, Operator.NE))
 
 Float = DataType(
     ma.fields.Float,
     sqltypes.Numeric,
     parser=float,
-    filter=((Operator.GT, Operator.GE, Operator.LT, Operator.LE),
-            (Operator.NONE, Operator.EQ, Operator.NE)))
+    filter_ops=(Operator.GT, Operator.GE, Operator.LT, Operator.LE),
+    filter_ops_multi=(Operator.NONE, Operator.EQ, Operator.NE))
 
 String = DataType(
     ma.fields.String,
     sqltypes.Text, sqltypes.String, sqltypes.Enum,
-    filter=((Operator.NONE, Operator.EQ, Operator.NE),
-            (Operator.NONE, Operator.EQ, Operator.NE)))
+    filter_ops=(Operator.NONE, Operator.EQ, Operator.NE),
+    filter_ops_multi=(Operator.NONE, Operator.EQ, Operator.NE))
 
 Date = DataType(
     ma.fields.Date,
     sqltypes.Date,
     parser=parse_date,
-    filter=((Operator.GT, Operator.LT),
-            (Operator.NONE, Operator.EQ, Operator.NE)))
+    filter_ops=(Operator.GT, Operator.LT),
+    filter_ops_multi=(Operator.NONE, Operator.EQ, Operator.NE))
 
 Time = DataType(
     ma.fields.Time,
     sqltypes.Time,
     parser=parse_time,
-    filter=((Operator.GT, Operator.LT),
-            (Operator.NONE, Operator.EQ, Operator.NE)))
+    filter_ops=(Operator.GT, Operator.LT),
+    filter_ops_multi=(Operator.NONE, Operator.EQ, Operator.NE))
 
 DateTime = DataType(
     ma.fields.DateTime,
     sqltypes.DateTime,
     parser=parse_datetime,
-    filter=((Operator.GT, Operator.LT),
-            (Operator.NONE, Operator.EQ, Operator.NE)))
+    filter_ops=(Operator.GT, Operator.LT),
+    filter_ops_multi=(Operator.NONE, Operator.EQ, Operator.NE))
 
 
 class JSONField(ma.fields.Field):

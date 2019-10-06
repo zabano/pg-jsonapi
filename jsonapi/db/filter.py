@@ -79,7 +79,7 @@ class FilterClause:
         if not isinstance(op, Operator):
             raise ValueError('[{}}] invalid operator: {!r}'.format(op, self.__class__.__name__))
 
-    def is_op(self, op, multiple=False):
+    def has_operator(self, op, multiple=False):
         return op in (o.value for o in (self.multiple if multiple else self.operators))
 
     def parse_values(self, val):
@@ -100,7 +100,7 @@ class FilterClause:
         # multiple values
         #
         if ',' in val:
-            if not self.is_op(op, multiple=True):
+            if not self.has_operator(op, multiple=True):
                 raise Error('invalid operator: {}'.format(op))
 
             values = self.parse_values(val)
@@ -129,7 +129,7 @@ class FilterClause:
         # single values
         #
         else:
-            if not self.is_op(op):
+            if not self.has_operator(op):
                 raise Error('invalid operator: {}'.format(op))
             if op == '':
                 op = 'eq'
@@ -142,4 +142,3 @@ class FilterClause:
                     return expr.isnot(v)
                 raise Error('invalid operator: {}'.format(op))
             return getattr(operators, op)(expr, v)
-
