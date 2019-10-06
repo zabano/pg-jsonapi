@@ -1,6 +1,6 @@
 import marshmallow as ma
 
-from jsonapi.datatypes import DataType, Date, DateTime, Integer
+from jsonapi.datatypes import DataType, Date, Integer
 from jsonapi.db.table import Cardinality, FromItem
 from jsonapi.exc import APIError, Error, ModelError
 from jsonapi.registry import alias_registry, model_registry, schema_registry
@@ -96,7 +96,7 @@ class Aggregate(BaseField):
         elif self.rel.cardinality == Cardinality.ONE_TO_MANY:
             self.from_items = FromItem(
                 alias,
-                fkey.column == getattr(alias.c, fkey.parent.name),
+                onclause=fkey.column == getattr(alias.c, fkey.parent.name),
                 left=True),
         else:
             raise APIError('aggregate field support only TO_MANY '

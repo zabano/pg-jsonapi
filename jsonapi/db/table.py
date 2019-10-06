@@ -2,7 +2,8 @@ import enum
 from collections.abc import MutableSequence
 from functools import reduce
 
-import sqlalchemy as sa
+from sqlalchemy.exc import NoForeignKeysError
+from sqlalchemy.sql.schema import Table
 from sqlalchemy.sql.elements import BinaryExpression, BooleanClauseList
 from sqlalchemy.sql.selectable import Alias
 
@@ -63,7 +64,7 @@ class FromItem:
         self.onclause = kwargs.get('onclause', None)
         self.left = bool(kwargs.get('left', False))
 
-        if not isinstance(self.table, (sa.Table, Alias)):
+        if not isinstance(self.table, (Table, Alias)):
             raise Error('[FromItem] invalid "table" argument: {}'.format(self.table))
 
         if self.onclause is not None:
@@ -75,7 +76,7 @@ class FromItem:
         """
         A unique string identifier (the name of the table, or the table alias).
         """
-        return self.table.name if isinstance(self.table, (Alias, sa.Table)) else \
+        return self.table.name if isinstance(self.table, (Alias, Table)) else \
             self.element.table.name
 
     def __repr__(self):
@@ -130,7 +131,7 @@ class FromClause(MutableSequence):
         tables = [self._from_items[0].table] + self._from_items[1:]
         try:
             return reduce(lambda l, r: l.join(r.table, onclause=r.onclause, isouter=r.left), tables)
-        except sa.exc.NoForeignKeysError:
+        except NoForeignKeysError:
             left = tables.pop(0)
             n = len(tables)
             for i in range(n):
@@ -138,7 +139,7 @@ class FromClause(MutableSequence):
                     right = tables[j]
                     try:
                         left = left.join(right.table, onclause=right.onclause, isouter=right.left)
-                    except sa.exc.NoForeignKeysError:
+                    except NoForeignKeysError:
                         pass
                     else:
                         tables.pop(j)
@@ -157,7 +158,7 @@ class FromClause(MutableSequence):
         return (from_item.table.name for from_item in self._from_items)
 
     def _is_valid(self, item):
-        return isinstance(item, (sa.Table, Alias, FromItem)) and self._name(
+        return isinstance(item, (Table, Alias, FromItem)) and self._name(
             item) not in self._keys()
 
     def insert(self, index, item):
@@ -175,7 +176,7 @@ class FromClause(MutableSequence):
 
 
 def is_from_item(from_item):
-    return isinstance(from_item, (sa.Table, Alias, FromItem))
+    return isinstance(from_item, (Table, Alias, FromItem))
 
 
 def is_clause(clause):
