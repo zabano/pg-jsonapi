@@ -3,7 +3,7 @@ import pytest
 from jsonapi.tests.util import *
 
 
-@pytest.fixture('module')
+@pytest.fixture(scope='module')
 def rec():
     return {'id': '1', 'type': 'test',
             'attributes':
