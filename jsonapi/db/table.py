@@ -111,7 +111,7 @@ class FromClause(MutableSequence):
         """
         :param from_items: a variable length list of FROM items, tables, or aliases.
         """
-        self._from_items = [self._value(item) for item in from_items]
+        self._from_items = [self.value(item) for item in from_items]
 
     def __len__(self):
         return len(self._from_items)
@@ -121,11 +121,15 @@ class FromClause(MutableSequence):
 
     def __setitem__(self, index, item):
         from_item = self._from_items[index]
-        if self._name(item) == from_item.table.name or self._is_valid(item):
-            self._from_items[index] = self._value(item)
+        if item.name == from_item.table.name or self.is_valid(item):
+            self._from_items[index] = self.value(item)
 
     def __delitem__(self, index):
         del self._from_items[index]
+
+    def insert(self, index, item):
+        if self.is_valid(item):
+            self._from_items.insert(index, self.value(item))
 
     def __call__(self):
         tables = [self._from_items[0].table] + self._from_items[1:]
@@ -147,23 +151,14 @@ class FromClause(MutableSequence):
             return left
 
     @staticmethod
-    def _name(item):
-        return item.name
-
-    @staticmethod
-    def _value(item):
+    def value(item):
         return item if isinstance(item, FromItem) else FromItem(item)
 
-    def _keys(self):
-        return (from_item.table.name for from_item in self._from_items)
+    def keys(self):
+        return (from_item.name for from_item in self._from_items)
 
-    def _is_valid(self, item):
-        return isinstance(item, (Table, Alias, FromItem)) and self._name(
-            item) not in self._keys()
-
-    def insert(self, index, item):
-        if self._is_valid(item):
-            self._from_items.insert(index, self._value(item))
+    def is_valid(self, item):
+        return isinstance(item, (Table, Alias, FromItem)) and item.name not in self.keys()
 
     def __repr__(self):
         return "<{}({})>".format(self.__class__.__name__, ', '.join(
