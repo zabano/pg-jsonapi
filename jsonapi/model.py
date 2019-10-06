@@ -8,6 +8,7 @@ import sqlalchemy as sa
 from asyncpgsa import pg
 from inflection import camelize, dasherize, underscore
 
+from jsonapi.args import RequestArguments
 from jsonapi.datatypes import String
 from jsonapi.db.filter import Filter
 from jsonapi.db.query import Query
@@ -16,7 +17,6 @@ from jsonapi.db.util import get_primary_key
 from jsonapi.exc import APIError, Error, Forbidden, ModelError, NotFound
 from jsonapi.fields import Aggregate, BaseField, Derived, Field, Relationship
 from jsonapi.registry import model_registry, schema_registry
-from jsonapi.args import RequestArguments
 
 MIME_TYPE = 'application/vnd.api+json'
 
@@ -115,7 +115,6 @@ class Model:
         self.query = Query(self)
 
         self.included = defaultdict(dict)
-        self.errors = list()
         self.meta = dict()
 
     def get_type(self):
@@ -276,8 +275,10 @@ class Model:
         if len(self.included) > 0:
             response['included'] = reduce(lambda a, b: a + [rec for rec in b.values()],
                                           self.included.values(), list())
+            self.included.clear()
         if len(self.meta) > 0:
-            response['meta'] = self.meta
+            response['meta'] = dict(self.meta)
+            self.meta = dict()
         return response
 
     async def paginate(self, filter_by):
