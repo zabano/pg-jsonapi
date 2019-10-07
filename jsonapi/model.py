@@ -1,4 +1,5 @@
 from collections import defaultdict
+from collections.abc import Sequence
 from copy import copy
 from functools import reduce
 from itertools import islice
@@ -8,7 +9,7 @@ from asyncpgsa import pg
 from inflection import camelize, dasherize, underscore
 
 from jsonapi.args import RequestArguments
-from jsonapi.datatypes import Integer, String
+from jsonapi.datatypes import DataType, Integer, String
 from jsonapi.db.filter import Filter
 from jsonapi.db.query import Query
 from jsonapi.db.table import Cardinality, FromClause, is_from_item
@@ -121,6 +122,7 @@ class Model:
             return dasherize(underscore(self.name)).replace('model', '').strip('-')
         if not isinstance(self.type_, str):
             raise ModelError('attribute: "type_" must be a string', self)
+        return self.type_
 
     def get_from_items(self):
         if self.from_ is None:
@@ -137,40 +139,44 @@ class Model:
 
     def get_fields(self):
         fields = dict()
-        if hasattr(self, 'fields'):
+        if hasattr(self, 'fields') and self.fields is not None:
             if isinstance(self.fields, str):
                 field = self.get_field(self.fields)
                 fields[field.name] = field
             else:
-                try:
-                    iter(self.fields)
-                except TypeError:
-                    field = self.get_field(self.fields)
-                    fields[field.name] = field
-                else:
+                if isinstance(self.fields, Sequence):
                     for field_spec in self.fields:
                         field = self.get_field(field_spec)
                         fields[field.name] = field
+                else:
+                    field = self.get_field(self.fields)
+                    fields[field.name] = field
 
         if 'id' in fields.keys():
-            raise APIError('illegal field name: "id"', self)
+            raise ModelError('illegal field name: "id"', self)
         elif 'type' in fields.keys():
-            raise APIError('illegal field name: "type"', self)
+            raise ModelError('illegal field name: "type"', self)
 
         fields['id'] = Field('id', self.primary_key, String)
         return fields
 
     def get_field(self, field_spec):
         if isinstance(field_spec, str):
-            expr = self.get_db_column(field_spec)
-            if expr is None:
-                raise ModelError('db column: "{}" '
-                                 'not found'.format(field_spec), self)
-            return Field(field_spec, expr)
+            return Field(field_spec, self.get_expr(field_spec))
         elif isinstance(field_spec, BaseField):
+            if isinstance(field_spec, Field) and field_spec.expr is None:
+                field_spec.expr = self.get_expr(field_spec.name)
+                field_spec.data_type = DataType.get(field_spec.expr)
             return field_spec
         else:
             raise ModelError('invalid field: {!r}'.format(field_spec), self)
+
+    def get_expr(self, name):
+        expr = self.get_db_column(name)
+        if expr is None:
+            raise ModelError('db column: "{}" '
+                             'not found'.format(name), self)
+        return expr
 
     def get_db_column(self, name):
         for col in self.from_clause().columns:
