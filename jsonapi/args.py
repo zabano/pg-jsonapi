@@ -91,10 +91,15 @@ class RequestArguments:
             match = re.match(r'filter\[([\w_-]+):?(\w*)\]', arg.lower())
             if match:
                 name, op = match.groups()
-                self.filter[arg] = dict(name=inflection.underscore(name), op=op)
+                self.filter[arg] = dict(name=inflection.underscore(name),
+                                        op=op,
+                                        value=args[arg])
 
-    def in_include(self, name):
-        return name in self.include.keys()
+    def in_include(self, name, parents):
+        include = dict(self.include)
+        for parent in reversed(parents):
+            include = include[parent]
+        return name in include.keys()
 
     def in_fieldset(self, resource_type, name):
         return self.fieldset_defined(resource_type) and name in self.fields[resource_type]

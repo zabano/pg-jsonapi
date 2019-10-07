@@ -349,3 +349,16 @@ async def test_custom_2(articles, superuser_id):
             assert_object(article, 'article')
             assert_attribute(article, 'title', lambda v: len(v) == 15)
             assert_attribute(article, 'isPublished', lambda v: v is True)
+
+
+#
+# relationship filters
+#
+
+@pytest.mark.dev
+@pytest.mark.asyncio
+async def test_relationship(articles, superuser_id):
+    async with get_collection(articles,
+                              {'filter[publisher]': 'none'},
+                              login=superuser_id) as json:
+        assert 'data' in json

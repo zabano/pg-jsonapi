@@ -63,11 +63,11 @@ class Query:
             query = query.having(and_(*filter_by.having))
         return query
 
-    def sort_query(self, query, search=None):
+    def sort_query(self, args, query, search=None):
         if self.model.search is not None and search is not None:
             return query.order_by(self.rank_column(search).desc())
         order_by = list()
-        for name, desc in self.model.args.sort.items():
+        for name, desc in args.sort.items():
             try:
                 expr = self.model.fields[name].expr
             except KeyError:
@@ -110,7 +110,7 @@ class Query:
             query = self.protect_query(query)
         return query
 
-    def all(self, filter_by=None, paginate=True, count=False, search=None):
+    def all(self, args, filter_by=None, paginate=True, count=False, search=None):
 
         search_t = self.model.search
         from_obj = self.from_obj(search_t) if search is not None else self.from_obj()
@@ -118,13 +118,13 @@ class Query:
         query = self.group_query(query)
 
         if not count:
-            query = self.sort_query(query, search)
+            query = self.sort_query(args, query, search)
 
         query = self.filter_query(query, filter_by)
         query = self.protect_query(query)
 
-        if paginate and self.model.args.limit is not None:
-            query = query.offset(self.model.args.offset).limit(self.model.args.limit)
+        if paginate and args.limit is not None:
+            query = query.offset(args.offset).limit(args.limit)
 
         query = self.search_query(query, search)
         if count:
@@ -139,7 +139,8 @@ class Query:
         query = self.search_query(query, term)
         return self.protect_query(query)
 
-    def related(self, resource_id, rel, filter_by=None, paginate=True, count=False, search=None):
+    def related(self, resource_id, rel, args,
+                filter_by=None, paginate=True, count=False, search=None):
         pkey_column = get_primary_key(rel.fkey.parent.table)
         where_col = pkey_column if rel.cardinality in (ONE_TO_ONE, MANY_TO_ONE) \
             else rel.fkey.parent
@@ -151,13 +152,13 @@ class Query:
                        whereclause=where_col == resource_id)
         query = self.group_query(query)
         if rel.cardinality in (ONE_TO_MANY, MANY_TO_MANY):
-            query = self.sort_query(query)
+            query = self.sort_query(args, query)
 
         query = self.filter_query(query, filter_by)
         query = self.protect_query(query)
 
-        if paginate and self.model.args.limit is not None:
-            query = query.offset(self.model.args.offset).limit(self.model.args.limit)
+        if paginate and args.limit is not None:
+            query = query.offset(args.offset).limit(args.limit)
 
         return query
 

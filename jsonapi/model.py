@@ -1,6 +1,5 @@
 from collections import defaultdict
 from collections.abc import Sequence
-from copy import copy
 from functools import reduce
 from itertools import islice
 
@@ -109,8 +108,6 @@ class Model:
         self.from_clause = self.get_from_items()
 
         self.schema = None
-        self.args = None
-
         self.fields = self.get_fields()
         self.query = Query(self)
 
@@ -233,21 +230,14 @@ class Model:
     # core functionality
     ################################################################################################
 
-    def parse_arguments(self, args):
-        self.args = RequestArguments(args)
-
-    def init_schema(self, args=None):
-
-        if args is not None:
-            self.args = args
-
+    def init_schema(self, args, parents=tuple()):
         for name, field in self.fields.items():
 
-            in_include = self.args.in_include(name)
-            fieldset_defined = self.args.fieldset_defined(self.type_)
-            in_fieldset = self.args.in_fieldset(self.type_, name)
-            in_sort = self.args.in_sort(name)
-            in_filter = self.args.in_filter(name)
+            in_include = args.in_include(name, parents)
+            fieldset_defined = args.fieldset_defined(self.type_)
+            in_fieldset = args.in_fieldset(self.type_, name)
+            in_sort = args.in_sort(name)
+            in_filter = args.in_filter(name)
 
             if isinstance(field, (Field, Derived)):
                 field.exclude = fieldset_defined and not in_fieldset
@@ -259,10 +249,8 @@ class Model:
 
             elif isinstance(field, Relationship):
                 field.exclude = not in_include
-                if in_include:
-                    rel_args = copy(self.args)
-                    rel_args.include = rel_args.include[field.name]
-                    field.model.init_schema(rel_args)
+                if in_include or in_sort or in_filter:
+                    field.model.init_schema(args, parents=(field.name, *parents))
 
             else:
                 raise ModelError('unsupported field: {!r}'.format(field), self)
@@ -286,21 +274,20 @@ class Model:
             self.meta = dict()
         return response
 
-    async def paginate(self, filter_by):
-        if self.args.limit is not None:
+    async def paginate(self, args, filter_by):
+        if args.limit is not None:
             self.meta['total'] = await pg.fetchval(self.query.all(
-                filter_by=filter_by, paginate=False, count=True))
+                args, filter_by=filter_by, paginate=False, count=True))
             if filter_by:
                 self.meta['totalFiltered'] = await pg.fetchval(self.query.all(
-                    filter_by=filter_by, paginate=False, count=True))
-
+                    args, filter_by=filter_by, paginate=False, count=True))
         if filter_by:
             self.meta['total'] = await pg.fetchval(self.query.all(
-                paginate=False, count=True))
+                args, paginate=False, count=True))
 
     def get_filter(self, args):
         filter_by = Filter()
-        for key, arg in self.args.filter.items():
+        for key, arg in args.filter.items():
             try:
                 attr = self.attribute(arg['name'])
             except Error as e:
@@ -311,10 +298,10 @@ class Model:
                 except Error as e:
                     raise ModelError(e, self)
                 else:
-                    filter_by.add_custom(arg['name'], custom_filter(args[key]))
+                    filter_by.add_custom(arg['name'], custom_filter(arg['value']))
             else:
                 try:
-                    filter_by.add(attr, arg['op'], args[key])
+                    filter_by.add(attr, arg['op'], arg['value'])
                 except Error as e:
                     raise APIError('filter:{} | {}'.format(attr.name, e), self)
         return filter_by
@@ -372,8 +359,7 @@ class Model:
         :param int or str object_id: the resource object id
         :return: a dictionary representing a JSON API response
         """
-        self.parse_arguments(args)
-        self.init_schema()
+        self.init_schema(RequestArguments(args))
 
         if not await pg.fetchval(self.query.exists(object_id)):
             raise NotFound(object_id, self)
@@ -402,12 +388,12 @@ class Model:
         :param str search: an optional search term
         :return: a dictionary representing a JSON API response
         """
-        self.parse_arguments(args)
-        self.init_schema()
+        args = RequestArguments(args)
+        self.init_schema(args)
         filter_by = self.get_filter(args)
-        query = self.query.all(filter_by=filter_by, paginate=True, search=search)
+        query = self.query.all(args, filter_by=filter_by, paginate=True, search=search)
         recs = [dict(rec) for rec in await pg.fetch(query)]
-        await self.paginate(filter_by)
+        await self.paginate(args, filter_by)
         await self.fetch_included(recs)
         return self.response(recs)
 
@@ -437,17 +423,17 @@ class Model:
             raise Forbidden(object_id, self)
 
         rel = self.relationship(relationship_name)
-        rel.model.parse_arguments(args)
-        rel.model.init_schema()
+        args = RequestArguments(args)
+        rel.model.init_schema(args)
         filter_by = rel.model.get_filter(args)
         query = rel.model.query.related(
-            object_id, rel, filter_by=filter_by, paginate=True, search=search)
+            object_id, rel, args, filter_by=filter_by, paginate=True, search=search)
         if rel.cardinality in (Cardinality.ONE_TO_ONE, Cardinality.MANY_TO_ONE):
             result = await pg.fetchrow(query)
             data = dict(result) if result is not None else None
         else:
             data = [dict(rec) for rec in await pg.fetch(query)]
-            await rel.model.paginate(filter_by)
+            await rel.model.paginate(args, filter_by)
         await rel.model.fetch_included(data)
         return rel.model.response(data)
 
