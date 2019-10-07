@@ -359,6 +359,7 @@ async def test_custom_2(articles, superuser_id):
 @pytest.mark.asyncio
 async def test_relationship(articles, superuser_id):
     async with get_collection(articles,
-                              {'filter[publisher]': 'none'},
+                              {'filter[author:lt]': '15',
+                               'filter[publisher]': 'none'},
                               login=superuser_id) as json:
         assert 'data' in json

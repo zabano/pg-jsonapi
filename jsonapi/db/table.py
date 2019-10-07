@@ -164,10 +164,10 @@ class FromClause(MutableSequence):
         return "<{}({})>".format(self.__class__.__name__, ', '.join(
             from_item.name for from_item in self._from_items))
 
-    def __str__(self):
-        if len(self) > 0:
-            return self._from_items[0].table.name if len(self) == 1 else str(self().compile())
-        return ''
+    # def __str__(self):
+    #     if len(self) > 0:
+    #         return self._from_items[0].table.name if len(self) == 1 else str(self().compile())
+    #     return ''
 
 
 def is_from_item(from_item):

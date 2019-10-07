@@ -9,4 +9,7 @@ def get_primary_key(table):
     :param table: SQLAlchemy Table object
     :return: the primary key column
     """
-    return table.primary_key.columns.values()[0]
+    try:
+        return table.primary_key.columns.values()[0]
+    except AttributeError:
+        return table.primary_key[0]

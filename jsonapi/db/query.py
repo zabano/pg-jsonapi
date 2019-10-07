@@ -111,12 +111,13 @@ class Query:
         return query
 
     def all(self, args, filter_by=None, paginate=True, count=False, search=None):
-
         search_t = self.model.search
-        from_obj = self.from_obj(search_t) if search is not None else self.from_obj()
-        query = select(columns=self.col_list(search=search), from_obj=from_obj)
-        query = self.group_query(query)
+        from_items = list(filter_by.from_items) if filter_by else list()
+        if search is not None:
+            from_items.append(search_t)
+        query = select(columns=self.col_list(search=search), from_obj=self.from_obj(*from_items))
 
+        query = self.group_query(query)
         if not count:
             query = self.sort_query(args, query, search)
 
@@ -127,9 +128,9 @@ class Query:
             query = query.offset(args.offset).limit(args.limit)
 
         query = self.search_query(query, search)
+
         if count:
             return select([func.count()]).select_from(query.alias('count'))
-
         return query
 
     def search(self, term):

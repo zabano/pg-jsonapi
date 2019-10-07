@@ -1,9 +1,11 @@
 import marshmallow as ma
+from sqlalchemy.sql.schema import Table
+from copy import copy
 
 from jsonapi.datatypes import DataType, Date, Integer
 from jsonapi.db.table import Cardinality, FromItem
 from jsonapi.exc import APIError, Error, ModelError
-from jsonapi.registry import alias_registry, model_registry, schema_registry
+from jsonapi.registry import alias_registry, schema_registry, model_registry
 
 
 class BaseField:
@@ -28,6 +30,9 @@ class BaseField:
 
     def is_aggregate(self):
         return isinstance(self, Aggregate)
+
+    def is_relationship(self):
+        return isinstance(self, Relationship)
 
     def get_ma_field(self):
         if isinstance(self, Relationship):
@@ -139,25 +144,62 @@ class Relationship(BaseField):
         self.cardinality = cardinality
         self.nested = None
 
-        self._model_name = model_name
-        self._fkey_name = fkey_name
+        self.model_name = model_name
+        self.fkey_name = fkey_name
 
-        self._model = None
-        self._fkey = None
+        self.model = None
+        self.fkey = None
 
-    @property
-    def model(self):
-        if self._model is None:
-            self._model = model_registry[self._model_name]()
-        return self._model
+        self.parent = None
+        self.parent_alias = None
 
-    @property
-    def fkey(self):
-        if self._fkey is None:
-            for table in self.model.from_clause[0].table.metadata.tables.values():
-                for fk in table.foreign_keys:
-                    if fk.name == self._fkey_name:
-                        self._fkey = fk
-                        return self._fkey
-            raise ModelError('foreign key: "{}" not found'.format(self._fkey_name), self._model)
-        return self._fkey
+    def load(self, parent):
+        self.parent = parent
+        self.parent_alias = parent.__class__.get_from_aliases(self.name, 0)
+        base = model_registry[self.model_name]
+        cls = type('{}_{}'.format(base.__name__, self.name), (base,),
+                   {'type_': base.get_type(),
+                    'from_': base.get_from_aliases(self.name)})
+        self.model = cls()
+        self.fkey = self.get_fkey()
+
+    def get_fkey(self):
+        table = self.model.from_clause[0].table
+
+        if isinstance(table, Table):
+            for tab in table.metadata.tables.values():
+                for fk in tab.foreign_keys:
+                    if fk.name == self.fkey_name:
+                        return fk
+
+        else:
+
+            fkeys = []
+
+            # get parent model fkeys
+            for fk in self.parent.from_clause[0].table.foreign_keys:
+                if fk.column.table == table.element:
+                    fkey = copy(fk)
+                    fkey.column = self.model.get_db_column(fk.column.name)
+                    fkeys.append(fkey)
+
+            # get child model fkeys
+            for a in [f.table for f in self.model.from_clause]:
+                for afk in a.foreign_keys:
+                    fkeys.append(afk)
+
+            for tab in table.element.metadata.tables.values():
+                for fk in tab.foreign_keys:
+                    if fk.name == self.fkey_name:
+                        for afk in fkeys:
+                            if fk.column.name == afk.column.name and \
+                                    fk.parent.name == afk.parent.name:
+                                return afk
+
+        raise ModelError('foreign key: "{}" not found'.format(self.fkey_name), self.model)
+
+    @staticmethod
+    def get_column(aliases, name):
+        for alias in aliases:
+            if hasattr(alias.c, name):
+                return alias.c[name]

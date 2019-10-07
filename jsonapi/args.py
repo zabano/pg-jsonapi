@@ -1,9 +1,12 @@
 import re
 from collections import OrderedDict
+from collections import namedtuple
 
 import inflection
 
 from jsonapi.exc import Error
+
+FilterArgument = namedtuple('FilterArgument', 'operator value')
 
 
 class RequestArguments:
@@ -87,18 +90,17 @@ class RequestArguments:
         # filter
         #
 
-        for arg in args.keys():
-            match = re.match(r'filter\[([\w_-]+):?(\w*)\]', arg.lower())
+        for key in args.keys():
+            match = re.match(r'filter\[([\w_-]+):?(\w*)\]', key.lower())
             if match:
-                name, op = match.groups()
-                self.filter[arg] = dict(name=inflection.underscore(name),
-                                        op=op,
-                                        value=args[arg])
+                field_name, operator = match.groups()
+                self.filter[inflection.underscore(field_name)] = FilterArgument(
+                    operator, args[key])
 
     def in_include(self, name, parents):
         include = dict(self.include)
         for parent in reversed(parents):
-            include = include[parent]
+            include = include[parent] if parent in include else dict()
         return name in include.keys()
 
     def in_fieldset(self, resource_type, name):
@@ -111,4 +113,4 @@ class RequestArguments:
         return name in self.sort.keys()
 
     def in_filter(self, name):
-        return name in (v['name'] for v in self.filter.values())
+        return name in self.filter

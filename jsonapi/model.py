@@ -1,3 +1,4 @@
+import os
 from collections import defaultdict
 from collections.abc import Sequence
 from functools import reduce
@@ -11,11 +12,12 @@ from jsonapi.args import RequestArguments
 from jsonapi.datatypes import DataType, Integer, String
 from jsonapi.db.filter import Filter
 from jsonapi.db.query import Query
-from jsonapi.db.table import Cardinality, FromClause, is_from_item
+from jsonapi.db.table import Cardinality, FromClause, FromItem, is_from_item
 from jsonapi.db.util import get_primary_key
 from jsonapi.exc import APIError, Error, Forbidden, ModelError, NotFound
 from jsonapi.fields import Aggregate, BaseField, Derived, Field, Relationship
 from jsonapi.registry import model_registry, schema_registry
+from jsonapi.log import logger
 
 MIME_TYPE = 'application/vnd.api+json'
 
@@ -101,10 +103,14 @@ class Model:
     def __init_subclass__(cls, **kwargs):
         super().__init_subclass__(**kwargs)
         model_registry[cls.__name__] = cls
+        logger.debug('registered model: {!r}'.format(cls))
 
     def __init__(self):
 
-        self.type_ = self.get_type()
+        self.type_ = self.__class__.get_type()
+        if not isinstance(self.type_, str):
+            raise ModelError('attribute: "type_" must be a string', self)
+
         self.from_clause = self.get_from_items()
 
         self.schema = None
@@ -114,12 +120,11 @@ class Model:
         self.included = defaultdict(dict)
         self.meta = dict()
 
-    def get_type(self):
-        if self.type_ is None:
-            return dasherize(underscore(self.name)).replace('model', '').strip('-')
-        if not isinstance(self.type_, str):
-            raise ModelError('attribute: "type_" must be a string', self)
-        return self.type_
+    @classmethod
+    def get_type(cls):
+        if cls.type_ is None:
+            return dasherize(underscore(cls.__name__)).replace('model', '').strip('-')
+        return cls.type_
 
     def get_from_items(self):
         if self.from_ is None:
@@ -179,6 +184,17 @@ class Model:
         for col in self.from_clause().columns:
             if col.name == name:
                 return col
+
+    @classmethod
+    def get_from_aliases(cls, name, index=None):
+        from_ = list(cls.from_) if isinstance(cls.from_, Sequence) else [cls.from_]
+        for i, from_item in enumerate(from_):
+            alias_name = '{}_{}'.format(name, from_item.name)
+            if isinstance(from_item, FromItem):
+                from_item.table = from_item.table.alias(alias_name)
+            else:
+                from_[i] = from_item.alias(alias_name)
+        return from_[index] if index is not None else from_
 
     def attribute(self, name):
         if name in self.fields.keys() and not isinstance(self.fields[name], Relationship):
@@ -250,6 +266,7 @@ class Model:
             elif isinstance(field, Relationship):
                 field.exclude = not in_include
                 if in_include or in_sort or in_filter:
+                    field.load(self)
                     field.model.init_schema(args, parents=(field.name, *parents))
 
             else:
@@ -287,23 +304,17 @@ class Model:
 
     def get_filter(self, args):
         filter_by = Filter()
-        for key, arg in args.filter.items():
-            try:
-                attr = self.attribute(arg['name'])
-            except Error as e:
+        for field_name, arg in args.filter.items():
+            custom_name = 'filter_{}'.format(field_name)
+            if hasattr(self, custom_name):
+                custom_filter = getattr(self, 'filter_{}'.format(arg['name']))
+                filter_by.add_custom(arg['name'], custom_filter(arg['value']))
+            elif field_name in self.fields:
+                field = self.fields[field_name]
                 try:
-                    custom_filter = getattr(self, 'filter_{}'.format(arg['name']))
-                except AttributeError:
-                    raise APIError('filter:{} | {}'.format(arg['name'], e), self)
+                    filter_by.add(field, arg.operator, arg.value)
                 except Error as e:
-                    raise ModelError(e, self)
-                else:
-                    filter_by.add_custom(arg['name'], custom_filter(arg['value']))
-            else:
-                try:
-                    filter_by.add(attr, arg['op'], arg['value'])
-                except Error as e:
-                    raise APIError('filter:{} | {}'.format(attr.name, e), self)
+                    raise APIError('filter:{} | {}'.format(field_name, e), self)
         return filter_by
 
     async def fetch_included(self, data):

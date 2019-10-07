@@ -4,7 +4,7 @@ import re
 from sqlalchemy.sql import operators, or_
 
 from jsonapi.exc import Error
-from .table import is_clause, is_from_item
+from .table import is_clause, is_from_item, FromItem
 
 MODIFIERS = {'=': operators.eq, '<>': operators.ne, '!=': operators.ne,
              '>=': operators.ge, '<=': operators.le, '>': operators.gt, '<': operators.lt}
@@ -30,9 +30,18 @@ class Filter:
     def __bool__(self):
         return any((self.where, self.having, self.from_items))
 
-    def add(self, attr, op, val):
-        clause = attr.filter_clause.get(attr.expr, op, val)
-        if attr.is_aggregate():
+    def add(self, field, op, val):
+        if field.is_relationship():
+            attr = field.model.fields['id']
+            clause = attr.filter_clause.get(attr.expr, op, val)
+            from_item = FromItem(field.fkey.column.table,
+                                 onclause=field.fkey.column == field.fkey.parent,
+                                 left=True)
+            self.from_items.append(from_item)
+        else:
+            clause = field.filter_clause.get(field.expr, op, val)
+
+        if field.is_aggregate():
             self.having.append(clause)
         else:
             self.where.append(clause)
