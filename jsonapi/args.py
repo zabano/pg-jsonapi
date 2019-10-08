@@ -6,7 +6,7 @@ import inflection
 
 from jsonapi.exc import Error
 
-FilterArgument = namedtuple('FilterArgument', 'operator value')
+FilterArgument = namedtuple('FilterArgument', 'attr_name operator value')
 
 
 class RequestArguments:
@@ -91,11 +91,22 @@ class RequestArguments:
         #
 
         for key in args.keys():
-            match = re.match(r'filter\[([\w_-]+):?(\w*)\]', key.lower())
-            if match:
-                field_name, operator = match.groups()
-                self.filter[inflection.underscore(field_name)] = FilterArgument(
-                    operator, args[key])
+            if key.startswith('filter['):
+                try:
+                    field_name, attr_name, operator = self.filter_parts(key)
+                except (ValueError, TypeError):
+                    raise Error('invalid filter parameter: "{}"'.format(key))
+                else:
+                    self.filter[inflection.underscore(field_name)] = FilterArgument(
+                        attr_name.lstrip('.') if attr_name else '',
+                        operator.lstrip(':') if operator else '',
+                        args[key])
+
+    @classmethod
+    def filter_parts(cls, key):
+        match = re.match(r'filter\[([-_\w]+)(\.[-_\w]+)?(:[-_\w]+)?\]', key)
+        if match:
+            return match.groups()
 
     def in_include(self, name, parents):
         include = dict(self.include)

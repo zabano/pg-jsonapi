@@ -3,7 +3,7 @@ import re
 
 from sqlalchemy.sql import operators, or_
 
-from jsonapi.exc import Error
+from jsonapi.exc import Error, ModelError
 from .table import is_clause, is_from_item, FromItem
 
 MODIFIERS = {'=': operators.eq, '<>': operators.ne, '!=': operators.ne,
@@ -30,16 +30,19 @@ class Filter:
     def __bool__(self):
         return any((self.where, self.having, self.from_items))
 
-    def add(self, field, op, val):
+    def add(self, field, arg):
         if field.is_relationship():
-            attr = field.model.fields['id']
-            clause = attr.filter_clause.get(attr.expr, op, val)
-            from_item = FromItem(field.fkey.column.table,
-                                 onclause=field.fkey.column == field.fkey.parent,
-                                 left=True)
-            self.from_items.append(from_item)
+            attr_name = arg.attr_name if arg.attr_name else 'id'
+            if attr_name not in field.model.fields:
+                raise ModelError('field: {} does not exist'.format(attr_name), field.model)
+            attr = field.model.fields[attr_name]
+            clause = attr.filter_clause.get(attr.expr, arg.operator, arg.value)
+            # self.from_items.append(
+            #     FromItem(field.fkey.column.table,
+            #              onclause=field.fkey.column == field.fkey.parent,
+            #              left=True))
         else:
-            clause = field.filter_clause.get(field.expr, op, val)
+            clause = field.filter_clause.get(field.expr, arg.operator, arg.value)
 
         if field.is_aggregate():
             self.having.append(clause)

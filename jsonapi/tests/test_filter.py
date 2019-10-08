@@ -355,11 +355,38 @@ async def test_custom_2(articles, superuser_id):
 # relationship filters
 #
 
+
 @pytest.mark.dev
 @pytest.mark.asyncio
-async def test_relationship(articles, superuser_id):
-    async with get_collection(articles,
-                              {'filter[author:lt]': '15',
-                               'filter[publisher]': 'none'},
-                              login=superuser_id) as json:
-        assert 'data' in json
+async def test_relationship_1(articles, superuser_id):
+    for args in [{'filter[publisher]': 'none'},
+                 {'filter[publisher:eq]': 'none'},
+                 {'filter[publisher.id]': 'none'},
+                 {'filter[publisher.id:eq]': 'none'}]:
+        async with get_collection(articles, args, login=superuser_id) as json:
+            assert isinstance(json['data'], list)
+            assert len(json['data']) > 0
+            for article in json['data']:
+                assert_object(article, 'article')
+                assert_attribute(article, 'isPublished', lambda v: v is False)
+
+
+# @pytest.mark.dev
+# @pytest.mark.asyncio
+# async def test_relationship_2(articles, superuser_id):
+#     async with get_collection(articles,
+#                               {'include': 'author',
+#                                'fields[user]': 'article-count',
+#                                'filter[author.article-count:eq]': '3',
+#                                'filter[publisher]': 'none'},
+#                               login=superuser_id) as json:
+#         assert 'data' in json
+#         assert isinstance(json['data'], list)
+#         assert len(json['data']) > 0
+#         for article in json['data']:
+#             assert_object(article, 'article')
+#             assert_attribute(article, 'isPublished', lambda v: v is False)
+#         assert 'included' in json
+#         assert len(json['included']) > 0
+#         for author in json['included']:
+#             assert_attribute(author, 'articleCount', lambda v: v == 3)

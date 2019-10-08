@@ -22,11 +22,14 @@ class Query:
                    if field.expr is not None)
 
     def col_list(self, group_by=False, search=None):
+
         col_list = [field.expr.label(name)
                     for name, field in self.model.attributes.items()
                     if isinstance(field, Field if group_by else (Field, Aggregate))]
+
         if self.model.search is not None and search is not None:
             col_list.append(self.rank_column(search))
+
         return col_list
 
     def from_obj(self, *additional):
@@ -68,11 +71,13 @@ class Query:
         order_by = list()
         for name, desc in args.sort.items():
             try:
-                expr = self.model.fields[name].expr
+                field = self.model.fields[name]
             except KeyError:
                 raise APIError('column does not exist: {}'.format(name), self.model)
             else:
-                order_by.append(getattr(expr, 'desc' if desc else 'asc')().nullslast())
+                if not field.is_relationship() and field.expr is not None:
+                    order_by.append(getattr(field.expr, 'desc' if desc else 'asc')().nullslast())
+
         return query.order_by(*order_by)
 
     def protect_query(self, query):

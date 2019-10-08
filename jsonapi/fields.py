@@ -18,6 +18,7 @@ class BaseField:
         self.expr = expr
         self.data_type = DataType.get(expr) if data_type is None else data_type
         self.exclude = False
+        self.sort_by = False
 
         self.filter_clause = self.get_filter_clause()
 
@@ -140,14 +141,13 @@ class Relationship(BaseField):
 
     def load(self, parent):
         self.parent = parent
-        if not self.model:
-            name = '_{}_{}'.format(parent.name, self.name)
-            if name in model_registry:
-                cls = model_registry[name]
-            else:
-                base = model_registry[self.model_name]
-                cls = type(name,
-                           (base,),
-                           {'type_': base.get_type(),
-                            'from_': base.get_from_aliases(self.name)})
-            self.model = cls()
+        name = '_{}_{}'.format(parent.name, self.name)
+        if name in model_registry:
+            cls = model_registry[name]
+        else:
+            base = model_registry[self.model_name]
+            cls = type(name,
+                       (base,),
+                       {'type_': base.get_type(),
+                        'from_': base.get_from_aliases(self.name)})
+        self.model = cls()

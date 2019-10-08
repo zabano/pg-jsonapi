@@ -238,7 +238,7 @@ class Model:
         """
         return {name: field for name, field in self.fields.items()
                 if not isinstance(field, Relationship)
-                and not field.exclude
+                and (not field.exclude or field.sort_by)
                 and field.expr is not None}
 
     ################################################################################################
@@ -251,19 +251,23 @@ class Model:
             in_include = args.in_include(name, parents)
             fieldset_defined = args.fieldset_defined(self.type_)
             in_fieldset = args.in_fieldset(self.type_, name)
-            in_sort = args.in_sort(name)
             in_filter = args.in_filter(name)
+            in_sort = args.in_sort(name)
+            field.sort_by = in_sort
 
             if isinstance(field, (Field, Derived)):
                 field.exclude = fieldset_defined and not in_fieldset
 
             elif isinstance(field, Aggregate):
                 field.exclude = not in_fieldset
+                field.expr = None
                 if in_fieldset or in_sort or in_filter:
                     field.load(self)
 
             elif isinstance(field, Relationship):
                 field.exclude = not in_include
+                field.parent = None
+                field.model = None
                 if in_include or in_sort or in_filter:
                     field.load(self)
                     field.model.init_schema(args, parents=(field.name, *parents))
@@ -284,11 +288,24 @@ class Model:
         if len(self.included) > 0:
             response['included'] = reduce(lambda a, b: a + [rec for rec in b.values()],
                                           self.included.values(), list())
-            self.included.clear()
+
         if len(self.meta) > 0:
             response['meta'] = dict(self.meta)
-            self.meta = dict()
+        self.reset()
         return response
+
+    def reset(self):
+        self.included.clear()
+        self.meta = dict()
+        # self.reset_relationship_models()
+
+    # def reset_relationship_models(self):
+    #     for field in self.fields:
+    #         if isinstance(field, Relationship):
+    #             if field.model is not None:
+    #                 field.model.reset_relationship_models()
+    #             field.model = None
+    #             field.parent = None
 
     async def paginate(self, args, filter_by):
         if args.limit is not None:
@@ -306,12 +323,12 @@ class Model:
         for field_name, arg in args.filter.items():
             custom_name = 'filter_{}'.format(field_name)
             if hasattr(self, custom_name):
-                custom_filter = getattr(self, 'filter_{}'.format(arg['name']))
-                filter_by.add_custom(arg['name'], custom_filter(arg['value']))
+                custom_filter = getattr(self, 'filter_{}'.format(field_name))
+                filter_by.add_custom(field_name, custom_filter(arg.value))
             elif field_name in self.fields:
                 field = self.fields[field_name]
                 try:
-                    filter_by.add(field, arg.operator, arg.value)
+                    filter_by.add(field, arg)
                 except Error as e:
                     raise APIError('filter:{} | {}'.format(field_name, e), self)
         return filter_by

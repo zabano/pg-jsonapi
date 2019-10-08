@@ -1,4 +1,7 @@
+import pytest
+
 from jsonapi.args import RequestArguments
+from jsonapi.exc import Error
 
 
 def test_fields_1():
@@ -40,7 +43,8 @@ def test_include_2():
 
 
 def test_include_3():
-    args = RequestArguments({'include': 'author.articles.comments.replies,author.articles.publisher'})
+    args = RequestArguments(
+        {'include': 'author.articles.comments.replies,author.articles.publisher'})
     assert 'author' in args.include.keys()
     author = args.include['author']
     assert 'articles' in author.keys()
@@ -51,3 +55,12 @@ def test_include_3():
     assert 'replies' in comments.keys()
     assert articles['publisher'] == dict()
     assert comments['replies'] == dict()
+
+
+def test_filter_1():
+    assert RequestArguments.filter_parts('filter[author]') == ('author', None, None)
+    assert RequestArguments.filter_parts('filter[author:eq]') == ('author', None, ':eq')
+    assert RequestArguments.filter_parts('filter[author.id]') == ('author', '.id', None)
+    assert RequestArguments.filter_parts('filter[author.id:eq]') == ('author', '.id', ':eq')
+    assert RequestArguments.filter_parts('filter[author.:eq]') is None
+    assert RequestArguments.filter_parts('filter[is-published]') == ('is-published', None, None)
