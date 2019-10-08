@@ -213,7 +213,7 @@ async def test_bool_2(articles, superuser_id):
 #
 
 @pytest.mark.asyncio
-async def test_enum(users, superuser_id):
+async def test_enum(users):
     for val in ('active', 'pending', 'active,pending'):
         async with get_collection(users,
                                   {'filter[status]': val,

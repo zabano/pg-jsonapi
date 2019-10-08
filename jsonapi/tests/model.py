@@ -3,8 +3,8 @@ from sqlalchemy.sql import func
 from jsonapi.db.table import MANY_TO_MANY, MANY_TO_ONE, ONE_TO_MANY, ONE_TO_ONE
 from jsonapi.model import Aggregate, Derived, MixedModel, Model, Relationship
 from jsonapi.tests.auth import current_user
-from jsonapi.tests.db import articles_t, articles_ts, comments_t, keywords_t, replies_t, \
-    test_data_t, user_bios_t, user_names_t, users_t, users_ts
+from jsonapi.tests.db import article_keywords_t, articles_t, articles_ts, comments_t, keywords_t, \
+    replies_t, test_data_t, user_bios_t, user_names_t, users_t, users_ts
 
 
 class TestModel(Model):
@@ -21,10 +21,8 @@ class UserModel(Model):
     from_ = users_t, user_names_t
     fields = ('email', 'first', 'last', 'created_on', 'status',
               Derived('name', lambda rec: '{first} {last}'.format(**rec)),
-              Relationship('bio', 'UserBioModel',
-                           ONE_TO_ONE, 'user_bios_id_fkey'),
-              Relationship('articles', 'ArticleModel',
-                           ONE_TO_MANY, 'articles_author_id_fkey'),
+              Relationship('bio', 'UserBioModel', ONE_TO_ONE),
+              Relationship('articles', 'ArticleModel', ONE_TO_MANY, 'author_id'),
               Aggregate('article_count', 'articles', func.count))
     search = users_ts
 
@@ -37,14 +35,10 @@ class UserBioModel(Model):
 class ArticleModel(Model):
     from_ = articles_t
     fields = ('title', 'body', 'created_on', 'updated_on', 'is_published',
-              Relationship('author', 'UserModel',
-                           MANY_TO_ONE, 'articles_author_id_fkey'),
-              Relationship('publisher', 'UserModel',
-                           MANY_TO_ONE, 'articles_published_by_fkey'),
-              Relationship('keywords', 'KeywordModel',
-                           MANY_TO_MANY, 'article_keywords_article_id_fkey'),
-              Relationship('comments', 'CommentModel',
-                           ONE_TO_MANY, 'articles_article_id_fkey'),
+              Relationship('author', 'UserModel', MANY_TO_ONE, 'author_id'),
+              Relationship('publisher', 'UserModel', MANY_TO_ONE, 'published_by'),
+              Relationship('keywords', 'KeywordModel', MANY_TO_MANY, article_keywords_t),
+              Relationship('comments', 'CommentModel', ONE_TO_MANY, 'article_id'),
               Aggregate('keyword_count', 'keywords', func.count),
               Aggregate('comment_count', 'comments', func.count),
               Aggregate('author_count', 'author', func.count))
@@ -66,8 +60,8 @@ class KeywordModel(Model):
 class CommentModel(Model):
     from_ = comments_t
     fields = ('body', 'created_on', 'updated_on',
-              Relationship('author', 'UserModel', MANY_TO_ONE, 'articles_user_id_fkey'),
-              Relationship('replies', 'ReplyModel', ONE_TO_MANY, 'replies_comment_id_fkey'),
+              Relationship('author', 'UserModel', MANY_TO_ONE, 'user_id'),
+              Relationship('replies', 'ReplyModel', ONE_TO_MANY, 'comment_id'),
               Aggregate('reply_count', 'replies', func.count))
 
 

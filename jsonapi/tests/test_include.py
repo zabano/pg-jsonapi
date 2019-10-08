@@ -63,6 +63,7 @@ async def test_2(users, user_1_id):
             _check_included(json)
 
 
+@pytest.mark.dev
 @pytest.mark.asyncio
 async def test_3(articles, superuser_id, article_count):
     for article_id in random.sample(range(1, article_count), 10):
@@ -72,3 +73,12 @@ async def test_3(articles, superuser_id, article_count):
             included = _check_user(json['data'])
             if included:
                 _check_included(json)
+
+
+@pytest.mark.asyncio
+async def test_4(articles, user_1_id):
+    async with get_collection(articles,
+                              {'include': 'keywords'},
+                              login=user_1_id) as json:
+        assert isinstance(json['data'], list)
+        assert len(json['data']) > 0

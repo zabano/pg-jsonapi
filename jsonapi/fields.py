@@ -1,11 +1,9 @@
 import marshmallow as ma
-from sqlalchemy.sql.schema import Table
-from copy import copy
 
 from jsonapi.datatypes import DataType, Date, Integer
 from jsonapi.db.table import Cardinality, FromItem
-from jsonapi.exc import APIError, Error, ModelError
-from jsonapi.registry import alias_registry, schema_registry, model_registry
+from jsonapi.exc import APIError, Error
+from jsonapi.registry import model_registry, schema_registry
 
 
 class BaseField:
@@ -86,26 +84,20 @@ class Aggregate(BaseField):
 
     def load(self, model):
         self.rel = model.relationship(self.rel_name)
-        pkey = self.rel.model.primary_key
-        fkey = self.rel.fkey
-        alias_name = '{}_alias_for_{}'.format(self.rel.name, self.name)
-        if alias_name in alias_registry:
-            alias = alias_registry[alias_name]
-        else:
-            alias = pkey.table.alias()
-        alias_pkey = getattr(alias.c, pkey.name)
-        self.expr = self.func(alias_pkey.distinct())
+        self.rel.load(model)
+        self.expr = self.func(self.rel.model.primary_key.distinct())
         self.filter_clause = self.get_filter_clause()
+
         if self.rel.cardinality == Cardinality.MANY_TO_MANY:
-            self.from_items = FromItem(alias, left=True), FromItem(fkey.parent.table, left=True)
+            self.from_items = (FromItem(self.rel.ref, left=True),
+                               FromItem(self.rel.model.primary_key.table, left=True))
         elif self.rel.cardinality == Cardinality.ONE_TO_MANY:
-            self.from_items = FromItem(
-                alias,
-                onclause=fkey.column == getattr(alias.c, fkey.parent.name),
-                left=True),
+            self.from_items = (FromItem(
+                self.rel.model.primary_key.table,
+                onclause=self.rel.parent.primary_key == self.rel.model.get_db_column(self.rel.ref),
+                left=True),)
         else:
-            raise APIError('aggregate field support only TO_MANY '
-                           'relationships: "{}"'.format(self.name), model)
+            raise APIError('error: "{}"'.format(self.name), model)
 
 
 class Derived(BaseField):
@@ -129,77 +121,33 @@ class Relationship(BaseField):
     Represents a relationship field.
 
     >>> from jsonapi.db.table import ONE_TO_MANY
-    >>> Relationship('articles', 'ArticleModel',
-    >>>              ONE_TO_MANY, 'articles_author_id_fkey'))
+    >>> Relationship('articles', 'ArticleModel', ONE_TO_MANY, 'author_id'))
     """
 
-    def __init__(self, name, model_name, cardinality, fkey_name):
+    def __init__(self, name, model_name, cardinality, ref=None):
         """
         :param str name: relationship name
         :param str model_name: related model name
         :param Cardinality cardinality: relationship cardinality
-        :param str fkey_name: SQLAlchemy foreign key name
         """
         super().__init__(name)
         self.cardinality = cardinality
-        self.nested = None
-
         self.model_name = model_name
-        self.fkey_name = fkey_name
-
+        self.ref = ref
         self.model = None
-        self.fkey = None
-
+        self.nested = None
         self.parent = None
-        self.parent_alias = None
 
     def load(self, parent):
         self.parent = parent
-        self.parent_alias = parent.__class__.get_from_aliases(self.name, 0)
-        base = model_registry[self.model_name]
-        cls = type('{}_{}'.format(base.__name__, self.name), (base,),
-                   {'type_': base.get_type(),
-                    'from_': base.get_from_aliases(self.name)})
-        self.model = cls()
-        self.fkey = self.get_fkey()
-
-    def get_fkey(self):
-        table = self.model.from_clause[0].table
-
-        if isinstance(table, Table):
-            for tab in table.metadata.tables.values():
-                for fk in tab.foreign_keys:
-                    if fk.name == self.fkey_name:
-                        return fk
-
-        else:
-
-            fkeys = []
-
-            # get parent model fkeys
-            for fk in self.parent.from_clause[0].table.foreign_keys:
-                if fk.column.table == table.element:
-                    fkey = copy(fk)
-                    fkey.column = self.model.get_db_column(fk.column.name)
-                    fkeys.append(fkey)
-
-            # get child model fkeys
-            for a in [f.table for f in self.model.from_clause]:
-                for afk in a.foreign_keys:
-                    fkeys.append(afk)
-
-            for tab in table.element.metadata.tables.values():
-                for fk in tab.foreign_keys:
-                    if fk.name == self.fkey_name:
-                        for afk in fkeys:
-                            if fk.column.name == afk.column.name and \
-                                    fk.parent.name == afk.parent.name:
-                                return afk
-
-        raise ModelError('foreign key: "{}" not found'.format(self.fkey_name), self.model)
-
-    @staticmethod
-    def get_column(aliases, name):
-        for alias in aliases:
-            if hasattr(alias.c, name):
-                return alias.c[name]
+        if not self.model:
+            name = '_{}_{}'.format(parent.name, self.name)
+            if name in model_registry:
+                cls = model_registry[name]
+            else:
+                base = model_registry[self.model_name]
+                cls = type(name,
+                           (base,),
+                           {'type_': base.get_type(),
+                            'from_': base.get_from_aliases(self.name)})
+            self.model = cls()

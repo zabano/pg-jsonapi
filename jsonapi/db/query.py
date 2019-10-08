@@ -4,8 +4,7 @@ from sqlalchemy.sql import and_, exists, func, select
 
 from jsonapi.exc import APIError, ModelError
 from jsonapi.fields import Aggregate, Field
-from .table import FromItem, MANY_TO_MANY, MANY_TO_ONE, ONE_TO_MANY, ONE_TO_ONE
-from .util import get_primary_key
+from .table import FromItem, MANY_TO_MANY, MANY_TO_ONE, ONE_TO_MANY, ONE_TO_ONE, get_table_name
 
 SQL_PARAM_LIMIT = 10000
 
@@ -142,14 +141,29 @@ class Query:
 
     def related(self, resource_id, rel, args,
                 filter_by=None, paginate=True, count=False, search=None):
-        pkey_column = get_primary_key(rel.fkey.parent.table)
-        where_col = pkey_column if rel.cardinality in (ONE_TO_ONE, MANY_TO_ONE) \
-            else rel.fkey.parent
+
+        if rel.cardinality == ONE_TO_ONE:
+            where_col = rel.model.primary_key
+            from_item = None
+        elif rel.cardinality == ONE_TO_MANY:
+            where_col = rel.model.get_db_column(rel.ref)
+            from_item = None
+        elif rel.cardinality == MANY_TO_ONE:
+            where_col = rel.parent.primary_key
+            from_item = FromItem(
+                rel.parent.primary_key.table,
+                onclause=rel.model.primary_key == rel.parent.get_db_column(rel.ref),
+                left=True)
+        else:
+            where_col = rel.parent.primary_key
+            xref = dict()
+            for fk in rel.ref.foreign_keys:
+                xref[fk.column.table.name] = rel.ref.c[fk.parent.name]
+            col1 = xref[get_table_name(where_col.table)]
+            from_item = FromItem(where_col.table, onclause=where_col == col1, left=True)
+
         query = select(columns=self.col_list(),
-                       from_obj=self.from_obj(
-                           FromItem(rel.fkey.parent.table,
-                                    onclause=rel.fkey.column == rel.fkey.parent,
-                                    left=True)),
+                       from_obj=self.from_obj(from_item),
                        whereclause=where_col == resource_id)
         query = self.group_query(query)
         if rel.cardinality in (ONE_TO_MANY, MANY_TO_MANY):
@@ -157,6 +171,7 @@ class Query:
 
         query = self.filter_query(query, filter_by)
         query = self.protect_query(query)
+        query = query.distinct()
 
         if paginate and args.limit is not None:
             query = query.offset(args.offset).limit(args.limit)
@@ -164,13 +179,43 @@ class Query:
         return query
 
     def included(self, rel, id_list):
-        where_col = get_primary_key(rel.fkey.parent.table) \
-            if rel.cardinality is MANY_TO_ONE else rel.fkey.parent
-        query = select(columns=[*self.col_list(), where_col.label('parent_id')],
-                       from_obj=self.from_obj(
-                           FromItem(rel.fkey.parent.table,
-                                    onclause=rel.fkey.column == rel.fkey.parent,
-                                    left=True)))
+
+        if rel.cardinality == ONE_TO_ONE:
+            where_col = rel.model.primary_key
+            query = select(columns=[*self.col_list(), where_col.label('parent_id')],
+                           from_obj=self.from_obj(
+                               FromItem(rel.model.primary_key.table,
+                                        onclause=rel.model.primary_key == rel.parent.primary_key,
+                                        left=True)))
+
+        elif rel.cardinality == ONE_TO_MANY:
+            where_col = rel.model.get_db_column(rel.ref)
+            query = select(columns=[*self.col_list(), where_col.label('parent_id')],
+                           from_obj=self.from_obj())
+
+        elif rel.cardinality == MANY_TO_ONE:
+            where_col = rel.parent.get_db_column(rel.ref)
+            query = select(columns=[*self.col_list(), where_col.label('parent_id')],
+                           from_obj=self.from_obj(
+                               FromItem(rel.model.primary_key.table,
+                                        onclause=rel.model.primary_key == where_col,
+                                        left=True)))
+        else:
+            xref = dict()
+            for fk in rel.ref.foreign_keys:
+                xref[fk.column.table.name] = rel.ref.c[fk.parent.name]
+            where_col = rel.parent.primary_key
+            col1 = xref[get_table_name(where_col.table)]
+            col2 = xref[get_table_name(rel.model.primary_key.table)]
+            query = select(columns=[*self.col_list(), where_col.label('parent_id')],
+                           from_obj=self.from_obj(
+                               FromItem(rel.ref,
+                                        onclause=col2 == rel.model.primary_key,
+                                        left=True),
+                               FromItem(where_col.table,
+                                        onclause=where_col == col1,
+                                        left=True)))
+
         query = self.group_query(query, where_col)
         query = self.protect_query(query)
         return (query.where(where_col.in_(x))

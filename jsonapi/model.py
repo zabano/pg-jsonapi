@@ -1,4 +1,3 @@
-import os
 from collections import defaultdict
 from collections.abc import Sequence
 from functools import reduce
@@ -16,8 +15,8 @@ from jsonapi.db.table import Cardinality, FromClause, FromItem, is_from_item
 from jsonapi.db.util import get_primary_key
 from jsonapi.exc import APIError, Error, Forbidden, ModelError, NotFound
 from jsonapi.fields import Aggregate, BaseField, Derived, Field, Relationship
-from jsonapi.registry import model_registry, schema_registry
 from jsonapi.log import logger
+from jsonapi.registry import model_registry, schema_registry
 
 MIME_TYPE = 'application/vnd.api+json'
 
@@ -189,7 +188,7 @@ class Model:
     def get_from_aliases(cls, name, index=None):
         from_ = list(cls.from_) if isinstance(cls.from_, Sequence) else [cls.from_]
         for i, from_item in enumerate(from_):
-            alias_name = '{}_{}'.format(name, from_item.name)
+            alias_name = '_{}_{}'.format(name, from_item.name)
             if isinstance(from_item, FromItem):
                 from_item.table = from_item.table.alias(alias_name)
             else:
@@ -435,6 +434,7 @@ class Model:
 
         rel = self.relationship(relationship_name)
         args = RequestArguments(args)
+        rel.load(self)
         rel.model.init_schema(args)
         filter_by = rel.model.get_filter(args)
         query = rel.model.query.related(

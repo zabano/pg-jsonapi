@@ -3,11 +3,17 @@ from collections.abc import MutableSequence
 from functools import reduce
 
 from sqlalchemy.exc import NoForeignKeysError
-from sqlalchemy.sql.schema import Table
 from sqlalchemy.sql.elements import BinaryExpression, BooleanClauseList
+from sqlalchemy.sql.schema import Table
 from sqlalchemy.sql.selectable import Alias
 
 from jsonapi.exc import Error
+
+
+def get_table_name(table_or_alias):
+    if hasattr(table_or_alias, 'element'):
+        return get_table_name(table_or_alias.element)
+    return table_or_alias.name
 
 
 class Cardinality(enum.IntEnum):
