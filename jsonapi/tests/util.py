@@ -229,5 +229,5 @@ def is_string(v, nullable=False):
     return isinstance(v, str) and len(v) > 0
 
 
-def sample_integers(min_, max_, sample_size):
+def sample_integers(min_, max_, sample_size=3):
     return random.sample(range(min_, max_), sample_size)

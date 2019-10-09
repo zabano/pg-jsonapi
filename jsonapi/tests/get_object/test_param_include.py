@@ -4,17 +4,8 @@ from jsonapi.tests.util import *
 
 
 @pytest.mark.asyncio
-async def test_no_include(users, user_count, superuser_id):
-    for user_id in sample_integers(1, user_count, 10):
-        async with get_object(users, user_id,
-                              login=superuser_id) as json:
-            check_user(json['data'], lambda v: int(v) == user_id)
-            assert 'included' not in json
-
-
-@pytest.mark.asyncio
 async def test_one_to_one(users, user_count, superuser_id):
-    for user_id in sample_integers(1, user_count, 10):
+    for user_id in sample_integers(1, user_count):
         async with get_object(users, user_id,
                               {'include': 'bio'},
                               login=superuser_id) as json:
@@ -36,7 +27,7 @@ async def test_many_to_one(articles, article_count, superuser_id):
 
 @pytest.mark.asyncio
 async def test_one_to_many(users, user_count, superuser_id):
-    for user_id in sample_integers(1, user_count, 10):
+    for user_id in sample_integers(1, user_count):
         async with get_object(users, user_id,
                               {'include': 'articles'},
                               login=superuser_id) as json:

@@ -173,12 +173,12 @@ class Query:
                 onclause=rel.model.primary_key == rel.parent.get_db_column(rel.ref),
                 left=True)
         else:
-            where_col = rel.parent.primary_key
             xref = dict()
             for fk in rel.ref.foreign_keys:
                 xref[fk.column.table.name] = rel.ref.c[fk.parent.name]
-            col1 = xref[get_table_name(where_col.table)]
-            from_item = FromItem(where_col.table, onclause=where_col == col1, left=True)
+            where_col = xref.pop(rel.parent.primary_key.table.name)
+            _, col2 = xref.popitem()
+            from_item = FromItem(rel.ref, onclause=rel.model.primary_key == col2, left=True)
 
         query = select(columns=self.col_list(group_by=self.is_aggregate()),
                        from_obj=self.from_obj(from_item),
