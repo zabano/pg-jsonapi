@@ -1,8 +1,14 @@
 import datetime as dt
 from contextlib import asynccontextmanager
+import json
 
 from jsonapi.datatypes import DataType
 from jsonapi.tests.auth import login, logout
+from jsonapi.log import logger
+
+
+def log_json(data):
+    logger.info(json.dumps(data, indet=4, sort_keys=True))
 
 
 ####################################################################################################

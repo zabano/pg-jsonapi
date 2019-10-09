@@ -22,7 +22,8 @@ setup(
         'inflection',
         'pytest',
         'pytest-asyncio',
-        'faker'
+        'faker',
+        'sqlparse'
     ],
     entry_points={
         'console_scripts': [

@@ -11,6 +11,7 @@ def _check_user(user):
     assert_attribute_does_not_exist(user, 'createdOn')
 
 
+@pytest.mark.dev
 @pytest.mark.asyncio
 async def test_1(articles, user_1_id):
     async with get_collection(articles,

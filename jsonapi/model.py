@@ -15,7 +15,7 @@ from jsonapi.db.table import Cardinality, FromClause, FromItem, is_from_item
 from jsonapi.db.util import get_primary_key
 from jsonapi.exc import APIError, Error, Forbidden, ModelError, NotFound
 from jsonapi.fields import Aggregate, BaseField, Derived, Field, Relationship
-from jsonapi.log import logger
+from jsonapi.log import logger, log_query
 from jsonapi.registry import model_registry, schema_registry
 
 MIME_TYPE = 'application/vnd.api+json'
@@ -102,7 +102,7 @@ class Model:
     def __init_subclass__(cls, **kwargs):
         super().__init_subclass__(**kwargs)
         model_registry[cls.__name__] = cls
-        logger.debug('registered model: {!r}'.format(cls))
+        logger.info('created model: {!r}'.format(cls))
 
     def __init__(self):
 
@@ -118,6 +118,7 @@ class Model:
 
         self.included = defaultdict(dict)
         self.meta = dict()
+        logger.info('initialized model: {!r}'.format(self))
 
     @classmethod
     def get_type(cls):
@@ -262,6 +263,7 @@ class Model:
                 field.exclude = not in_fieldset
                 field.expr = None
                 if in_fieldset or in_sort or in_filter:
+                    logger.info('load aggregate: {}.{}'.format(self.name, field.name))
                     field.load(self)
 
             elif isinstance(field, Relationship):
@@ -269,11 +271,15 @@ class Model:
                 field.parent = None
                 field.model = None
                 if in_include or in_sort or in_filter:
+                    logger.info('load relationship: {}.{}'.format(self.name, field.name))
                     field.load(self)
                     field.model.init_schema(args, parents=(field.name, *parents))
 
             else:
                 raise ModelError('unsupported field: {!r}'.format(field), self)
+
+            if not field.exclude:
+                logger.info('include field: {}.{}'.format(self.name, field.name))
 
         schema = type('{}Schema'.format(self.name),
                       (JSONSchema,),
@@ -383,6 +389,7 @@ class Model:
             raise NotFound(object_id, self)
 
         query = self.query.get(object_id)
+        log_query(query)
         result = await pg.fetchrow(query)
         if result is None:
             raise Forbidden(object_id, self)
@@ -410,6 +417,7 @@ class Model:
         self.init_schema(args)
         filter_by = self.get_filter(args)
         query = self.query.all(args, filter_by=filter_by, paginate=True, search=search)
+        log_query(query)
         recs = [dict(rec) for rec in await pg.fetch(query)]
         await self.paginate(args, filter_by)
         await self.fetch_included(recs)
@@ -447,6 +455,7 @@ class Model:
         filter_by = rel.model.get_filter(args)
         query = rel.model.query.related(
             object_id, rel, args, filter_by=filter_by, paginate=True, search=search)
+        log_query(query)
         if rel.cardinality in (Cardinality.ONE_TO_ONE, Cardinality.MANY_TO_ONE):
             result = await pg.fetchrow(query)
             data = dict(result) if result is not None else None
