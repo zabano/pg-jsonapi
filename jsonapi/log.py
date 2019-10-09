@@ -13,4 +13,4 @@ if 'JSONAPI_DEBUG' in os.environ:
 
 
 def log_query(query):
-    logger.info(sqlparse.format(str(query), reindent=True, keyword_case='upper'))
+    logger.info(sqlparse.format(str(query), reindent=True))

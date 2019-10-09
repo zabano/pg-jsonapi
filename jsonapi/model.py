@@ -189,7 +189,7 @@ class Model:
     def get_from_aliases(cls, name, index=None):
         from_ = list(cls.from_) if isinstance(cls.from_, Sequence) else [cls.from_]
         for i, from_item in enumerate(from_):
-            alias_name = '_{}_{}'.format(name, from_item.name)
+            alias_name = '_{}__{}_t'.format(name, from_item.name)
             if isinstance(from_item, FromItem):
                 from_item.table = from_item.table.alias(alias_name)
             else:
@@ -268,8 +268,6 @@ class Model:
 
             elif isinstance(field, Relationship):
                 field.exclude = not in_include
-                field.parent = None
-                field.model = None
                 if in_include or in_sort or in_filter:
                     logger.info('load relationship: {}.{}'.format(self.name, field.name))
                     field.load(self)
@@ -341,6 +339,7 @@ class Model:
         for rel in self.relationships.values():
             result = list()
             for query in rel.model.query.included(rel, [rec['id'] for rec in data]):
+                log_query(query)
                 result.extend(await pg.fetch(query))
 
             recs_by_parent_id = defaultdict(list)

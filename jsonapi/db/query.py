@@ -59,7 +59,7 @@ class Query:
 
     def group_query(self, query, *columns, **kwargs):
         filter_by = kwargs.get('filter_by', None)
-        if self.is_aggregate() or filter_by is not None:
+        if self.is_aggregate() or (filter_by is not None and len(filter_by.having) > 0):
             query = query.group_by(*self.col_list(*columns))
         return query
 

@@ -1,6 +1,7 @@
 import datetime as dt
 from contextlib import asynccontextmanager
-import json
+from json import dumps as json_dumps
+import random
 
 from jsonapi.datatypes import DataType
 from jsonapi.tests.auth import login, logout
@@ -8,7 +9,7 @@ from jsonapi.log import logger
 
 
 def log_json(data):
-    logger.info(json.dumps(data, indet=4, sort_keys=True))
+    logger.info(json_dumps(data, indet=4, sort_keys=True))
 
 
 ####################################################################################################
@@ -84,9 +85,22 @@ def assert_relationship(json, name, validate_length=None):
     assert 'relationships' in json
     relationships = json['relationships']
     assert name in relationships
-    if validate_length is not None:
-        assert validate_length(len(relationships[name])) is True
-    return json['relationships'][name]
+    if isinstance(relationships[name], list):
+        if validate_length is not None:
+            assert validate_length(len(relationships[name])) is True
+        return relationships[name]
+    elif relationships[name] is None or isinstance(relationships[name], dict):
+        if validate_length is not None:
+            assert validate_length(1)
+        return [] if relationships[name] is None else [relationships[name]]
+
+
+def assert_included(json, obj):
+    assert 'included' in json
+    for included in json['included']:
+        if included['type'] == obj['type'] and included['id'] == obj['id']:
+            return included
+    assert False
 
 
 def assert_error(json, status, text=None):
@@ -149,6 +163,12 @@ def check_user_bio(json, validator=None):
     assert_attribute(json, 'birthday', lambda v: is_date(v, nullable=True))
 
 
+def check_included(json, obj, rel_name, rel_type, validator=None, object_validator=None):
+    for related in assert_relationship(obj, rel_name, validator):
+        assert_object(related, rel_type, object_validator)
+        assert_included(json, related)
+
+
 ####################################################################################################
 # date and time
 ####################################################################################################
@@ -207,3 +227,7 @@ def is_string(v, nullable=False):
     if v is None:
         return nullable
     return isinstance(v, str) and len(v) > 0
+
+
+def sample_integers(min_, max_, sample_size):
+    return random.sample(range(min_, max_), sample_size)
