@@ -115,7 +115,7 @@ class Query:
 
     def get(self, resource_id):
         query = select(from_obj=self.from_obj(),
-                       columns=self.col_list(group_by=self.is_aggregate()),
+                       columns=self.col_list(),
                        whereclause=self.model.primary_key == resource_id)
         query = self.group_query(query)
         if self.model.access is not None:
@@ -131,9 +131,7 @@ class Query:
             from_items.extend(filter_by.from_items_last)
         if search is not None:
             from_items.append(search_t)
-        query = select(columns=self.col_list(search=search,
-                                             group_by=self.is_aggregate()),
-                       from_obj=self.from_obj(*from_items))
+        query = select(columns=self.col_list(search=search), from_obj=self.from_obj(*from_items))
 
         query = self.group_query(query, filter_by=filter_by)
         if not count:

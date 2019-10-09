@@ -370,7 +370,6 @@ async def test_relationship_1(articles, superuser_id):
                 assert_attribute(article, 'isPublished', lambda v: v is False)
 
 
-@pytest.mark.dev
 @pytest.mark.asyncio
 async def test_relationship_2(articles, superuser_id):
     async with get_collection(articles,
@@ -384,7 +383,7 @@ async def test_relationship_2(articles, superuser_id):
         assert len(json['data']) > 0
         for article in json['data']:
             assert_object(article, 'article')
-            assert_attribute(article, 'isPublished', lambda v: v is False)
+            assert_attribute(article, 'isPublished', lambda v: v is True)
         assert 'included' in json
         assert len(json['included']) > 0
         for author in json['included']:
