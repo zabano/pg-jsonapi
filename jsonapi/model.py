@@ -2,6 +2,7 @@ from collections import defaultdict
 from collections.abc import Sequence
 from functools import reduce
 from itertools import islice
+from copy import copy
 
 import marshmallow as ma
 from asyncpgsa import pg
@@ -169,7 +170,7 @@ class Model:
             if isinstance(field_spec, Field) and field_spec.expr is None:
                 field_spec.expr = self.get_expr(field_spec.name)
                 field_spec.data_type = DataType.get(field_spec.expr)
-            return field_spec
+            return copy(field_spec)
         else:
             raise ModelError('invalid field: {!r}'.format(field_spec), self)
 
