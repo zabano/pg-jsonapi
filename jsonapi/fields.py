@@ -5,6 +5,8 @@ from jsonapi.db.table import Cardinality, FromItem
 from jsonapi.exc import APIError, Error
 from jsonapi.registry import model_registry, schema_registry
 
+from sqlalchemy.sql import text
+
 
 class BaseField:
     """ The base class for all field types """
@@ -86,7 +88,7 @@ class Aggregate(BaseField):
     def load(self, model):
         self.rel = model.relationship(self.rel_name)
         self.rel.load(model)
-        self.expr = self.func(self.rel.model.primary_key.distinct())
+        self.expr = self.func(text(str(self.rel.model.primary_key.distinct())))
         self.filter_clause = self.get_filter_clause()
 
         if self.rel.cardinality == Cardinality.MANY_TO_MANY:
