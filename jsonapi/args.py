@@ -98,7 +98,7 @@ class RequestArguments:
                     raise Error('invalid filter parameter: "{}"'.format(key))
                 else:
                     self.filter[inflection.underscore(field_name)] = FilterArgument(
-                        attr_name.lstrip('.') if attr_name else '',
+                        inflection.underscore(attr_name.lstrip('.')) if attr_name else '',
                         operator.lstrip(':') if operator else '',
                         args[key])
 

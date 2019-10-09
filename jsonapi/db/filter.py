@@ -24,8 +24,9 @@ class Filter:
 
     def __init__(self, where=None, *from_items):
         self.where = list(where) if where is not None else list()
-        self.from_items = list(from_items)
         self.having = list()
+        self.from_items = list(from_items)
+        self.from_items_last = list()
 
     def __bool__(self):
         return any((self.where, self.having, self.from_items))
@@ -33,21 +34,25 @@ class Filter:
     def add(self, field, arg):
         if field.is_relationship():
             attr_name = arg.attr_name if arg.attr_name else 'id'
-            if attr_name not in field.model.fields:
+            if attr_name not in field.model.fields.keys():
                 raise ModelError('field: {} does not exist'.format(attr_name), field.model)
             attr = field.model.fields[attr_name]
             clause = attr.filter_clause.get(attr.expr, arg.operator, arg.value)
-            # self.from_items.append(
-            #     FromItem(field.fkey.column.table,
-            #              onclause=field.fkey.column == field.fkey.parent,
-            #              left=True))
+            self.from_items.append(FromItem(
+                field.model.primary_key.table,
+                onclause=field.parent.get_db_column(field.ref) == field.model.primary_key,
+                left=True))
+            if attr.is_aggregate():
+                self.from_items_last.extend(attr.from_items.get(field.model.name, list()))
+                self.having.append(clause)
+            else:
+                self.where.append(clause)
         else:
             clause = field.filter_clause.get(field.expr, arg.operator, arg.value)
-
-        if field.is_aggregate():
-            self.having.append(clause)
-        else:
-            self.where.append(clause)
+            if field.is_aggregate():
+                self.having.append(clause)
+            else:
+                self.where.append(clause)
 
     def add_custom(self, name, custom_clause):
         if is_clause(custom_clause):

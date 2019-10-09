@@ -81,7 +81,7 @@ class Aggregate(BaseField):
         self.func = func
         self.rel_name = rel_name
         self.rel = None
-        self.from_items = tuple()
+        self.from_items = dict()
 
     def load(self, model):
         self.rel = model.relationship(self.rel_name)
@@ -90,13 +90,15 @@ class Aggregate(BaseField):
         self.filter_clause = self.get_filter_clause()
 
         if self.rel.cardinality == Cardinality.MANY_TO_MANY:
-            self.from_items = (FromItem(self.rel.ref, left=True),
-                               FromItem(self.rel.model.primary_key.table, left=True))
+            self.from_items[model.name] = (
+                FromItem(self.rel.ref, left=True),
+                FromItem(self.rel.model.primary_key.table, left=True))
         elif self.rel.cardinality == Cardinality.ONE_TO_MANY:
-            self.from_items = (FromItem(
+            from_item = FromItem(
                 self.rel.model.primary_key.table,
                 onclause=self.rel.parent.primary_key == self.rel.model.get_db_column(self.rel.ref),
-                left=True),)
+                left=True)
+            self.from_items[model.name] = (from_item,)
         else:
             raise APIError('error: "{}"'.format(self.name), model)
 

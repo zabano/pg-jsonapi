@@ -1,10 +1,9 @@
-from copy import copy
-
 from sqlalchemy.sql import and_, exists, func, select
 
 from jsonapi.exc import APIError, ModelError
 from jsonapi.fields import Aggregate, Field
-from .table import FromItem, MANY_TO_MANY, MANY_TO_ONE, ONE_TO_MANY, ONE_TO_ONE, get_table_name
+from .table import FromClause, FromItem, MANY_TO_MANY, MANY_TO_ONE, ONE_TO_MANY, ONE_TO_ONE, \
+    get_table_name
 
 SQL_PARAM_LIMIT = 10000
 
@@ -21,23 +20,31 @@ class Query:
         return any(isinstance(field, Aggregate) for field in self.model.fields.values()
                    if field.expr is not None)
 
-    def col_list(self, group_by=False, search=None):
+    def col_list(self, *columns, **kwargs):
 
-        col_list = [field.expr.label(name)
-                    for name, field in self.model.attributes.items()
-                    if isinstance(field, Field if group_by else (Field, Aggregate))]
+        col_list = [self.model.attributes['id'].expr]
+        col_list.extend(columns)
 
+        group_by = bool(kwargs.get('group_by', False))
+        field_type = (Field, Aggregate) if group_by else Field
+
+        for name, field in self.model.attributes.items():
+            if field.name != 'id' and isinstance(field, field_type) and field.expr is not None:
+                col_list.append(field.expr.label(name))
+
+        search = kwargs.get('search', None)
         if self.model.search is not None and search is not None:
             col_list.append(self.rank_column(search))
 
         return col_list
 
     def from_obj(self, *additional):
-        from_clause = copy(self.model.from_clause)
+        from_clause = FromClause()
+        from_clause.extend(self.model.from_clause)
         from_clause.extend(additional)
         for field in self.model.fields.values():
             if isinstance(field, Aggregate) and field.expr is not None:
-                for from_item in field.from_items:
+                for from_item in field.from_items[self.model.name]:
                     from_clause.append(from_item)
         return from_clause()
 
@@ -50,9 +57,10 @@ class Query:
     # query
     ################################################################################################
 
-    def group_query(self, query, *columns):
-        if self.is_aggregate():
-            query = query.group_by(*[*self.col_list(group_by=True), *columns])
+    def group_query(self, query, *columns, **kwargs):
+        filter_by = kwargs.get('filter_by', None)
+        if self.is_aggregate() or filter_by is not None:
+            query = query.group_by(*self.col_list(*columns))
         return query
 
     @staticmethod
@@ -116,12 +124,16 @@ class Query:
 
     def all(self, args, filter_by=None, paginate=True, count=False, search=None):
         search_t = self.model.search
-        from_items = list(filter_by.from_items) if filter_by else list()
+
+        from_items = list()
+        if filter_by:
+            from_items.extend(filter_by.from_items)
+            from_items.extend(filter_by.from_items_last)
         if search is not None:
             from_items.append(search_t)
         query = select(columns=self.col_list(search=search), from_obj=self.from_obj(*from_items))
 
-        query = self.group_query(query)
+        query = self.group_query(query, filter_by=filter_by)
         if not count:
             query = self.sort_query(args, query, search)
 
@@ -167,7 +179,7 @@ class Query:
             col1 = xref[get_table_name(where_col.table)]
             from_item = FromItem(where_col.table, onclause=where_col == col1, left=True)
 
-        query = select(columns=self.col_list(),
+        query = select(columns=self.col_list(group_by=self.is_aggregate()),
                        from_obj=self.from_obj(from_item),
                        whereclause=where_col == resource_id)
         query = self.group_query(query)
@@ -186,43 +198,48 @@ class Query:
     def included(self, rel, id_list):
 
         if rel.cardinality == ONE_TO_ONE:
-            where_col = rel.model.primary_key
-            query = select(columns=[*self.col_list(), where_col.label('parent_id')],
-                           from_obj=self.from_obj(
-                               FromItem(rel.model.primary_key.table,
-                                        onclause=rel.model.primary_key == rel.parent.primary_key,
-                                        left=True)))
+            parent_col = rel.model.primary_key
+            from_item = FromItem(rel.model.primary_key.table,
+                                 onclause=rel.model.primary_key == rel.parent.primary_key,
+                                 left=True)
+            query = select(
+                columns=self.col_list(parent_col.label('parent_id'),
+                                      group_by=self.is_aggregate()),
+                from_obj=self.from_obj(from_item))
 
         elif rel.cardinality == ONE_TO_MANY:
-            where_col = rel.model.get_db_column(rel.ref)
-            query = select(columns=[*self.col_list(), where_col.label('parent_id')],
-                           from_obj=self.from_obj())
+            parent_col = rel.model.get_db_column(rel.ref)
+            query = select(
+                columns=self.col_list(parent_col.label('parent_id'),
+                                      group_by=self.is_aggregate()),
+                from_obj=self.from_obj())
 
         elif rel.cardinality == MANY_TO_ONE:
-            where_col = rel.parent.get_db_column(rel.ref)
-            query = select(columns=[*self.col_list(), where_col.label('parent_id')],
-                           from_obj=self.from_obj(
-                               FromItem(rel.model.primary_key.table,
-                                        onclause=rel.model.primary_key == where_col,
-                                        left=True)))
+            parent_col = rel.parent.primary_key
+            from_item = FromItem(
+                rel.parent.primary_key.table,
+                onclause=rel.model.primary_key == rel.parent.get_db_column(rel.ref),
+                left=True)
+            query = select(
+                columns=self.col_list(parent_col.label('parent_id'),
+                                      group_by=self.is_aggregate()),
+                from_obj=self.from_obj(from_item))
+
         else:
             xref = dict()
             for fk in rel.ref.foreign_keys:
                 xref[fk.column.table.name] = rel.ref.c[fk.parent.name]
-            where_col = rel.parent.primary_key
-            col1 = xref[get_table_name(where_col.table)]
-            col2 = xref[get_table_name(rel.model.primary_key.table)]
-            query = select(columns=[*self.col_list(), where_col.label('parent_id')],
-                           from_obj=self.from_obj(
-                               FromItem(rel.ref,
-                                        onclause=col2 == rel.model.primary_key,
-                                        left=True),
-                               FromItem(where_col.table,
-                                        onclause=where_col == col1,
-                                        left=True)))
+            parent_col = xref[get_table_name(rel.parent.primary_key.table)]
+            model_col = xref[get_table_name(rel.model.primary_key.table)]
+            query = select(
+                columns=self.col_list(parent_col.label('parent_id'),
+                                      group_by=self.is_aggregate()),
+                from_obj=self.from_obj(FromItem(rel.ref,
+                                                onclause=model_col == rel.model.primary_key,
+                                                left=True)))
 
-        query = self.group_query(query, where_col)
+        query = self.group_query(query, parent_col)
         query = self.protect_query(query)
-        return (query.where(where_col.in_(x))
+        return (query.where(parent_col.in_(x))
                 for x in (id_list[i:i + SQL_PARAM_LIMIT]
                           for i in range(0, len(id_list), SQL_PARAM_LIMIT)))

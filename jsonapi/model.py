@@ -297,15 +297,6 @@ class Model:
     def reset(self):
         self.included.clear()
         self.meta = dict()
-        # self.reset_relationship_models()
-
-    # def reset_relationship_models(self):
-    #     for field in self.fields:
-    #         if isinstance(field, Relationship):
-    #             if field.model is not None:
-    #                 field.model.reset_relationship_models()
-    #             field.model = None
-    #             field.parent = None
 
     async def paginate(self, args, filter_by):
         if args.limit is not None:
