@@ -1,10 +1,11 @@
 import enum
 import re
 
-from sqlalchemy.sql import operators, or_
+from sqlalchemy.sql import operators, or_, and_
 
 from jsonapi.exc import Error, ModelError
-from .table import is_clause, is_from_item, FromItem
+from .table import is_clause, is_from_item, FromItem, ONE_TO_MANY, ONE_TO_ONE, MANY_TO_ONE, \
+    get_foreign_key_pair
 
 MODIFIERS = {'=': operators.eq, '<>': operators.ne, '!=': operators.ne,
              '>=': operators.ge, '<=': operators.le, '>': operators.gt, '<': operators.lt}
@@ -27,26 +28,40 @@ class Filter:
         self.having = list()
         self.from_items = list(from_items)
         self.from_items_last = list()
+        self.distinct = False
 
     def __bool__(self):
         return any((self.where, self.having, self.from_items))
 
     def add(self, field, arg):
         if field.is_relationship():
+
             attr_name = arg.attr_name if arg.attr_name else 'id'
             if attr_name not in field.model.fields.keys():
                 raise ModelError('field: {} does not exist'.format(attr_name), field.model)
             attr = field.model.fields[attr_name]
-            clause = attr.filter_clause.get(attr.expr, arg.operator, arg.value)
-            self.from_items.append(FromItem(
+            filter_clause = attr.filter_clause.get(attr.expr, arg.operator, arg.value)
+            if field.cardinality == ONE_TO_ONE:
+                onclause = field.model.primary_key == field.parent.primary_key
+            elif field.cardinality == ONE_TO_MANY:
+                onclause = field.model.get_db_column(field.ref) == field.parent.primary_key
+            elif field.cardinality == MANY_TO_ONE:
+                onclause = field.model.primary_key = field.parent.get_db_column(field.ref)
+            else:
+                ref_col_model, ref_col_parent = get_foreign_key_pair(field.ref, field.model)
+                onclause = and_(field.model.primary_key == ref_col_model,
+                                ref_col_parent == field.parent.primary_key)
+
+            from_item = FromItem(
                 field.model.primary_key.table,
-                onclause=field.parent.get_db_column(field.ref) == field.model.primary_key,
-                left=True))
+                onclause=onclause,
+                left=True)
+            self.from_items.append(from_item)
             if attr.is_aggregate():
                 self.from_items_last.extend(attr.from_items.get(field.model.name, list()))
-                self.having.append(clause)
+                self.having.append(filter_clause)
             else:
-                self.where.append(clause)
+                self.where.append(filter_clause)
         else:
             clause = field.filter_clause.get(field.expr, arg.operator, arg.value)
             if field.is_aggregate():

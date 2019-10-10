@@ -3,7 +3,7 @@ from sqlalchemy.sql import and_, exists, func, select
 from jsonapi.exc import APIError, ModelError
 from jsonapi.fields import Aggregate, Field
 from .table import FromClause, FromItem, MANY_TO_MANY, MANY_TO_ONE, ONE_TO_MANY, ONE_TO_ONE, \
-    get_table_name
+    get_table_name, get_foreign_key_pair
 
 SQL_PARAM_LIMIT = 10000
 
@@ -71,6 +71,8 @@ class Query:
             query = query.where(and_(*filter_by.where))
         if filter_by.having:
             query = query.having(and_(*filter_by.having))
+        if filter_by.distinct:
+            query = query.distinct()
         return query
 
     def sort_query(self, args, query, search=None):
@@ -173,12 +175,8 @@ class Query:
                 onclause=rel.model.primary_key == rel.parent.get_db_column(rel.ref),
                 left=True)
         else:
-            xref = dict()
-            for fk in rel.ref.foreign_keys:
-                xref[fk.column.table.name] = rel.ref.c[fk.parent.name]
-            where_col = xref.pop(rel.parent.primary_key.table.name)
-            _, col2 = xref.popitem()
-            from_item = FromItem(rel.ref, onclause=rel.model.primary_key == col2, left=True)
+            where_col, ref_col = get_foreign_key_pair(rel.ref, rel.parent)
+            from_item = FromItem(rel.ref, onclause=rel.model.primary_key == ref_col, left=True)
 
         query = select(columns=self.col_list(group_by=self.is_aggregate()),
                        from_obj=self.from_obj(from_item),

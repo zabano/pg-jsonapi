@@ -16,6 +16,32 @@ def get_table_name(table_or_alias):
     return table_or_alias.name
 
 
+def get_primary_key(table):
+    """
+    Get table primary key column.
+
+    .. note::
+
+        Assumes a simple (non-composite) key and returns the first column.
+
+    :param table: SQLAlchemy Table object
+    :return: the primary key column
+    """
+    try:
+        return table.primary_key.columns.values()[0]
+    except AttributeError:
+        return table.primary_key[0]
+
+
+def get_foreign_key_pair(xref_table, model):
+    xref = dict()
+    for fk in xref_table.foreign_keys:
+        xref[fk.column.table.name] = xref_table.c[fk.parent.name]
+    col1 = xref.pop(model.primary_key.table.name)
+    _, col2 = xref.popitem()
+    return col1, col2
+
+
 class Cardinality(enum.IntEnum):
     """
     The cardinality of a relationship between two models.

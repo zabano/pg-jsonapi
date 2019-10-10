@@ -1,6 +1,7 @@
 import pytest
 
 from jsonapi.tests.util import *
+from jsonapi.tests.interface.util import check_include_multiple
 
 
 @pytest.mark.asyncio
@@ -46,3 +47,16 @@ async def test_many_to_many(users, user_count, superuser_id):
             for article in json['data']:
                 assert_object(article, 'article')
                 check_included(json, article, 'keywords', 'keyword', lambda size: size >= 0)
+
+
+@pytest.mark.asyncio
+async def test_multiple(articles, article_count, superuser_id):
+    for article_id in sample_integers(1, article_count):
+        async with get_related(articles, article_id, 'author',
+                               {'include': 'articles.comments.replies,'
+                                           'articles.keywords,'
+                                           'articles.author,'
+                                           'articles.publisher,'
+                                           'bio'},
+                               login=superuser_id) as json:
+            check_include_multiple(json, json['data'])

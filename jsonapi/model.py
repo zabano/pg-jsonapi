@@ -13,7 +13,7 @@ from jsonapi.datatypes import DataType, Integer, String
 from jsonapi.db.filter import Filter
 from jsonapi.db.query import Query
 from jsonapi.db.table import Cardinality, FromClause, FromItem, is_from_item
-from jsonapi.db.util import get_primary_key
+from db.table import get_primary_key
 from jsonapi.exc import APIError, Error, Forbidden, ModelError, NotFound
 from jsonapi.fields import Aggregate, BaseField, Derived, Field, Relationship
 from jsonapi.log import logger, log_query
@@ -323,6 +323,9 @@ class Model:
                 filter_by.add_custom(field_name, custom_filter(arg.value))
             elif field_name in self.fields:
                 field = self.fields[field_name]
+                if isinstance(field, Relationship) and field.cardinality in (
+                        Cardinality.ONE_TO_MANY, Cardinality.MANY_TO_MANY):
+                    filter_by.distinct = True
                 try:
                     filter_by.add(field, arg)
                 except Error as e:
