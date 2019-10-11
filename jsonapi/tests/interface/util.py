@@ -23,7 +23,7 @@ def check_include_multiple(json, obj):
                 assert_included(json, comment)
             for keyword in assert_relationship(included, 'keywords'):
                 assert_object(keyword, 'keyword')
-                assert_included(json, comment)
+                assert_included(json, keyword)
         elif included['type'] == 'comment':
             for reply in assert_relationship(included, 'replies'):
                 assert_object(reply, 'reply')

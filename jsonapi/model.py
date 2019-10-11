@@ -197,6 +197,12 @@ class Model:
                 from_[i] = from_item.alias(alias_name)
         return from_[index] if index is not None else from_
 
+    def parse_arguments(self, args):
+        try:
+            return RequestArguments(args)
+        except Error as e:
+            raise APIError('request args | {}'.format(e), self)
+
     def attribute(self, name):
         if name in self.fields.keys() and not isinstance(self.fields[name], Relationship):
             return self.fields[name]
@@ -303,16 +309,18 @@ class Model:
         self.included.clear()
         self.meta = dict()
 
-    async def paginate(self, args, filter_by):
-        if args.limit is not None:
-            self.meta['total'] = await pg.fetchval(self.query.all(
-                args, filter_by=filter_by, paginate=False, count=True))
+    async def paginate(self, args, filter_by, object_id=None, rel=None):
+        is_related = object_id is not None and rel is not None
+        model = rel.model if is_related else self
+        if args.limit is not None or filter_by:
+            query = model.query.related(object_id, rel, args, count=True) \
+                if is_related else model.query.all(args, count=True)
+            log_query(query)
+            model.meta['total'] = await pg.fetchval(query)
             if filter_by:
-                self.meta['totalFiltered'] = await pg.fetchval(self.query.all(
-                    args, filter_by=filter_by, paginate=False, count=True))
-        if filter_by:
-            self.meta['total'] = await pg.fetchval(self.query.all(
-                args, paginate=False, count=True))
+                model.meta['totalFiltered'] = await pg.fetchval(
+                    model.query.related(object_id, rel, args, filter_by=filter_by, count=True)
+                    if is_related else model.query.all(args, filter_by=filter_by, count=True))
 
     def get_filter(self, args):
         filter_by = Filter()
@@ -386,7 +394,8 @@ class Model:
         :param int or str object_id: the resource object id
         :return: a dictionary representing a JSON API response
         """
-        self.init_schema(RequestArguments(args))
+        args = self.parse_arguments(args)
+        self.init_schema(args)
 
         if not await pg.fetchval(self.query.exists(object_id)):
             raise NotFound(object_id, self)
@@ -416,10 +425,10 @@ class Model:
         :param str search: an optional search term
         :return: a dictionary representing a JSON API response
         """
-        args = RequestArguments(args)
+        args = self.parse_arguments(args)
         self.init_schema(args)
         filter_by = self.get_filter(args)
-        query = self.query.all(args, filter_by=filter_by, paginate=True, search=search)
+        query = self.query.all(args, filter_by=filter_by, search=search)
         log_query(query)
         recs = [dict(rec) for rec in await pg.fetch(query)]
         await self.paginate(args, filter_by)
@@ -452,19 +461,19 @@ class Model:
             raise Forbidden(object_id, self)
 
         rel = self.relationship(relationship_name)
-        args = RequestArguments(args)
+        args = self.parse_arguments(args)
         rel.load(self)
         rel.model.init_schema(args)
         filter_by = rel.model.get_filter(args)
         query = rel.model.query.related(
-            object_id, rel, args, filter_by=filter_by, paginate=True, search=search)
+            object_id, rel, args, filter_by=filter_by, search=search)
         log_query(query)
         if rel.cardinality in (Cardinality.ONE_TO_ONE, Cardinality.MANY_TO_ONE):
             result = await pg.fetchrow(query)
             data = dict(result) if result is not None else None
         else:
             data = [dict(rec) for rec in await pg.fetch(query)]
-            await rel.model.paginate(args, filter_by)
+            await rel.model.paginate(args, filter_by, object_id, rel)
         await rel.model.fetch_included(data)
         return rel.model.response(data)
 

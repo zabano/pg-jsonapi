@@ -3,7 +3,7 @@ from sqlalchemy.sql import and_, exists, func, select
 from jsonapi.exc import APIError, ModelError
 from jsonapi.fields import Aggregate, Field
 from .table import FromClause, FromItem, MANY_TO_MANY, MANY_TO_ONE, ONE_TO_MANY, ONE_TO_ONE, \
-    get_table_name, get_foreign_key_pair
+    get_foreign_key_pair
 
 SQL_PARAM_LIMIT = 10000
 
@@ -124,7 +124,7 @@ class Query:
             query = self.protect_query(query)
         return query
 
-    def all(self, args, filter_by=None, paginate=True, count=False, search=None):
+    def all(self, args, filter_by=None, count=False, search=None):
         search_t = self.model.search
 
         from_items = list()
@@ -138,14 +138,12 @@ class Query:
 
         query = self.group_query(query, filter_by=filter_by)
         if not count:
+            query = self.protect_query(query)
             query = self.sort_query(args, query, search)
+            if args.limit is not None:
+                query = query.offset(args.offset).limit(args.limit)
 
         query = self.filter_query(query, filter_by)
-        query = self.protect_query(query)
-
-        if paginate and args.limit is not None:
-            query = query.offset(args.offset).limit(args.limit)
-
         query = self.search_query(query, search)
 
         if count:
@@ -160,7 +158,7 @@ class Query:
         return self.protect_query(query)
 
     def related(self, resource_id, rel, args,
-                filter_by=None, paginate=True, count=False, search=None):
+                filter_by=None, count=False, search=None):
 
         if rel.cardinality == ONE_TO_ONE:
             where_col = rel.model.primary_key
@@ -182,15 +180,20 @@ class Query:
                        from_obj=self.from_obj(from_item),
                        whereclause=where_col == resource_id)
         query = self.group_query(query)
-        if rel.cardinality in (ONE_TO_MANY, MANY_TO_MANY):
-            query = self.sort_query(args, query)
+
+        if not count:
+            query = self.protect_query(query)
+            if rel.cardinality in (ONE_TO_MANY, MANY_TO_MANY):
+                query = self.sort_query(args, query, search)
+            if args.limit is not None:
+                query = query.offset(args.offset).limit(args.limit)
 
         query = self.filter_query(query, filter_by)
-        query = self.protect_query(query)
-        query = query.distinct()
+        query = self.search_query(query, search)
+        query = query.distinct()  # todo:: don't always distinct
 
-        if paginate and args.limit is not None:
-            query = query.offset(args.offset).limit(args.limit)
+        if count:
+            return select([func.count()]).select_from(query.alias('count'))
 
         return query
 
@@ -225,11 +228,7 @@ class Query:
                 from_obj=self.from_obj(from_item))
 
         else:
-            xref = dict()
-            for fk in rel.ref.foreign_keys:
-                xref[fk.column.table.name] = rel.ref.c[fk.parent.name]
-            parent_col = xref[get_table_name(rel.parent.primary_key.table)]
-            model_col = xref[get_table_name(rel.model.primary_key.table)]
+            model_col, parent_col = get_foreign_key_pair(rel.ref, rel.model)
             query = select(
                 columns=self.col_list(parent_col.label('parent_id'),
                                       group_by=self.is_aggregate()),

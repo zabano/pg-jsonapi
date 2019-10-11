@@ -46,7 +46,7 @@ class Filter:
             elif field.cardinality == ONE_TO_MANY:
                 onclause = field.model.get_db_column(field.ref) == field.parent.primary_key
             elif field.cardinality == MANY_TO_ONE:
-                onclause = field.model.primary_key = field.parent.get_db_column(field.ref)
+                onclause = field.model.primary_key == field.parent.get_db_column(field.ref)
             else:
                 ref_col_model, ref_col_parent = get_foreign_key_pair(field.ref, field.model)
                 onclause = and_(field.model.primary_key == ref_col_model,

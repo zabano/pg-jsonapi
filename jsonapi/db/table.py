@@ -37,7 +37,7 @@ def get_foreign_key_pair(xref_table, model):
     xref = dict()
     for fk in xref_table.foreign_keys:
         xref[fk.column.table.name] = xref_table.c[fk.parent.name]
-    col1 = xref.pop(model.primary_key.table.name)
+    col1 = xref.pop(get_table_name(model.primary_key.table))
     _, col2 = xref.popitem()
     return col1, col2
 

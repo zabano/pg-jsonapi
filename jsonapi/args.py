@@ -66,17 +66,13 @@ class RequestArguments:
         #
 
         if 'page[size]' in args:
-
             try:
                 self.limit = int(args['page[size]'])
             except ValueError:
                 raise Error('page[size] request parameter must be an integer')
-
             if self.limit <= 0:
                 raise Error('page[size] request parameter must be positive')
-
             if 'page[number]' in args and self.limit > 0:
-
                 try:
                     number = int(args['page[number]'])
                 except ValueError:
@@ -85,6 +81,8 @@ class RequestArguments:
                     if number <= 0:
                         raise Error('page[number] request parameter must be positive')
                     self.offset = (number - 1) * self.limit
+        elif 'page[number]' in args:
+            raise Error('page[size] request parameter not provided')
 
         #
         # filter
