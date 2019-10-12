@@ -1,22 +1,22 @@
 from collections import defaultdict
 from collections.abc import Sequence
+from copy import copy
 from functools import reduce
 from itertools import islice
-from copy import copy
 
 import marshmallow as ma
 from asyncpgsa import pg
 from inflection import camelize, dasherize, underscore
 
+from db.table import get_primary_key
 from jsonapi.args import RequestArguments
 from jsonapi.datatypes import DataType, Integer, String
 from jsonapi.db.filter import Filter
-from jsonapi.db.query import Query
+from jsonapi.db.query import exists, select_many, select_one, select_related
 from jsonapi.db.table import Cardinality, FromClause, FromItem, is_from_item
-from db.table import get_primary_key
 from jsonapi.exc import APIError, Error, Forbidden, ModelError, NotFound
 from jsonapi.fields import Aggregate, BaseField, Derived, Field, Relationship
-from jsonapi.log import logger, log_query
+from jsonapi.log import log_query, logger
 from jsonapi.registry import model_registry, schema_registry
 
 MIME_TYPE = 'application/vnd.api+json'
@@ -115,7 +115,6 @@ class Model:
 
         self.schema = None
         self.fields = self.get_fields()
-        self.query = Query(self)
 
         self.included = defaultdict(dict)
         self.meta = dict()
@@ -313,14 +312,14 @@ class Model:
         is_related = object_id is not None and rel is not None
         model = rel.model if is_related else self
         if args.limit is not None or filter_by:
-            query = model.query.related(object_id, rel, args, count=True) \
-                if is_related else model.query.all(args, count=True)
+            query = select_related(rel, object_id, args, count=True) \
+                if is_related else select_many(self, args, count=True)
             log_query(query)
             model.meta['total'] = await pg.fetchval(query)
             if filter_by:
                 model.meta['totalFiltered'] = await pg.fetchval(
-                    model.query.related(object_id, rel, args, filter_by=filter_by, count=True)
-                    if is_related else model.query.all(args, filter_by=filter_by, count=True))
+                    select_related(rel, object_id, args, filter_by=filter_by, count=True)
+                    if is_related else select_many(self, args, filter_by=filter_by, count=True))
 
     def get_filter(self, args):
         filter_by = Filter()
@@ -340,7 +339,7 @@ class Model:
                     raise APIError('filter:{} | {}'.format(field_name, e), self)
         return filter_by
 
-    async def fetch_included(self, data):
+    async def fetch_included(self, data, args):
 
         if not isinstance(data, list):
             data = list() if data is None else [data]
@@ -350,7 +349,7 @@ class Model:
 
         for rel in self.relationships.values():
             result = list()
-            for query in rel.model.query.included(rel, [rec['id'] for rec in data]):
+            for query in select_related(rel, [rec['id'] for rec in data], args):
                 log_query(query)
                 result.extend(await pg.fetch(query))
 
@@ -372,7 +371,7 @@ class Model:
             await rel.model.fetch_included(
                 reduce(lambda a, b: a + b if isinstance(b, list) else a + [b],
                        [rec[rel.name] for rec in data if rec[rel.name] is not None],
-                       list()))
+                       list()), args)
 
     ################################################################################################
     # public interface
@@ -397,19 +396,19 @@ class Model:
         args = self.parse_arguments(args)
         self.init_schema(args)
 
-        if not await pg.fetchval(self.query.exists(object_id)):
+        if not await pg.fetchval(exists(self, object_id)):
             raise NotFound(object_id, self)
 
-        query = self.query.get(object_id)
+        query = select_one(self, object_id)
         log_query(query)
         result = await pg.fetchrow(query)
         if result is None:
             raise Forbidden(object_id, self)
         rec = dict(result)
-        await self.fetch_included([rec])
+        await self.fetch_included([rec], args)
         return self.response(rec)
 
-    async def get_collection(self, args, search=None):
+    async def get_collection(self, args, search_term=None):
         """
         Fetch a collection of resources.
 
@@ -422,20 +421,20 @@ class Model:
         >>> })
 
         :param dict args: a dictionary representing the request query string
-        :param str search: an optional search term
+        :param str search_term: an optional search term
         :return: a dictionary representing a JSON API response
         """
         args = self.parse_arguments(args)
         self.init_schema(args)
         filter_by = self.get_filter(args)
-        query = self.query.all(args, filter_by=filter_by, search=search)
+        query = select_many(self, args, filter_by=filter_by, search_term=search_term)
         log_query(query)
         recs = [dict(rec) for rec in await pg.fetch(query)]
         await self.paginate(args, filter_by)
-        await self.fetch_included(recs)
+        await self.fetch_included(recs, args)
         return self.response(recs)
 
-    async def get_related(self, args, object_id, relationship_name, search=None):
+    async def get_related(self, args, object_id, relationship_name, search_term=None):
         """
         Fetch a collection of related resources.
 
@@ -449,14 +448,14 @@ class Model:
         :param dict args: a dictionary representing the request query string
         :param object_id: the resource object id
         :param relationship_name: relationship name
-        :param str search: an optional search term
+        :param str search_term: an optional search term
         :return: a dictionary representing a JSON API response
         """
 
-        if not await pg.fetchval(self.query.exists(object_id)):
+        if not await pg.fetchval(exists(self, object_id)):
             raise NotFound(object_id, self)
 
-        result = await pg.fetchrow(self.query.get(object_id))
+        result = await pg.fetchrow(select_one(self, object_id))
         if result is None:
             raise Forbidden(object_id, self)
 
@@ -465,8 +464,7 @@ class Model:
         rel.load(self)
         rel.model.init_schema(args)
         filter_by = rel.model.get_filter(args)
-        query = rel.model.query.related(
-            object_id, rel, args, filter_by=filter_by, search=search)
+        query = select_related(rel, object_id, args, filter_by=filter_by, search=search_term)
         log_query(query)
         if rel.cardinality in (Cardinality.ONE_TO_ONE, Cardinality.MANY_TO_ONE):
             result = await pg.fetchrow(query)
@@ -474,7 +472,7 @@ class Model:
         else:
             data = [dict(rec) for rec in await pg.fetch(query)]
             await rel.model.paginate(args, filter_by, object_id, rel)
-        await rel.model.fetch_included(data)
+        await rel.model.fetch_included(data, args)
         return rel.model.response(data)
 
     def __repr__(self):

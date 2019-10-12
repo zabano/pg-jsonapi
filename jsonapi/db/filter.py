@@ -1,11 +1,11 @@
 import enum
 import re
 
-from sqlalchemy.sql import operators, or_, and_
+from sqlalchemy.sql import and_, operators, or_
 
 from jsonapi.exc import Error, ModelError
-from .table import is_clause, is_from_item, FromItem, ONE_TO_MANY, ONE_TO_ONE, MANY_TO_ONE, \
-    get_foreign_key_pair
+from .table import FromItem, MANY_TO_ONE, ONE_TO_MANY, ONE_TO_ONE, get_foreign_key_pair, is_clause, \
+    is_from_item
 
 MODIFIERS = {'=': operators.eq, '<>': operators.ne, '!=': operators.ne,
              '>=': operators.ge, '<=': operators.le, '>': operators.gt, '<': operators.lt}
@@ -33,6 +33,24 @@ class Filter:
     def __bool__(self):
         return any((self.where, self.having, self.from_items))
 
+    @staticmethod
+    def _rel_from_items(rel):
+        if rel.cardinality == ONE_TO_ONE:
+            onclause = rel.model.primary_key == rel.parent.primary_key
+        elif rel.cardinality == ONE_TO_MANY:
+            onclause = rel.model.get_db_column(rel.ref) == rel.parent.primary_key
+        elif rel.cardinality == MANY_TO_ONE:
+            onclause = rel.model.primary_key == rel.parent.get_db_column(rel.ref)
+        else:
+            ref_col_model, ref_col_parent = get_foreign_key_pair(rel.ref, rel.model)
+            return [FromItem(rel.ref,
+                             onclause=ref_col_parent == rel.parent.primary_key,
+                             left=True),
+                    FromItem(rel.model.primary_key.table,
+                             onclause=rel.model.primary_key == ref_col_model,
+                             left=True)]
+        return [FromItem(rel.model.primary_key.table, onclause=onclause, left=True)]
+
     def add(self, field, arg):
         if field.is_relationship():
 
@@ -41,22 +59,7 @@ class Filter:
                 raise ModelError('field: {} does not exist'.format(attr_name), field.model)
             attr = field.model.fields[attr_name]
             filter_clause = attr.filter_clause.get(attr.expr, arg.operator, arg.value)
-            if field.cardinality == ONE_TO_ONE:
-                onclause = field.model.primary_key == field.parent.primary_key
-            elif field.cardinality == ONE_TO_MANY:
-                onclause = field.model.get_db_column(field.ref) == field.parent.primary_key
-            elif field.cardinality == MANY_TO_ONE:
-                onclause = field.model.primary_key == field.parent.get_db_column(field.ref)
-            else:
-                ref_col_model, ref_col_parent = get_foreign_key_pair(field.ref, field.model)
-                onclause = and_(field.model.primary_key == ref_col_model,
-                                ref_col_parent == field.parent.primary_key)
-
-            from_item = FromItem(
-                field.model.primary_key.table,
-                onclause=onclause,
-                left=True)
-            self.from_items.append(from_item)
+            self.from_items.extend(self._rel_from_items(field))
             if attr.is_aggregate():
                 self.from_items_last.extend(attr.from_items.get(field.model.name, list()))
                 self.having.append(filter_clause)
@@ -65,6 +68,7 @@ class Filter:
         else:
             clause = field.filter_clause.get(field.expr, arg.operator, arg.value)
             if field.is_aggregate():
+                self.from_items.extend(self._rel_from_items(field.rel))
                 self.having.append(clause)
             else:
                 self.where.append(clause)

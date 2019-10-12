@@ -1,243 +1,206 @@
-from sqlalchemy.sql import and_, exists, func, select
+import sqlalchemy.sql as sql
 
 from jsonapi.exc import APIError, ModelError
-from jsonapi.fields import Aggregate, Field
+from jsonapi.fields import Aggregate, Derived, Field, Relationship
 from .table import FromClause, FromItem, MANY_TO_MANY, MANY_TO_ONE, ONE_TO_MANY, ONE_TO_ONE, \
     get_foreign_key_pair
 
 SQL_PARAM_LIMIT = 10000
+SEARCH_LABEL = '_ts_rank'
 
 
-class Query:
-    """
-    Represents a SELECT query.
-    """
+####################################################################################################
+# public interface
+####################################################################################################
 
-    def __init__(self, model):
-        self.model = model
+def exists(model, obj_id):
+    return sql.select([sql.exists(sql.select([model.primary_key]).where(
+        model.primary_key == obj_id))])
 
-    def is_aggregate(self):
-        return any(isinstance(field, Aggregate) for field in self.model.fields.values()
-                   if field.expr is not None)
 
-    def col_list(self, *columns, **kwargs):
+def select_one(model, obj_id):
+    query = sql.select(from_obj=_from_obj(model),
+                       columns=_col_list(model),
+                       whereclause=model.primary_key == obj_id)
+    query = _group_query(model, query)
+    query = _protect_query(model, query)
+    return query
 
-        col_list = [self.model.attributes['id'].expr.label('id')]
-        col_list.extend(columns)
 
-        group_by = bool(kwargs.get('group_by', False))
-        field_type = (Field, Aggregate) if group_by else Field
+def select_many(model, args, **kwargs):
+    filter_by = kwargs.get('filter_by', None)
+    search_term = kwargs.get('search_term', None)
+    count = bool(kwargs.get('count', False))
 
-        for name, field in self.model.attributes.items():
-            if field.name != 'id' and isinstance(field, field_type) and field.expr is not None:
-                col_list.append(field.expr.label(name))
+    query = sql.select(columns=_col_list(model, search_term=search_term),
+                       from_obj=_from_obj(model, filter_by=filter_by, search_term=search_term))
 
-        search = kwargs.get('search', None)
-        if self.model.search is not None and search is not None:
-            col_list.append(self.rank_column(search))
+    if not count:
+        query = _protect_query(model, query)
+        query = _sort_query(model, query, args.sort, search_term)
+        if args.limit is not None:
+            query = query.offset(args.offset).limit(args.limit)
 
-        return col_list
+    query = _group_query(model, query, filter_by=filter_by)
+    query = _filter_query(query, filter_by)
+    query = _search_query(model, query, search_term)
+    return _count_query(query) if count else query
 
-    def from_obj(self, *additional):
-        from_clause = FromClause()
-        from_clause.extend(self.model.from_clause)
-        from_clause.extend(additional)
-        for field in self.model.fields.values():
-            if isinstance(field, Aggregate) and field.expr is not None:
-                for from_item in field.from_items[self.model.name]:
-                    from_clause.append(from_item)
-        return from_clause()
 
-    def rank_column(self, search):
-        if self.model.search is not None and search is not None:
-            return func.ts_rank_cd(
-                self.model.search.c.tsvector, func.to_tsquery(search)).label('_ts_rank')
+def select_related(rel, obj_id, args, **kwargs):
+    filter_by = kwargs.get('filter_by', None)
+    search_term = kwargs.get('search_term', None)
+    count = bool(kwargs.get('count', False))
 
-    ################################################################################################
-    # query
-    ################################################################################################
+    from_items = []
 
-    def group_query(self, query, *columns, **kwargs):
-        filter_by = kwargs.get('filter_by', None)
-        if self.is_aggregate() or (filter_by is not None and len(filter_by.having) > 0):
-            query = query.group_by(*self.col_list(*columns))
-        return query
+    if rel.cardinality == ONE_TO_ONE:
+        parent_col = rel.model.primary_key
+        if isinstance(obj_id, list):
+            from_items.append(FromItem(
+                rel.model.primary_key.table,
+                onclause=rel.model.primary_key == rel.parent.primary_key,
+                left=True))
 
-    @staticmethod
-    def filter_query(query, filter_by):
-        if not filter_by:
-            return query
-        if filter_by.where:
-            query = query.where(and_(*filter_by.where))
-        if filter_by.having:
-            query = query.having(and_(*filter_by.having))
-        if filter_by.distinct:
-            query = query.distinct()
-        return query
+    elif rel.cardinality == ONE_TO_MANY:
+        parent_col = rel.model.get_db_column(rel.ref)
 
-    def sort_query(self, args, query, search=None):
-        if self.model.search is not None and search is not None:
-            return query.order_by(self.rank_column(search).desc())
-        order_by = list()
-        for name, desc in args.sort.items():
-            try:
-                field = self.model.fields[name]
-            except KeyError:
-                raise APIError('column does not exist: {}'.format(name), self.model)
-            else:
-                if not field.is_relationship() and field.expr is not None:
-                    order_by.append(getattr(field.expr, 'desc' if desc else 'asc')().nullslast())
+    elif rel.cardinality == MANY_TO_ONE:
+        parent_col = rel.parent.primary_key
+        from_items.append(FromItem(
+            rel.parent.primary_key.table,
+            onclause=rel.model.primary_key == rel.parent.get_db_column(rel.ref),
+            left=True))
 
-        return query.order_by(*order_by)
+    else:
+        parent_col, ref_col = get_foreign_key_pair(rel.ref, rel.parent)
+        from_items.append(FromItem(
+            rel.ref,
+            onclause=rel.model.primary_key == ref_col,
+            left=True))
 
-    def protect_query(self, query):
+    query = sql.select(columns=_col_list(rel.model,
+                                         parent_col.label('parent_id')
+                                         if isinstance(obj_id, list) else None,
+                                         search_term=search_term),
+                       from_obj=_from_obj(rel.model, *from_items,
+                                          filter_by=filter_by,
+                                          search_term=search_term))
+    if not isinstance(obj_id, list):
+        query = query.where(parent_col == obj_id)
 
-        if self.model.access is None:
-            return query
+    if not count:
+        query = _protect_query(rel.model, query)
+        if rel.cardinality in (ONE_TO_MANY, MANY_TO_MANY):
+            query = _sort_query(rel.model, query, args.sort, search_term)
+        if args.limit is not None:
+            query = query.offset(args.offset).limit(args.limit)
 
-        if not hasattr(self.model, 'user'):
-            raise ModelError('"user" not defined for protected model', self.model)
+    query = _group_query(rel.model, query, parent_col if isinstance(obj_id, list) else None)
+    query = _filter_query(query, filter_by)
+    query = _search_query(rel.model, query, search_term)
+    query = query.distinct()  # todo:: don't always distinct
 
-        return query.where(self.model.access(
-            self.model.primary_key, self.model.user.id if self.model.user else None))
-
-    def search_query(self, query, search):
-        if self.model.search is None or search is None:
-            return query
-        query = query.where(self.model.search.c.tsvector.match(search))
-        return query
-
-    ################################################################################################
-    # interface
-    ################################################################################################
-
-    def exists(self, resource_id):
-        return select([exists(select([self.model.primary_key]).where(
-            self.model.primary_key == resource_id))])
-
-    def get(self, resource_id):
-        query = select(from_obj=self.from_obj(),
-                       columns=self.col_list(group_by=self.is_aggregate()),
-                       whereclause=self.model.primary_key == resource_id)
-        query = self.group_query(query)
-        if self.model.access is not None:
-            query = self.protect_query(query)
-        return query
-
-    def all(self, args, filter_by=None, count=False, search=None):
-        search_t = self.model.search
-
-        from_items = list()
-        if filter_by:
-            from_items.extend(filter_by.from_items)
-            from_items.extend(filter_by.from_items_last)
-        if search is not None:
-            from_items.append(search_t)
-        query = select(columns=self.col_list(search=search, group_by=self.is_aggregate()),
-                       from_obj=self.from_obj(*from_items))
-
-        query = self.group_query(query, filter_by=filter_by)
-        if not count:
-            query = self.protect_query(query)
-            query = self.sort_query(args, query, search)
-            if args.limit is not None:
-                query = query.offset(args.offset).limit(args.limit)
-
-        query = self.filter_query(query, filter_by)
-        query = self.search_query(query, search)
-
-        if count:
-            return select([func.count()]).select_from(query.alias('count'))
-        return query
-
-    def search(self, term):
-        search_t = self.model.search
-        query = select(columns=[self.model.primary_key, self.rank_column(term)],
-                       from_obj=self.from_obj(search_t))
-        query = self.search_query(query, term)
-        return self.protect_query(query)
-
-    def related(self, resource_id, rel, args,
-                filter_by=None, count=False, search=None):
-
-        if rel.cardinality == ONE_TO_ONE:
-            where_col = rel.model.primary_key
-            from_item = None
-        elif rel.cardinality == ONE_TO_MANY:
-            where_col = rel.model.get_db_column(rel.ref)
-            from_item = None
-        elif rel.cardinality == MANY_TO_ONE:
-            where_col = rel.parent.primary_key
-            from_item = FromItem(
-                rel.parent.primary_key.table,
-                onclause=rel.model.primary_key == rel.parent.get_db_column(rel.ref),
-                left=True)
-        else:
-            where_col, ref_col = get_foreign_key_pair(rel.ref, rel.parent)
-            from_item = FromItem(rel.ref, onclause=rel.model.primary_key == ref_col, left=True)
-
-        query = select(columns=self.col_list(group_by=self.is_aggregate()),
-                       from_obj=self.from_obj(from_item),
-                       whereclause=where_col == resource_id)
-        query = self.group_query(query)
-
-        if not count:
-            query = self.protect_query(query)
-            if rel.cardinality in (ONE_TO_MANY, MANY_TO_MANY):
-                query = self.sort_query(args, query, search)
-            if args.limit is not None:
-                query = query.offset(args.offset).limit(args.limit)
-
-        query = self.filter_query(query, filter_by)
-        query = self.search_query(query, search)
-        query = query.distinct()  # todo:: don't always distinct
-
-        if count:
-            return select([func.count()]).select_from(query.alias('count'))
-
-        return query
-
-    def included(self, rel, id_list):
-
-        if rel.cardinality == ONE_TO_ONE:
-            parent_col = rel.model.primary_key
-            from_item = FromItem(rel.model.primary_key.table,
-                                 onclause=rel.model.primary_key == rel.parent.primary_key,
-                                 left=True)
-            query = select(
-                columns=self.col_list(parent_col.label('parent_id'),
-                                      group_by=self.is_aggregate()),
-                from_obj=self.from_obj(from_item))
-
-        elif rel.cardinality == ONE_TO_MANY:
-            parent_col = rel.model.get_db_column(rel.ref)
-            query = select(
-                columns=self.col_list(parent_col.label('parent_id'),
-                                      group_by=self.is_aggregate()),
-                from_obj=self.from_obj())
-
-        elif rel.cardinality == MANY_TO_ONE:
-            parent_col = rel.parent.primary_key
-            from_item = FromItem(
-                rel.parent.primary_key.table,
-                onclause=rel.model.primary_key == rel.parent.get_db_column(rel.ref),
-                left=True)
-            query = select(
-                columns=self.col_list(parent_col.label('parent_id'),
-                                      group_by=self.is_aggregate()),
-                from_obj=self.from_obj(from_item))
-
-        else:
-            model_col, parent_col = get_foreign_key_pair(rel.ref, rel.model)
-            query = select(
-                columns=self.col_list(parent_col.label('parent_id'),
-                                      group_by=self.is_aggregate()),
-                from_obj=self.from_obj(FromItem(rel.ref,
-                                                onclause=model_col == rel.model.primary_key,
-                                                left=True)))
-
-        query = self.group_query(query, parent_col)
-        query = self.protect_query(query)
+    if isinstance(obj_id, list):
         return (query.where(parent_col.in_(x))
-                for x in (id_list[i:i + SQL_PARAM_LIMIT]
-                          for i in range(0, len(id_list), SQL_PARAM_LIMIT)))
+                for x in (obj_id[i:i + SQL_PARAM_LIMIT]
+                          for i in range(0, len(obj_id), SQL_PARAM_LIMIT)))
+    return _count_query(query) if count else query
+
+
+def search(model, term):
+    query = sql.select(columns=[model.primary_key, _rank_column(model, term)],
+                       from_obj=_from_obj(model.search))
+    query = _search_query(model, query, term)
+    return _protect_query(model, query)
+
+
+####################################################################################################
+# helpers
+####################################################################################################
+
+def _col_list(model, *extra_columns, **kwargs):
+    group_by = bool(kwargs.get('group_by', False))
+    col_list = [model.attributes['id'].expr.label('id')]
+    for field in model.attributes.values():
+        if (isinstance(field, (Field, Derived)) and field.name != 'id') \
+                or (not group_by and isinstance(field, Aggregate) and field.expr is not None):
+            col_list.append(field.expr.label(field.name))
+    col_list.extend(col for col in extra_columns if col is not None)
+    return col_list
+
+
+def _from_obj(model, *extra_items, **kwargs):
+    filter_by = kwargs.get('filter_by', None)
+    search_term = kwargs.get('search_term', None)
+    from_clause = FromClause(*model.from_clause)
+    from_clause.extend(extra_items)
+    if filter_by:
+        from_clause.extend(filter_by.from_items)
+        from_clause.extend(filter_by.from_items_last)
+    if model.search is not None and search_term is not None:
+        from_clause.append(model.search)
+    for field in model.attributes.values():
+        if isinstance(field, Aggregate) and field.expr is not None:
+            for from_item in field.from_items[model.name]:
+                from_clause.append(from_item)
+    return from_clause()
+
+
+def _group_query(model, query, *extra_columns, **kwargs):
+    filter_by = kwargs.get('filter_by', None)
+    if (filter_by is not None and len(filter_by.having) > 0) \
+            or (any(isinstance(field, Aggregate) for field in model.attributes.values())):
+        query = query.group_by(*_col_list(model, *extra_columns, group_by=True))
+    return query
+
+
+def _filter_query(query, filter_by):
+    if not filter_by:
+        return query
+    if filter_by.where:
+        query = query.where(sql.and_(*filter_by.where))
+    if filter_by.having:
+        query = query.having(sql.and_(*filter_by.having))
+    if filter_by.distinct:
+        query = query.distinct()
+    return query
+
+
+def _sort_query(model, query, sort, search_term):
+    if search_term is not None:
+        return query.order_by(_rank_column(model, search_term).desc())
+    order_by = list()
+    for name, desc in sort.items():
+        try:
+            field = model.fields[name]
+        except KeyError:
+            raise APIError('column does not exist: {}'.format(name), model)
+        else:
+            if not isinstance(field, Relationship) and field.expr is not None:
+                order_by.append(getattr(field.expr, 'desc' if desc else 'asc')().nullslast())
+    return query.order_by(*order_by)
+
+
+def _protect_query(model, query):
+    if model.access is None:
+        return query
+    if not hasattr(model, 'user'):
+        raise ModelError('"user" not defined for protected model', model)
+    return query.where(model.access(
+        model.primary_key, model.user.id if model.user else None))
+
+
+def _search_query(model, query, search_term):
+    if model.search is None or search_term is None:
+        return query
+    return query.where(model.search.c.tsvector.match(search_term))
+
+
+def _rank_column(model, search_term):
+    return sql.func.ts_rank_cd(
+        model.search.c.tsvector, sql.func.to_tsquery(search_term)).label(SEARCH_LABEL)
+
+
+def _count_query(query):
+    return sql.select([sql.func.count()]).select_from(query.alias('count'))

@@ -277,6 +277,7 @@ async def test_aggregate_2(users):
             assert_attribute(user, 'articleCount', lambda v: v <= 3)
 
 
+@pytest.mark.dev
 @pytest.mark.asyncio
 async def test_aggregate_3(articles, superuser_id):
     async with get_collection(articles,
