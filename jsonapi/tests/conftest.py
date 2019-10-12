@@ -6,7 +6,7 @@ from sqlalchemy.sql import and_, func, select
 
 from jsonapi.tests.data import TOTAL_USERS
 from jsonapi.tests.db import *
-from jsonapi.tests.model import ArticleModel, TestModel, UserModel
+from jsonapi.tests.model import ArticleModel, KeywordModel, TestModel, UserModel
 
 
 @pytest.yield_fixture(scope='session')
@@ -40,6 +40,11 @@ def users():
 @pytest.fixture()
 def articles():
     return ArticleModel()
+
+
+@pytest.fixture()
+def keywords():
+    return KeywordModel()
 
 
 #

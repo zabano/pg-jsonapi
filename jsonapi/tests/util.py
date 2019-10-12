@@ -1,15 +1,21 @@
 import datetime as dt
+import random
 from contextlib import asynccontextmanager
 from json import dumps as json_dumps
-import random
+
+from inflection import camelize, underscore
 
 from jsonapi.datatypes import DataType
-from jsonapi.tests.auth import login, logout
 from jsonapi.log import logger
+from jsonapi.tests.auth import login, logout
 
 
 def log_json(data):
     logger.info(json_dumps(data, indet=4, sort_keys=True))
+
+
+def field_name(name):
+    return camelize(underscore(name), False)
 
 
 ####################################################################################################
@@ -59,20 +65,22 @@ async def get_related(model, object_id, name, args=None, **kwargs):
 # asserts
 ####################################################################################################
 
-def assert_object(json, object_type, validator=None):
-    assert 'type' in json
-    assert json['type'] == object_type
-    assert 'id' in json
+def assert_object(obj, object_type, validator=None):
+    assert 'type' in obj
+    assert obj['type'] == object_type
+    assert 'id' in obj
     if validator is not None:
-        assert validator(json['id'])
+        assert validator(obj['id'])
+    return obj['id']
 
 
-def assert_attribute(json, name, validator=None):
-    assert 'attributes' in json
-    attributes = json['attributes']
-    assert name in attributes
+def assert_attribute(obj, name, validator=None):
+    name = field_name(name)
+    assert 'attributes' in obj
+    assert name in obj['attributes']
     if validator is not None:
-        assert validator(attributes[name]) is True
+        assert validator(obj['attributes'][name]) is True
+    return obj['attributes'][name]
 
 
 def assert_attribute_does_not_exist(json, name):
@@ -81,9 +89,20 @@ def assert_attribute_does_not_exist(json, name):
     assert name not in attributes
 
 
+def assert_collection(json, object_type, validate_length=None, validator=None):
+    assert 'data' in json
+    assert isinstance(json['data'], list)
+    if validate_length is not None:
+        assert validate_length(len(json['data']))
+    for obj in json['data']:
+        assert_object(obj, object_type, validator)
+        yield obj
+
+
 def assert_relationship(json, name, validate_length=None):
     assert 'relationships' in json
     relationships = json['relationships']
+    name = field_name(name)
     assert name in relationships
     if isinstance(relationships[name], list):
         if validate_length is not None:
@@ -119,6 +138,25 @@ def assert_meta(json, name, validator=None):
         assert validator(json['meta'][name])
 
 
+def assert_field(obj, name):
+    name = field_name(name)
+    if name == 'id':
+        return obj['id']
+    if 'attributes' in obj and name in obj['attributes']:
+        return obj['attributes'][name]
+    if 'relationships' in obj and name in obj['relationships']:
+        return obj['relationships'][name]
+    assert False
+
+
+def assert_sorted(json, attr_name, reverse=False, validator_length=None):
+    data = [assert_field(user, attr_name) for user in assert_collection(
+        json, 'user', validator_length)]
+    assert data == sorted(data,
+                          key=lambda x: int(x) if attr_name == 'id' else x,
+                          reverse=reverse)
+
+
 ####################################################################################################
 # check resources
 ####################################################################################################
@@ -134,33 +172,33 @@ def check_user(user, validator=None):
     assert_attribute(user, 'createdOn', lambda v: is_datetime(v))
 
 
-def check_article(json, validator=None):
-    assert_object(json, 'article', validator)
-    assert_attribute(json, 'body', lambda v: is_string(v))
-    assert_attribute(json, 'title', lambda v: is_string(v))
-    assert_attribute(json, 'isPublished', lambda v: isinstance(v, bool))
-    assert_attribute(json, 'createdOn', lambda v: is_datetime(v))
-    assert_attribute(json, 'updatedOn', lambda v: is_datetime(v, nullable=True))
+def check_article(article, validator=None):
+    assert_object(article, 'article', validator)
+    assert_attribute(article, 'body', lambda v: is_string(v))
+    assert_attribute(article, 'title', lambda v: is_string(v))
+    assert_attribute(article, 'isPublished', lambda v: isinstance(v, bool))
+    assert_attribute(article, 'createdOn', lambda v: is_datetime(v))
+    assert_attribute(article, 'updatedOn', lambda v: is_datetime(v, nullable=True))
 
 
-def check_comment(json, validator=None):
-    assert_object(json, 'comment', validator)
-    assert_attribute(json, 'body', lambda v: is_string(v))
-    assert_attribute(json, 'createdOn', lambda v: is_datetime(v))
-    assert_attribute(json, 'updatedOn', lambda v: is_datetime(v, nullable=True))
+def check_comment(comment, validator=None):
+    assert_object(comment, 'comment', validator)
+    assert_attribute(comment, 'body', lambda v: is_string(v))
+    assert_attribute(comment, 'createdOn', lambda v: is_datetime(v))
+    assert_attribute(comment, 'updatedOn', lambda v: is_datetime(v, nullable=True))
 
 
-def check_reply(json, validator=None):
-    assert_object(json, 'reply', validator)
-    assert_attribute(json, 'body', lambda v: is_string(v))
-    assert_attribute(json, 'createdOn', lambda v: is_datetime(v))
-    assert_attribute(json, 'updatedOn', lambda v: is_datetime(v, nullable=True))
+def check_reply(reply, validator=None):
+    assert_object(reply, 'reply', validator)
+    assert_attribute(reply, 'body', lambda v: is_string(v))
+    assert_attribute(reply, 'createdOn', lambda v: is_datetime(v))
+    assert_attribute(reply, 'updatedOn', lambda v: is_datetime(v, nullable=True))
 
 
-def check_user_bio(json, validator=None):
-    assert_object(json, 'user-bio', validator)
-    assert_attribute(json, 'summary', lambda v: is_string(v, nullable=True))
-    assert_attribute(json, 'birthday', lambda v: is_date(v, nullable=True))
+def check_user_bio(bio, validator=None):
+    assert_object(bio, 'user-bio', validator)
+    assert_attribute(bio, 'summary', lambda v: is_string(v, nullable=True))
+    assert_attribute(bio, 'birthday', lambda v: is_date(v, nullable=True))
 
 
 def check_included(json, obj, rel_name, rel_type, validator=None, object_validator=None):
