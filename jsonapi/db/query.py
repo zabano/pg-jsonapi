@@ -2,8 +2,7 @@ import sqlalchemy.sql as sql
 
 from jsonapi.exc import APIError, ModelError
 from jsonapi.fields import Aggregate, Derived, Field, Relationship
-from .table import FromClause, FromItem, MANY_TO_MANY, MANY_TO_ONE, ONE_TO_MANY, ONE_TO_ONE, \
-    get_foreign_key_pair
+from .table import Cardinality, FromClause, FromItem, get_foreign_key_pair
 
 SQL_PARAM_LIMIT = 10000
 SEARCH_LABEL = '_ts_rank'
@@ -54,7 +53,7 @@ def select_related(rel, obj_id, args, **kwargs):
 
     from_items = []
 
-    if rel.cardinality == ONE_TO_ONE:
+    if rel.cardinality == Cardinality.ONE_TO_ONE:
         parent_col = rel.model.primary_key
         if isinstance(obj_id, list):
             from_items.append(FromItem(
@@ -62,10 +61,10 @@ def select_related(rel, obj_id, args, **kwargs):
                 onclause=rel.model.primary_key == rel.parent.primary_key,
                 left=True))
 
-    elif rel.cardinality == ONE_TO_MANY:
+    elif rel.cardinality == Cardinality.ONE_TO_MANY:
         parent_col = rel.model.get_db_column(rel.ref)
 
-    elif rel.cardinality == MANY_TO_ONE:
+    elif rel.cardinality == Cardinality.MANY_TO_ONE:
         parent_col = rel.parent.primary_key
         from_items.append(FromItem(
             rel.parent.primary_key.table,
@@ -91,7 +90,7 @@ def select_related(rel, obj_id, args, **kwargs):
 
     if not count:
         query = _protect_query(rel.model, query)
-        if rel.cardinality in (ONE_TO_MANY, MANY_TO_MANY):
+        if rel.cardinality in (Cardinality.ONE_TO_MANY, Cardinality.MANY_TO_MANY):
             query = _sort_query(rel.model, query, args.sort, search_term)
         if args.limit is not None:
             query = query.offset(args.offset).limit(args.limit)

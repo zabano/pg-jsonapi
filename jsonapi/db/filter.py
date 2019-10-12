@@ -1,11 +1,10 @@
 import enum
 import re
 
-from sqlalchemy.sql import and_, operators, or_
+from sqlalchemy.sql import operators, or_
 
 from jsonapi.exc import Error, ModelError
-from .table import FromItem, MANY_TO_ONE, ONE_TO_MANY, ONE_TO_ONE, get_foreign_key_pair, is_clause, \
-    is_from_item
+from .table import Cardinality, FromItem, get_foreign_key_pair, is_clause, is_from_item
 
 MODIFIERS = {'=': operators.eq, '<>': operators.ne, '!=': operators.ne,
              '>=': operators.ge, '<=': operators.le, '>': operators.gt, '<': operators.lt}
@@ -35,11 +34,11 @@ class Filter:
 
     @staticmethod
     def _rel_from_items(rel):
-        if rel.cardinality == ONE_TO_ONE:
+        if rel.cardinality == Cardinality.ONE_TO_ONE:
             onclause = rel.model.primary_key == rel.parent.primary_key
-        elif rel.cardinality == ONE_TO_MANY:
+        elif rel.cardinality == Cardinality.ONE_TO_MANY:
             onclause = rel.model.get_db_column(rel.ref) == rel.parent.primary_key
-        elif rel.cardinality == MANY_TO_ONE:
+        elif rel.cardinality == Cardinality.MANY_TO_ONE:
             onclause = rel.model.primary_key == rel.parent.get_db_column(rel.ref)
         else:
             ref_col_model, ref_col_parent = get_foreign_key_pair(rel.ref, rel.model)

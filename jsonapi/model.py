@@ -310,14 +310,13 @@ class Model:
 
     async def paginate(self, args, filter_by, object_id=None, rel=None):
         is_related = object_id is not None and rel is not None
-        model = rel.model if is_related else self
         if args.limit is not None or filter_by:
             query = select_related(rel, object_id, args, count=True) \
                 if is_related else select_many(self, args, count=True)
             log_query(query)
-            model.meta['total'] = await pg.fetchval(query)
+            self.meta['total'] = await pg.fetchval(query)
             if filter_by:
-                model.meta['totalFiltered'] = await pg.fetchval(
+                self.meta['totalFiltered'] = await pg.fetchval(
                     select_related(rel, object_id, args, filter_by=filter_by, count=True)
                     if is_related else select_many(self, args, filter_by=filter_by, count=True))
 
