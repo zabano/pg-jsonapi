@@ -46,13 +46,13 @@ def test_assert_object(rec):
 
 def test_assert_attribute(rec):
     assert_attribute(rec, 'testInt')
+    assert_attribute(rec, 'test-int')
+    assert_attribute(rec, 'testINT')
     assert_attribute(rec, 'testInt', lambda v: v == 1)
     assert_attribute(rec, 'testFloat')
     assert_attribute(rec, 'testFloat', lambda v: v == 1.5)
     with pytest.raises(AssertionError):
         assert assert_attribute(rec, 'testDoesNotExist')
-    with pytest.raises(AssertionError):
-        assert assert_attribute(rec, 'testINT')
     with pytest.raises(AssertionError):
         assert assert_attribute(rec, 'oneToMany')
     with pytest.raises(AssertionError):
@@ -61,11 +61,13 @@ def test_assert_attribute(rec):
 
 def test_assert_attribute_does_not_exist(rec):
     assert_attribute_does_not_exist(rec, 'testDoesNotExist')
-    assert_attribute_does_not_exist(rec, 'testINT')
+    assert_attribute_does_not_exist(rec, 'oneToMany')
     with pytest.raises(AssertionError):
         assert assert_attribute_does_not_exist(rec, 'testFloat')
     with pytest.raises(AssertionError):
         assert assert_attribute_does_not_exist(rec, 'testInt')
+    with pytest.raises(AssertionError):
+        assert assert_attribute_does_not_exist(rec, 'test-int')
 
 
 def test_assert_relationship(rec):

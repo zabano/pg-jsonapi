@@ -65,13 +65,14 @@ async def get_related(model, object_id, name, args=None, **kwargs):
 # asserts
 ####################################################################################################
 
-def assert_object(obj, object_type, validator=None):
-    assert 'type' in obj
-    assert obj['type'] == object_type
-    assert 'id' in obj
-    if validator is not None:
-        assert validator(obj['id'])
-    return obj['id']
+def assert_object(obj, object_type, validator=None, nullable=True):
+    if not nullable or obj is not None:
+        assert 'type' in obj
+        assert obj['type'] == object_type
+        assert 'id' in obj
+        if validator is not None:
+            assert validator(obj['id'])
+        return obj['id']
 
 
 def assert_attribute(obj, name, validator=None):
@@ -104,14 +105,12 @@ def assert_relationship(json, name, validate_length=None):
     relationships = json['relationships']
     name = field_name(name)
     assert name in relationships
-    if isinstance(relationships[name], list):
-        if validate_length is not None:
+    if validate_length is not None:
+        if isinstance(relationships[name], list):
             assert validate_length(len(relationships[name])) is True
-        return relationships[name]
-    elif relationships[name] is None or isinstance(relationships[name], dict):
-        if validate_length is not None:
+        else:
             assert validate_length(1)
-        return [] if relationships[name] is None else [relationships[name]]
+    return relationships[name]
 
 
 def assert_included(json, obj):
@@ -202,9 +201,13 @@ def check_user_bio(bio, validator=None):
 
 
 def check_included(json, obj, rel_name, rel_type, validator=None, object_validator=None):
-    for related in assert_relationship(obj, rel_name, validator):
-        assert_object(related, rel_type, object_validator)
-        assert_included(json, related)
+    relationship = assert_relationship(obj, rel_name, validator)
+    if not isinstance(relationship, list):
+        relationship = [relationship]
+    for related in relationship:
+        if related is not None:
+            assert_object(related, rel_type, object_validator)
+            assert_included(json, related)
 
 
 ####################################################################################################

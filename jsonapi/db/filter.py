@@ -3,8 +3,8 @@ import re
 
 from sqlalchemy.sql import operators, or_
 
-from jsonapi.exc import Error, ModelError
-from .table import Cardinality, FromItem, get_foreign_key_pair, is_clause, is_from_item
+from jsonapi.exc import Error, APIError
+from .table import Cardinality, get_from_items, is_clause, is_from_item
 
 MODIFIERS = {'=': operators.eq, '<>': operators.ne, '!=': operators.ne,
              '>=': operators.ge, '<=': operators.le, '>': operators.gt, '<': operators.lt}
@@ -32,42 +32,29 @@ class Filter:
     def __bool__(self):
         return any((self.where, self.having, self.from_items))
 
-    @staticmethod
-    def _rel_from_items(rel):
-        if rel.cardinality == Cardinality.ONE_TO_ONE:
-            onclause = rel.model.primary_key == rel.parent.primary_key
-        elif rel.cardinality == Cardinality.ONE_TO_MANY:
-            onclause = rel.model.get_db_column(rel.ref) == rel.parent.primary_key
-        elif rel.cardinality == Cardinality.MANY_TO_ONE:
-            onclause = rel.model.primary_key == rel.parent.get_db_column(rel.ref)
-        else:
-            ref_col_model, ref_col_parent = get_foreign_key_pair(rel.ref, rel.model)
-            return [FromItem(rel.ref,
-                             onclause=ref_col_parent == rel.parent.primary_key,
-                             left=True),
-                    FromItem(rel.model.primary_key.table,
-                             onclause=rel.model.primary_key == ref_col_model,
-                             left=True)]
-        return [FromItem(rel.model.primary_key.table, onclause=onclause, left=True)]
-
     def add(self, field, arg):
         if field.is_relationship():
-
             attr_name = arg.attr_name if arg.attr_name else 'id'
             if attr_name not in field.model.fields.keys():
-                raise ModelError('field: {} does not exist'.format(attr_name), field.model)
+                raise APIError('field: {} does not exist'.format(attr_name), field.model)
             attr = field.model.fields[attr_name]
             filter_clause = attr.filter_clause.get(attr.expr, arg.operator, arg.value)
-            self.from_items.extend(self._rel_from_items(field))
+            self.from_items.extend(get_from_items(field))
             if attr.is_aggregate():
                 self.from_items_last.extend(attr.from_items.get(field.model.name, list()))
                 self.having.append(filter_clause)
             else:
                 self.where.append(filter_clause)
+            if field.is_relationship() and field.cardinality in (
+                    Cardinality.ONE_TO_MANY, Cardinality.MANY_TO_MANY):
+                self.distinct = True
         else:
             clause = field.filter_clause.get(field.expr, arg.operator, arg.value)
             if field.is_aggregate():
-                self.from_items.extend(self._rel_from_items(field.rel))
+                if field.rel.cardinality in (
+                        Cardinality.ONE_TO_MANY, Cardinality.MANY_TO_MANY):
+                    self.distinct = True
+                self.from_items.extend(get_from_items(field.rel))
                 self.having.append(clause)
             else:
                 self.where.append(clause)

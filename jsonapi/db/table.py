@@ -7,39 +7,7 @@ from sqlalchemy.sql.elements import BinaryExpression, BooleanClauseList
 from sqlalchemy.sql.schema import Table
 from sqlalchemy.sql.selectable import Alias
 
-from jsonapi.exc import Error
-
-
-def get_table_name(table_or_alias):
-    if hasattr(table_or_alias, 'element'):
-        return get_table_name(table_or_alias.element)
-    return table_or_alias.name
-
-
-def get_primary_key(table):
-    """
-    Get table primary key column.
-
-    .. note::
-
-        Assumes a simple (non-composite) key and returns the first column.
-
-    :param table: SQLAlchemy Table object
-    :return: the primary key column
-    """
-    try:
-        return table.primary_key.columns.values()[0]
-    except AttributeError:
-        return table.primary_key[0]
-
-
-def get_foreign_key_pair(xref_table, model):
-    xref = dict()
-    for fk in xref_table.foreign_keys:
-        xref[fk.column.table.name] = xref_table.c[fk.parent.name]
-    col1 = xref.pop(get_table_name(model.primary_key.table))
-    _, col2 = xref.popitem()
-    return col1, col2
+from jsonapi.exc import APIError, Error
 
 
 class Cardinality(enum.IntEnum):
@@ -56,6 +24,36 @@ ONE_TO_ONE = Cardinality.ONE_TO_ONE
 MANY_TO_ONE = Cardinality.MANY_TO_ONE
 ONE_TO_MANY = Cardinality.ONE_TO_MANY
 MANY_TO_MANY = Cardinality.MANY_TO_MANY
+
+
+class OrderBy:
+
+    def __init__(self):
+        self.exprs = list()
+        self.from_items = list()
+        self.distinct = False
+
+    def __bool__(self):
+        return bool(self.exprs)
+
+    def add(self, field, arg):
+        if field.is_relationship():
+            attr_name = arg.attr_name if arg.attr_name else 'id'
+            if attr_name not in field.model.fields.keys():
+                raise APIError('sort: {}.{} | does not exist'.format(field.name, attr_name),
+                               field.model)
+            attr = field.model.fields[attr_name]
+            self.from_items.extend(get_from_items(field))
+            self.exprs.append(getattr(attr.expr, 'desc' if arg.desc else 'asc')().nullslast())
+            if field.is_relationship() and field.cardinality in (
+                    Cardinality.ONE_TO_MANY, Cardinality.MANY_TO_MANY):
+                self.distinct = True
+        else:
+            self.exprs.append(getattr(field.expr, 'desc' if arg.desc else 'asc')().nullslast())
+            if field.is_aggregate():
+                self.from_items.extend(get_from_items(field.rel))
+                if field.rel.cardinality in (Cardinality.ONE_TO_MANY, Cardinality.MANY_TO_MANY):
+                    self.distinct = True
 
 
 class FromItem:
@@ -198,6 +196,56 @@ class FromClause(MutableSequence):
         if len(self) > 0:
             return self._from_items[0].table.name if len(self) == 1 else str(self().compile())
         return ''
+
+
+def get_table_name(table_or_alias):
+    if hasattr(table_or_alias, 'element'):
+        return get_table_name(table_or_alias.element)
+    return table_or_alias.name
+
+
+def get_primary_key(table):
+    """
+    Get table primary key column.
+
+    .. note::
+
+        Assumes a simple (non-composite) key and returns the first column.
+
+    :param table: SQLAlchemy Table object
+    :return: the primary key column
+    """
+    try:
+        return table.primary_key.columns.values()[0]
+    except AttributeError:
+        return table.primary_key[0]
+
+
+def get_foreign_key_pair(xref_table, model):
+    xref = dict()
+    for fk in xref_table.foreign_keys:
+        xref[fk.column.table.name] = xref_table.c[fk.parent.name]
+    col1 = xref.pop(get_table_name(model.primary_key.table))
+    _, col2 = xref.popitem()
+    return col1, col2
+
+
+def get_from_items(rel):
+    if rel.cardinality == Cardinality.ONE_TO_ONE:
+        onclause = rel.model.primary_key == rel.parent.primary_key
+    elif rel.cardinality == Cardinality.ONE_TO_MANY:
+        onclause = rel.model.get_db_column(rel.ref) == rel.parent.primary_key
+    elif rel.cardinality == Cardinality.MANY_TO_ONE:
+        onclause = rel.model.primary_key == rel.parent.get_db_column(rel.ref)
+    else:
+        ref_col_model, ref_col_parent = get_foreign_key_pair(rel.ref, rel.model)
+        return [FromItem(rel.ref,
+                         onclause=ref_col_parent == rel.parent.primary_key,
+                         left=True),
+                FromItem(rel.model.primary_key.table,
+                         onclause=rel.model.primary_key == ref_col_model,
+                         left=True)]
+    return [FromItem(rel.model.primary_key.table, onclause=onclause, left=True)]
 
 
 def is_from_item(from_item):

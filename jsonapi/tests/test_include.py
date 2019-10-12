@@ -1,5 +1,3 @@
-import random
-
 import pytest
 
 from jsonapi.tests.util import *
@@ -10,7 +8,8 @@ def _check_user(json, user, validator=None):
     for article in assert_relationship(user, 'articles'):
         assert_object(article, 'article')
         assert_included(json, article)
-    for bio in assert_relationship(user, 'bio'):
+    bio = assert_relationship(user, 'bio')
+    if bio:
         assert_object(bio, 'user-bio')
         assert_included(json, bio)
 

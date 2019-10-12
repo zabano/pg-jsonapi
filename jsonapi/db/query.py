@@ -1,7 +1,7 @@
 import sqlalchemy.sql as sql
 
-from jsonapi.exc import APIError, ModelError
-from jsonapi.fields import Aggregate, Derived, Field, Relationship
+from jsonapi.exc import ModelError
+from jsonapi.fields import Aggregate, Derived, Field
 from .table import Cardinality, FromClause, FromItem, get_foreign_key_pair
 
 SQL_PARAM_LIMIT = 10000
@@ -26,19 +26,25 @@ def select_one(model, obj_id):
     return query
 
 
-def select_many(model, args, **kwargs):
+def select_many(model, **kwargs):
     filter_by = kwargs.get('filter_by', None)
+    order_by = kwargs.get('order_by', None)
     search_term = kwargs.get('search_term', None)
     count = bool(kwargs.get('count', False))
+    limit = kwargs.get('limit', None)
+    offset = kwargs.get('offset', 0)
 
     query = sql.select(columns=_col_list(model, search_term=search_term),
-                       from_obj=_from_obj(model, filter_by=filter_by, search_term=search_term))
+                       from_obj=_from_obj(model,
+                                          filter_by=filter_by,
+                                          order_by=order_by,
+                                          search_term=search_term))
 
     if not count:
         query = _protect_query(model, query)
-        query = _sort_query(model, query, args.sort, search_term)
-        if args.limit is not None:
-            query = query.offset(args.offset).limit(args.limit)
+        query = _sort_query(model, query, order_by, search_term)
+        if limit is not None:
+            query = query.offset(offset).limit(limit)
 
     query = _group_query(model, query, filter_by=filter_by)
     query = _filter_query(query, filter_by)
@@ -46,10 +52,13 @@ def select_many(model, args, **kwargs):
     return _count_query(query) if count else query
 
 
-def select_related(rel, obj_id, args, **kwargs):
+def select_related(rel, obj_id, **kwargs):
     filter_by = kwargs.get('filter_by', None)
+    order_by = kwargs.get('order_by', None)
     search_term = kwargs.get('search_term', None)
     count = bool(kwargs.get('count', False))
+    limit = kwargs.get('limit', None)
+    offset = kwargs.get('offset', 0)
 
     from_items = []
 
@@ -84,6 +93,7 @@ def select_related(rel, obj_id, args, **kwargs):
                                          search_term=search_term),
                        from_obj=_from_obj(rel.model, *from_items,
                                           filter_by=filter_by,
+                                          order_by=order_by,
                                           search_term=search_term))
     if not isinstance(obj_id, list):
         query = query.where(parent_col == obj_id)
@@ -91,9 +101,9 @@ def select_related(rel, obj_id, args, **kwargs):
     if not count:
         query = _protect_query(rel.model, query)
         if rel.cardinality in (Cardinality.ONE_TO_MANY, Cardinality.MANY_TO_MANY):
-            query = _sort_query(rel.model, query, args.sort, search_term)
-        if args.limit is not None:
-            query = query.offset(args.offset).limit(args.limit)
+            query = _sort_query(rel.model, query, order_by, search_term)
+        if limit is not None:
+            query = query.offset(offset).limit(limit)
 
     query = _group_query(rel.model, query, parent_col if isinstance(obj_id, list) else None)
     query = _filter_query(query, filter_by)
@@ -131,12 +141,15 @@ def _col_list(model, *extra_columns, **kwargs):
 
 def _from_obj(model, *extra_items, **kwargs):
     filter_by = kwargs.get('filter_by', None)
+    order_by = kwargs.get('order_by', None)
     search_term = kwargs.get('search_term', None)
     from_clause = FromClause(*model.from_clause)
     from_clause.extend(extra_items)
     if filter_by:
         from_clause.extend(filter_by.from_items)
         from_clause.extend(filter_by.from_items_last)
+    if order_by:
+        from_clause.extend(order_by.from_items)
     if model.search is not None and search_term is not None:
         from_clause.append(model.search)
     for field in model.attributes.values():
@@ -166,19 +179,12 @@ def _filter_query(query, filter_by):
     return query
 
 
-def _sort_query(model, query, sort, search_term):
+def _sort_query(model, query, order_by, search_term):
     if search_term is not None:
         return query.order_by(_rank_column(model, search_term).desc())
-    order_by = list()
-    for name, desc in sort.items():
-        try:
-            field = model.fields[name]
-        except KeyError:
-            raise APIError('column does not exist: {}'.format(name), model)
-        else:
-            if not isinstance(field, Relationship) and field.expr is not None:
-                order_by.append(getattr(field.expr, 'desc' if desc else 'asc')().nullslast())
-    return query.order_by(*order_by)
+    if order_by:
+        return query.order_by(*order_by.exprs)
+    return query
 
 
 def _protect_query(model, query):

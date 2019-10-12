@@ -13,7 +13,7 @@ from jsonapi.args import RequestArguments
 from jsonapi.datatypes import DataType, Integer, String
 from jsonapi.db.filter import Filter
 from jsonapi.db.query import exists, select_many, select_one, select_related
-from jsonapi.db.table import Cardinality, FromClause, FromItem, is_from_item
+from jsonapi.db.table import Cardinality, FromClause, FromItem, OrderBy, is_from_item
 from jsonapi.exc import APIError, Error, Forbidden, ModelError, NotFound
 from jsonapi.fields import Aggregate, BaseField, Derived, Field, Relationship
 from jsonapi.log import log_query, logger
@@ -311,14 +311,14 @@ class Model:
     async def paginate(self, args, filter_by, object_id=None, rel=None):
         is_related = object_id is not None and rel is not None
         if args.limit is not None or filter_by:
-            query = select_related(rel, object_id, args, count=True) \
-                if is_related else select_many(self, args, count=True)
+            query = select_related(rel, object_id, count=True) \
+                if is_related else select_many(self, count=True)
             log_query(query)
             self.meta['total'] = await pg.fetchval(query)
             if filter_by:
                 self.meta['totalFiltered'] = await pg.fetchval(
-                    select_related(rel, object_id, args, filter_by=filter_by, count=True)
-                    if is_related else select_many(self, args, filter_by=filter_by, count=True))
+                    select_related(rel, object_id, filter_by=filter_by, count=True)
+                    if is_related else select_many(self, filter_by=filter_by, count=True))
 
     def get_filter(self, args):
         filter_by = Filter()
@@ -329,14 +329,20 @@ class Model:
                 filter_by.add_custom(field_name, custom_filter(arg.value))
             elif field_name in self.fields:
                 field = self.fields[field_name]
-                if isinstance(field, Relationship) and field.cardinality in (
-                        Cardinality.ONE_TO_MANY, Cardinality.MANY_TO_MANY):
-                    filter_by.distinct = True
                 try:
                     filter_by.add(field, arg)
                 except Error as e:
                     raise APIError('filter:{} | {}'.format(field_name, e), self)
         return filter_by
+
+    def get_order_by(self, args):
+        order_by = OrderBy()
+        for field_name, arg in args.sort.items():
+            try:
+                order_by.add(self.fields[field_name], arg)
+            except AttributeError:
+                raise APIError('sort:{} | does not exist'.format(field_name), self)
+        return order_by
 
     async def fetch_included(self, data, args):
 
@@ -348,7 +354,7 @@ class Model:
 
         for rel in self.relationships.values():
             result = list()
-            for query in select_related(rel, [rec['id'] for rec in data], args):
+            for query in select_related(rel, [rec['id'] for rec in data]):
                 log_query(query)
                 result.extend(await pg.fetch(query))
 
@@ -425,8 +431,9 @@ class Model:
         """
         args = self.parse_arguments(args)
         self.init_schema(args)
-        filter_by = self.get_filter(args)
-        query = select_many(self, args, filter_by=filter_by, search_term=search_term)
+        filter_by, order_by = self.get_filter(args), self.get_order_by(args)
+        query = select_many(self, filter_by=filter_by, order_by=order_by,
+                            offset=args.offset, limit=args.limit, search_term=search_term)
         log_query(query)
         recs = [dict(rec) for rec in await pg.fetch(query)]
         await self.paginate(args, filter_by)
@@ -462,8 +469,9 @@ class Model:
         args = self.parse_arguments(args)
         rel.load(self)
         rel.model.init_schema(args)
-        filter_by = rel.model.get_filter(args)
-        query = select_related(rel, object_id, args, filter_by=filter_by, search=search_term)
+        filter_by, order_by = rel.model.get_filter(args), rel.model.get_order_by(args)
+        query = select_related(rel, object_id, filter_by=filter_by, order_by=order_by,
+                               offset=args.offset, limit=args.limit, search=search_term)
         log_query(query)
         if rel.cardinality in (Cardinality.ONE_TO_ONE, Cardinality.MANY_TO_ONE):
             result = await pg.fetchrow(query)

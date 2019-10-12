@@ -7,6 +7,7 @@ import inflection
 from jsonapi.exc import Error
 
 FilterArgument = namedtuple('FilterArgument', 'attr_name operator value')
+OrderArgument = namedtuple('OrderArgument', 'attr_name desc')
 
 
 class RequestArguments:
@@ -56,10 +57,11 @@ class RequestArguments:
         if 'sort' in args:
             for sort_spec in args['sort'].split(','):
                 order, name = re.search('([-+]?)(.+)', sort_spec).groups()
+                attr_name = 'id'
                 if '.' in name:
-                    raise Error('"sort" parameter does not support '
-                                'dot notation: "{}"'.format(name))
-                self.sort[inflection.underscore(name).strip()] = (order == '-')
+                    name, attr_name = name.split('.', 1)
+                self.sort[inflection.underscore(name).strip()] = OrderArgument(
+                    attr_name, order == '-')
 
         #
         # page

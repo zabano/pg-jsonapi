@@ -63,6 +63,24 @@ async def test_aggregate(users, user_count, superuser_id):
 
 
 @pytest.mark.asyncio
+async def test_relationship(users, user_count):
+    async with get_collection(users,
+                              {'include': 'bio',
+                               'fields[user]': 'name,first,last',
+                               'fields[user-bio]': 'birthday',
+                               'sort': 'bio.birthday'}) as json:
+        data = []
+        for user in assert_collection(json, 'user', lambda size: size == user_count):
+            bio = assert_relationship(user, 'bio')
+            if bio is not None:
+                included = assert_included(json, bio)
+                birthday = assert_attribute(included, 'birthday')
+                if birthday is not None:
+                    data.append(birthday)
+        assert data == sorted(data)
+
+
+@pytest.mark.asyncio
 async def test_multiple(users, user_count, superuser_id):
     async with get_collection(users,
                               {'fields[user]': 'article-count,last',
