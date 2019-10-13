@@ -66,8 +66,6 @@ def test_assert_attribute_does_not_exist(rec):
         assert assert_attribute_does_not_exist(rec, 'testFloat')
     with pytest.raises(AssertionError):
         assert assert_attribute_does_not_exist(rec, 'testInt')
-    with pytest.raises(AssertionError):
-        assert assert_attribute_does_not_exist(rec, 'test-int')
 
 
 def test_assert_relationship(rec):

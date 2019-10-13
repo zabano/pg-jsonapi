@@ -81,9 +81,9 @@ def select_related(rel, obj_id, **kwargs):
             left=True))
 
     else:
-        parent_col, ref_col = get_foreign_key_pair(rel.ref, rel.parent)
+        ref_col, parent_col = get_foreign_key_pair(rel.model, *rel.ref)
         from_items.append(FromItem(
-            rel.ref,
+            ref_col.table,
             onclause=rel.model.primary_key == ref_col,
             left=True))
 
@@ -109,7 +109,7 @@ def select_related(rel, obj_id, **kwargs):
                          filter_by=filter_by, order_by=order_by)
     query = _filter_query(query, filter_by)
     query = _search_query(rel.model, query, search_term)
-    query = query.distinct()  # todo:: don't always distinct
+    # query = query.distinct()
 
     if isinstance(obj_id, list):
         return (query.where(parent_col.in_(x))

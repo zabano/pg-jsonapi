@@ -1,6 +1,7 @@
 import datetime as dt
 import enum
 
+from asyncpgsa import pg
 from sqlalchemy.dialects.postgresql import TSVECTOR
 from sqlalchemy.sql import false, text
 from sqlalchemy.sql.schema import Column, ForeignKey, MetaData, PrimaryKeyConstraint, Table, \
@@ -12,6 +13,15 @@ PASSWORD_HASH_LENGTH = 128
 
 metadata = MetaData(schema='public')
 
+
+async def init_db():
+    await pg.init(
+        database='jsonapi',
+        user='jsonapi',
+        password='jsonapi',
+        min_size=5,
+        max_size=10
+    )
 
 @enum.unique
 class UserStatus(enum.Enum):
@@ -54,17 +64,13 @@ users_t = Table(
 
 user_bios_t = Table(
     'user_bios', metadata,
-    Column('user_id', Integer,
-           ForeignKey('users.id', ondelete='CASCADE', name='user_bios_id_fkey'),
-           primary_key=True),
+    Column('user_id', Integer, ForeignKey('users.id'), primary_key=True),
     Column('birthday', Date, index=True),
     Column('summary', Text))
 
 user_names_t = Table(
     'user_names', metadata,
-    Column('user_id', Integer,
-           ForeignKey('users.id', ondelete='CASCADE', name='user_names_id_fkey'),
-           primary_key=True, autoincrement=False),
+    Column('user_id', Integer, ForeignKey('users.id'), primary_key=True, autoincrement=False),
     Column('title', Text),
     Column('first', Text, nullable=False),
     Column('middle', Text),
@@ -73,22 +79,22 @@ user_names_t = Table(
     Column('nickname', Text),
     UniqueConstraint('first', 'last'))
 
+user_followers_t = Table(
+    'user_followers', metadata,
+    Column('user_id', Integer, ForeignKey('users.id'), nullable=False, index=True),
+    Column('follower_id', Integer, ForeignKey('users.id'), nullable=False, index=True),
+    PrimaryKeyConstraint('user_id', 'follower_id'))
+
 users_ts = Table(
     'users_ts', metadata,
-    Column('user_id', Integer,
-           ForeignKey('users.id', name='users_ts_article_id_fkey'),
-           primary_key=True),
+    Column('user_id', Integer, ForeignKey('users.id'), primary_key=True),
     Column('tsvector', TSVECTOR, index=True, nullable=False))
 
 articles_t = Table(
     'articles', metadata,
     Column('id', Integer, primary_key=True),
-    Column('author_id', Integer,
-           ForeignKey('users.id', name='articles_author_id_fkey'),
-           nullable=False, index=True),
-    Column('published_by', Integer,
-           ForeignKey('users.id', name='articles_published_by_fkey'),
-           index=True),
+    Column('author_id', Integer, ForeignKey('users.id'), nullable=False, index=True),
+    Column('published_by', Integer, ForeignKey('users.id'), index=True),
     Column('title', Text, nullable=False, index=True),
     Column('body', Text, nullable=False),
     Column('created_on', DateTime(timezone=True)),
@@ -97,20 +103,14 @@ articles_t = Table(
 
 articles_ts = Table(
     'articles_ts', metadata,
-    Column('article_id', Integer,
-           ForeignKey('articles.id', name='articles_ts_article_id_fkey'),
-           primary_key=True),
+    Column('article_id', Integer, ForeignKey('articles.id'), primary_key=True),
     Column('tsvector', TSVECTOR, index=True, nullable=False))
 
 comments_t = Table(
     'comments', metadata,
     Column('id', Integer, primary_key=True),
-    Column('article_id', Integer,
-           ForeignKey('articles.id', name='articles_article_id_fkey'),
-           nullable=False, index=True),
-    Column('user_id', Integer,
-           ForeignKey('users.id', name='articles_user_id_fkey'),
-           nullable=False, index=True),
+    Column('article_id', Integer, ForeignKey('articles.id'), nullable=False, index=True),
+    Column('user_id', Integer, ForeignKey('users.id'), nullable=False, index=True),
     Column('body', Text, nullable=False),
     Column('created_on', DateTime(timezone=True)),
     Column('updated_on', DateTime(timezone=True)))
@@ -118,12 +118,8 @@ comments_t = Table(
 replies_t = Table(
     'replies', metadata,
     Column('id', Integer, primary_key=True),
-    Column('user_id', Integer,
-           ForeignKey('users.id', name='replies_user_id_fkey'),
-           nullable=False, index=True),
-    Column('comment_id', Integer,
-           ForeignKey('comments.id', name='replies_comment_id_fkey'),
-           nullable=False, index=True),
+    Column('user_id', Integer, ForeignKey('users.id'), nullable=False, index=True),
+    Column('comment_id', Integer, ForeignKey('comments.id'), nullable=False, index=True),
     Column('body', Text, nullable=False),
     Column('created_on', DateTime(timezone=True)),
     Column('updated_on', DateTime(timezone=True)))
@@ -135,20 +131,12 @@ keywords_t = Table(
 
 article_keywords_t = Table(
     'article_keywords', metadata,
-    Column('article_id', Integer,
-           ForeignKey('articles.id', ondelete='CASCADE',
-                      name='article_keywords_article_id_fkey')),
-    Column('keyword_id', Integer,
-           ForeignKey('keywords.id', ondelete='CASCADE',
-                      name='article_keywords_keyword_id_fkey')),
+    Column('article_id', Integer, ForeignKey('articles.id'), nullable=False, index=True),
+    Column('keyword_id', Integer, ForeignKey('keywords.id'), nullable=False, index=True),
     PrimaryKeyConstraint('article_id', 'keyword_id'))
 
 article_read_access_t = Table(
     'article_read_access', metadata,
-    Column('article_id', Integer,
-           ForeignKey('articles.id', ondelete='CASCADE',
-                      name='article_read_access_article_id_fkey')),
-    Column('user_id', Integer,
-           ForeignKey('users.id', ondelete='CASCADE',
-                      name='article_read_access_user_id_fkey')),
+    Column('article_id', Integer, ForeignKey('articles.id'), nullable=False, index=True),
+    Column('user_id', Integer, ForeignKey('users.id'), nullable=False, index=True),
     PrimaryKeyConstraint('article_id', 'user_id'))

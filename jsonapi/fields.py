@@ -1,7 +1,7 @@
 import marshmallow as ma
 
 from jsonapi.datatypes import DataType, Date, Integer
-from jsonapi.db.table import Cardinality, FromItem
+from jsonapi.db.table import Cardinality, FromItem, get_foreign_key_pair
 from jsonapi.exc import APIError, Error
 from jsonapi.registry import model_registry, schema_registry
 
@@ -92,8 +92,9 @@ class Aggregate(BaseField):
         self.filter_clause = self.get_filter_clause()
 
         if self.rel.cardinality == Cardinality.MANY_TO_MANY:
+            ref_model, _ = get_foreign_key_pair(self.rel.model, *self.rel.ref)
             self.from_items[model.name] = (
-                FromItem(self.rel.ref, left=True),
+                FromItem(ref_model.table, left=True),
                 FromItem(self.rel.model.primary_key.table, left=True))
         elif self.rel.cardinality == Cardinality.ONE_TO_MANY:
             from_item = FromItem(

@@ -202,6 +202,12 @@ class FromClause(MutableSequence):
         return ''
 
 
+def get_table(table_or_alias):
+    if hasattr(table_or_alias, 'element'):
+        return get_table(table_or_alias.element)
+    return table_or_alias
+
+
 def get_table_name(table_or_alias):
     if hasattr(table_or_alias, 'element'):
         return get_table_name(table_or_alias.element)
@@ -225,13 +231,13 @@ def get_primary_key(table):
         return table.primary_key[0]
 
 
-def get_foreign_key_pair(xref_table, model):
-    xref = dict()
-    for fk in xref_table.foreign_keys:
-        xref[fk.column.table.name] = xref_table.c[fk.parent.name]
-    col1 = xref.pop(get_table_name(model.primary_key.table))
-    _, col2 = xref.popitem()
-    return col1, col2
+def get_foreign_key_pair(model, model_ref, parent_ref):
+    tb = get_table(model.primary_key.table)
+    for table in tb.metadata.tables.values():
+        ref_names = list(fk.parent.name for fk in table.foreign_keys)
+        if model_ref in ref_names and parent_ref in ref_names:
+            return table.c[model_ref], table.c[parent_ref]
+    raise Error('foreign key pair not found: {!r}'.format((model_ref, parent_ref)))
 
 
 def get_from_items(rel):
@@ -242,12 +248,12 @@ def get_from_items(rel):
     elif rel.cardinality == Cardinality.MANY_TO_ONE:
         onclause = rel.model.primary_key == rel.parent.get_db_column(rel.ref)
     else:
-        ref_col_model, ref_col_parent = get_foreign_key_pair(rel.ref, rel.model)
-        return [FromItem(rel.ref,
-                         onclause=ref_col_parent == rel.parent.primary_key,
+        ref_col, parent_col = get_foreign_key_pair(rel.model, *rel.ref)
+        return [FromItem(parent_col.table,
+                         onclause=parent_col == rel.parent.primary_key,
                          left=True),
                 FromItem(rel.model.primary_key.table,
-                         onclause=rel.model.primary_key == ref_col_model,
+                         onclause=rel.model.primary_key == ref_col,
                          left=True)]
     return [FromItem(rel.model.primary_key.table, onclause=onclause, left=True)]
 

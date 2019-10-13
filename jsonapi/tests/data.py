@@ -88,6 +88,16 @@ async def populate_test_db():
             if user_id % 10 in (6, 9) else None
         ) for user_id in user_data.keys() if random.randint(1, 10) == 5]))
 
+        logger.info('creating followers ...')
+        for user_id in user_data.keys():
+            if user_id % 10 in random.sample(range(0, 10), 8):
+                await conn.fetch(user_followers_t.insert().values([dict(
+                    user_id=user_id,
+                    follower_id=follower_id
+                ) for follower_id in
+                    random.sample(user_data.keys(), random.randint(1, int(TOTAL_USERS / 2)))
+                    if follower_id != user_id]))
+
         #
         # populate article data
         #

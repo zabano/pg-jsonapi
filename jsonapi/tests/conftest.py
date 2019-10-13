@@ -19,13 +19,7 @@ def event_loop(request):
 
 @pytest.fixture(scope='session', autouse=True)
 def init_pg(event_loop):
-    event_loop.run_until_complete(pg.init(
-        database='jsonapi',
-        user='jsonapi',
-        password='jsonapi',
-        min_size=5,
-        max_size=10
-    ))
+    event_loop.run_until_complete(init_db())
 
 
 #

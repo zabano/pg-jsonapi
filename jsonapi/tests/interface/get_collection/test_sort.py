@@ -11,8 +11,6 @@ async def test_single(users, user_count):
         for modifier in ('', '+', '-'):
             sort_spec = '{}{}'.format(modifier, attr_name)
             async with get_collection(users, {'sort': sort_spec}) as json:
-                assert isinstance(json['data'], list)
-                assert len(json['data']) == user_count
                 assert_sorted(json, attr_name, modifier == '-', lambda size: size == user_count)
 
 
