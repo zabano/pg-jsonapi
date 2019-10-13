@@ -3,7 +3,7 @@ import re
 
 from sqlalchemy.sql import operators, or_
 
-from jsonapi.exc import Error, APIError
+from jsonapi.exc import APIError, Error
 from .table import Cardinality, get_from_items, is_clause, is_from_item
 
 MODIFIERS = {'=': operators.eq, '<>': operators.ne, '!=': operators.ne,

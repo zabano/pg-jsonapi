@@ -19,7 +19,6 @@ class BaseField:
         self.expr = expr
         self.data_type = DataType.get(expr) if data_type is None else data_type
         self.exclude = False
-        self.sort_by = False
 
         self.filter_clause = self.get_filter_clause()
 

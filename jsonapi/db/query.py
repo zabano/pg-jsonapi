@@ -164,6 +164,7 @@ def _group_query(model, query, *extra_columns, **kwargs):
     filter_by = kwargs.get('filter_by', None)
     order_by = kwargs.get('order_by', None)
     if (filter_by is not None and len(filter_by.having) > 0) \
+        or (order_by is not None and order_by.distinct) \
             or (any(isinstance(field, Aggregate) for field in model.attributes.values())):
         columns = list(extra_columns)
         if order_by:
