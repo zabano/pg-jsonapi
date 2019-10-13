@@ -81,7 +81,7 @@ async def test_relationship(users, user_count):
 
 
 @pytest.mark.asyncio
-async def test_multiple(users, user_count, superuser_id):
+async def test_multiple_1(users, user_count, superuser_id):
     async with get_collection(users,
                               {'fields[user]': 'article-count,last',
                                'sort': '-article-count,last'},
@@ -97,3 +97,26 @@ async def test_multiple(users, user_count, superuser_id):
         assert article_counts == sorted(article_counts, reverse=True)
         for names in names_by_count.values():
             assert names == sorted(names)
+
+
+@pytest.mark.asyncio
+async def test_multiple_2(users, user_count, superuser_id):
+    async with get_collection(users,
+                              {'include': 'bio',
+                               'fields[user]': 'article-count',
+                               'sort': '-article-count,bio.birthday'},
+                              login=superuser_id) as json:
+        data = list(assert_collection(json, 'user', lambda size: size == user_count))
+        birthdays_by_count = defaultdict(list)
+        for user in data:
+            bio = assert_relationship(user, 'bio')
+            if bio:
+                related = assert_included(json, bio)
+                birthday = assert_attribute(related, 'birthday')
+                if birthday:
+                    birthdays_by_count[assert_attribute(user, 'article-count')].append(birthday)
+
+        article_counts = [assert_attribute(user, 'article-count') for user in data]
+        assert article_counts == sorted(article_counts, reverse=True)
+        for birthdays in birthdays_by_count.values():
+            assert birthdays == sorted(birthdays)

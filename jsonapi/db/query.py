@@ -46,7 +46,7 @@ def select_many(model, **kwargs):
         if limit is not None:
             query = query.offset(offset).limit(limit)
 
-    query = _group_query(model, query, filter_by=filter_by)
+    query = _group_query(model, query, filter_by=filter_by, order_by=order_by)
     query = _filter_query(query, filter_by)
     query = _search_query(model, query, search_term)
     return _count_query(query) if count else query
@@ -105,7 +105,8 @@ def select_related(rel, obj_id, **kwargs):
         if limit is not None:
             query = query.offset(offset).limit(limit)
 
-    query = _group_query(rel.model, query, parent_col if isinstance(obj_id, list) else None)
+    query = _group_query(rel.model, query, parent_col if isinstance(obj_id, list) else None,
+                         filter_by=filter_by, order_by=order_by)
     query = _filter_query(query, filter_by)
     query = _search_query(rel.model, query, search_term)
     query = query.distinct()  # todo:: don't always distinct
@@ -161,9 +162,13 @@ def _from_obj(model, *extra_items, **kwargs):
 
 def _group_query(model, query, *extra_columns, **kwargs):
     filter_by = kwargs.get('filter_by', None)
+    order_by = kwargs.get('order_by', None)
     if (filter_by is not None and len(filter_by.having) > 0) \
             or (any(isinstance(field, Aggregate) for field in model.attributes.values())):
-        query = query.group_by(*_col_list(model, *extra_columns, group_by=True))
+        columns = list(extra_columns)
+        if order_by:
+            columns.extend(order_by.group_by)
+        query = query.group_by(*_col_list(model, *columns, group_by=True))
     return query
 
 

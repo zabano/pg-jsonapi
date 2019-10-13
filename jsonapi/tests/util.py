@@ -100,9 +100,9 @@ def assert_collection(json, object_type, validate_length=None, validator=None):
         yield obj
 
 
-def assert_relationship(json, name, validate_length=None):
-    assert 'relationships' in json
-    relationships = json['relationships']
+def assert_relationship(obj, name, validate_length=None):
+    assert 'relationships' in obj
+    relationships = obj['relationships']
     name = field_name(name)
     assert name in relationships
     if validate_length is not None:

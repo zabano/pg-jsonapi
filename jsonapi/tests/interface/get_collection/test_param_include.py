@@ -19,7 +19,6 @@ async def test_one_to_one(users, user_count, superuser_id):
                            lambda v: int(v) in user_id_list)
 
 
-@pytest.mark.dev
 @pytest.mark.asyncio
 async def test_many_to_one(articles, article_count, superuser_id):
     article_id_list = sample_integers(1, article_count, 5)

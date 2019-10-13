@@ -31,6 +31,7 @@ class OrderBy:
     def __init__(self):
         self.exprs = list()
         self.from_items = list()
+        self.group_by = list()
         self.distinct = False
 
     def __bool__(self):
@@ -45,8 +46,9 @@ class OrderBy:
             attr = field.model.fields[attr_name]
             self.from_items.extend(get_from_items(field))
             self.exprs.append(getattr(attr.expr, 'desc' if arg.desc else 'asc')().nullslast())
-            if field.is_relationship() and field.cardinality in (
-                    Cardinality.ONE_TO_MANY, Cardinality.MANY_TO_MANY):
+            if not attr.is_aggregate():
+                self.group_by.append(attr.expr)
+            if field.cardinality in (Cardinality.ONE_TO_MANY, Cardinality.MANY_TO_MANY):
                 self.distinct = True
         else:
             self.exprs.append(getattr(field.expr, 'desc' if arg.desc else 'asc')().nullslast())
@@ -54,6 +56,8 @@ class OrderBy:
                 self.from_items.extend(get_from_items(field.rel))
                 if field.rel.cardinality in (Cardinality.ONE_TO_MANY, Cardinality.MANY_TO_MANY):
                     self.distinct = True
+            else:
+                self.group_by.append(field.expr)
 
 
 class FromItem:
