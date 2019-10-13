@@ -148,9 +148,9 @@ def assert_field(obj, name):
     assert False
 
 
-def assert_sorted(json, attr_name, reverse=False, validator_length=None):
+def assert_sorted(json, attr_name, object_type, reverse=False, validator_length=None):
     data = [assert_field(user, attr_name) for user in assert_collection(
-        json, 'user', validator_length)]
+        json, object_type, validator_length)]
     assert data == sorted(data,
                           key=lambda x: int(x) if attr_name == 'id' else x,
                           reverse=reverse)

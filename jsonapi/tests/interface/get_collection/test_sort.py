@@ -11,7 +11,20 @@ async def test_single(users, user_count):
         for modifier in ('', '+', '-'):
             sort_spec = '{}{}'.format(modifier, attr_name)
             async with get_collection(users, {'sort': sort_spec}) as json:
-                assert_sorted(json, attr_name, modifier == '-', lambda size: size == user_count)
+                assert_sorted(json, attr_name, 'user', modifier == '-',
+                              lambda size: size == user_count)
+
+
+@pytest.mark.asyncio
+async def test_exclude(users, user_count, superuser_id):
+    for attr_name in ('last', 'created-on', 'article_count'):
+        async with get_collection(users,
+                                  {'fields[user]': 'email',
+                                   'sort': attr_name},
+                                  login=superuser_id) as json:
+            for user in assert_collection(json, 'user', lambda size: size == user_count):
+                assert_attribute(user, 'email')
+                assert_attribute_does_not_exist(user, attr_name)
 
 
 @pytest.mark.asyncio
@@ -44,7 +57,8 @@ async def test_aggregate(users, user_count, superuser_id):
             assert_attribute_does_not_exist(user, 'createdOn')
             assert_attribute_does_not_exist(user, 'name')
             assert_attribute(user, 'article-count', lambda v: is_size(v))
-        assert_sorted(json, 'article-count', validator_length=lambda size: size == user_count)
+        assert_sorted(json, 'article-count', 'user',
+                      validator_length=lambda size: size == user_count)
 
     async with get_collection(users,
                               {'fields[user]': 'article-count',
@@ -55,8 +69,7 @@ async def test_aggregate(users, user_count, superuser_id):
             assert_attribute_does_not_exist(user, 'createdOn')
             assert_attribute_does_not_exist(user, 'name')
             assert_attribute(user, 'article-count', lambda v: is_size(v))
-        assert_sorted(json, 'article-count',
-                      reverse=True,
+        assert_sorted(json, 'article-count', 'user', reverse=True,
                       validator_length=lambda size: size == user_count)
 
 

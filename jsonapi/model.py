@@ -240,7 +240,8 @@ class Model:
         """
         return {name: field for name, field in self.fields.items()
                 if not isinstance(field, Relationship)
-                and not field.exclude and field.expr is not None}
+                and (not field.exclude or field.sort_by)
+                and field.expr is not None}
 
     ################################################################################################
     # core functionality
@@ -254,9 +255,10 @@ class Model:
             in_fieldset = args.in_fieldset(self.type_, name)
             in_filter = args.in_filter(name)
             in_sort = args.in_sort(name)
+            field.sort_by = in_sort
 
             if isinstance(field, (Field, Derived)):
-                field.exclude = fieldset_defined and not in_fieldset and not in_sort
+                field.exclude = fieldset_defined and not in_fieldset
 
             elif isinstance(field, Aggregate):
                 field.exclude = not in_fieldset

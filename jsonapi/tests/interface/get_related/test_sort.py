@@ -13,7 +13,20 @@ async def test_single(users, user_count):
                 sort_spec = '{}{}'.format(modifier, attr_name)
                 async with get_related(users, user_id, 'followers',
                                        {'sort': sort_spec}) as json:
-                    assert_sorted(json, attr_name, modifier == '-')
+                    assert_sorted(json, attr_name, 'user', modifier == '-')
+
+
+@pytest.mark.asyncio
+async def test_exclude(users, user_count, superuser_id):
+    for user_id in sample_integers(1, user_count):
+        for attr_name in ('last', 'created-on', 'article_count'):
+            async with get_related(users, user_id, 'followers',
+                                   {'fields[user]': 'email',
+                                    'sort': attr_name},
+                                   login=superuser_id) as json:
+                for user in assert_collection(json, 'user'):
+                    assert_attribute(user, 'email')
+                    assert_attribute_does_not_exist(user, attr_name)
 
 
 @pytest.mark.asyncio
@@ -47,7 +60,7 @@ async def test_aggregate(users, user_count, superuser_id):
                 assert_attribute_does_not_exist(user, 'createdOn')
                 assert_attribute_does_not_exist(user, 'name')
                 assert_attribute(user, 'article-count', lambda v: is_size(v))
-            assert_sorted(json, 'article-count')
+            assert_sorted(json, 'article-count', 'user')
 
         async with get_related(users, user_id, 'followers',
                                {'fields[user]': 'article-count',
@@ -58,7 +71,7 @@ async def test_aggregate(users, user_count, superuser_id):
                 assert_attribute_does_not_exist(user, 'createdOn')
                 assert_attribute_does_not_exist(user, 'name')
                 assert_attribute(user, 'article-count', lambda v: is_size(v))
-            assert_sorted(json, 'article-count', reverse=True)
+            assert_sorted(json, 'article-count', 'user', reverse=True)
 
 
 @pytest.mark.asyncio
