@@ -20,7 +20,7 @@ class Operator(enum.Enum):
     LE = 'le'
 
 
-class Filter:
+class FilterBy:
 
     def __init__(self, where=None, *from_items):
         self.where = list(where) if where is not None else list()

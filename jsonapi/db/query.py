@@ -71,13 +71,13 @@ def select_related(rel, obj_id, **kwargs):
                 left=True))
 
     elif rel.cardinality == Cardinality.ONE_TO_MANY:
-        parent_col = rel.model.get_db_column(rel.ref)
+        parent_col = rel.model.get_expr(rel.ref)
 
     elif rel.cardinality == Cardinality.MANY_TO_ONE:
         parent_col = rel.parent.primary_key
         from_items.append(FromItem(
             rel.parent.primary_key.table,
-            onclause=rel.model.primary_key == rel.parent.get_db_column(rel.ref),
+            onclause=rel.model.primary_key == rel.parent.get_expr(rel.ref),
             left=True))
 
     else:

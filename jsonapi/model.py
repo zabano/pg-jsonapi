@@ -11,7 +11,7 @@ from inflection import camelize, dasherize, underscore
 from db.table import get_primary_key
 from jsonapi.args import RequestArguments
 from jsonapi.datatypes import DataType, Integer, String
-from jsonapi.db.filter import Filter
+from jsonapi.db.filter import FilterBy
 from jsonapi.db.query import exists, select_many, select_one, select_related
 from jsonapi.db.table import Cardinality, FromClause, FromItem, OrderBy, is_from_item
 from jsonapi.exc import APIError, Error, Forbidden, ModelError, NotFound
@@ -107,15 +107,14 @@ class Model:
 
     def __init__(self):
 
-        self.type_ = self.__class__.get_type()
-        if not isinstance(self.type_, str):
-            raise ModelError('attribute: "type_" must be a string', self)
-
-        self.from_clause = self.get_from_items()
+        try:
+            self.type_ = self.get_type()
+            self.from_clause = self.get_from_items()
+            self.fields = self.get_fields()
+        except Error as e:
+            raise ModelError(e, self)
 
         self.schema = None
-        self.fields = self.get_fields()
-
         self.included = defaultdict(dict)
         self.meta = dict()
         logger.info('initialized model: {!r}'.format(self))
@@ -124,6 +123,8 @@ class Model:
     def get_type(cls):
         if cls.type_ is None:
             return dasherize(underscore(cls.__name__)).replace('model', '').strip('-')
+        if not isinstance(cls.type_, str):
+            raise Error('"type_" must be a string')
         return cls.type_
 
     def get_from_items(self):
@@ -174,16 +175,10 @@ class Model:
             raise ModelError('invalid field: {!r}'.format(field_spec), self)
 
     def get_expr(self, name):
-        expr = self.get_db_column(name)
+        expr = self.from_clause.get_column(name)
         if expr is None:
-            raise ModelError('db column: "{}" '
-                             'not found'.format(name), self)
+            raise ModelError('db column: "{}" not found'.format(name), self)
         return expr
-
-    def get_db_column(self, name):
-        for col in self.from_clause().columns:
-            if col.name == name:
-                return col
 
     @classmethod
     def get_from_aliases(cls, name, index=None):
@@ -320,8 +315,8 @@ class Model:
                     select_related(rel, object_id, filter_by=filter_by, count=True)
                     if is_related else select_many(self, filter_by=filter_by, count=True))
 
-    def get_filter(self, args):
-        filter_by = Filter()
+    def get_filter_by(self, args):
+        filter_by = FilterBy()
         for field_name, arg in args.filter.items():
             custom_name = 'filter_{}'.format(field_name)
             if hasattr(self, custom_name):
@@ -431,7 +426,7 @@ class Model:
         """
         args = self.parse_arguments(args)
         self.init_schema(args)
-        filter_by, order_by = self.get_filter(args), self.get_order_by(args)
+        filter_by, order_by = self.get_filter_by(args), self.get_order_by(args)
         query = select_many(self, filter_by=filter_by, order_by=order_by,
                             offset=args.offset, limit=args.limit, search_term=search_term)
         log_query(query)
@@ -469,7 +464,7 @@ class Model:
         args = self.parse_arguments(args)
         rel.load(self)
         rel.model.init_schema(args)
-        filter_by, order_by = rel.model.get_filter(args), rel.model.get_order_by(args)
+        filter_by, order_by = rel.model.get_filter_by(args), rel.model.get_order_by(args)
         query = select_related(rel, object_id, filter_by=filter_by, order_by=order_by,
                                offset=args.offset, limit=args.limit, search=search_term)
         log_query(query)

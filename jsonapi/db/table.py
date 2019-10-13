@@ -182,6 +182,11 @@ class FromClause(MutableSequence):
                         break
             return left
 
+    def get_column(self, name):
+        for col in self().columns:
+            if col.name == name:
+                return col
+
     @staticmethod
     def value(item):
         return item if isinstance(item, FromItem) else FromItem(item)
@@ -244,9 +249,9 @@ def get_from_items(rel):
     if rel.cardinality == Cardinality.ONE_TO_ONE:
         onclause = rel.model.primary_key == rel.parent.primary_key
     elif rel.cardinality == Cardinality.ONE_TO_MANY:
-        onclause = rel.model.get_db_column(rel.ref) == rel.parent.primary_key
+        onclause = rel.model.get_expr(rel.ref) == rel.parent.primary_key
     elif rel.cardinality == Cardinality.MANY_TO_ONE:
-        onclause = rel.model.primary_key == rel.parent.get_db_column(rel.ref)
+        onclause = rel.model.primary_key == rel.parent.get_expr(rel.ref)
     else:
         ref_col, parent_col = get_foreign_key_pair(rel.model, *rel.ref)
         return [FromItem(parent_col.table,

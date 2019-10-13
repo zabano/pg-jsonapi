@@ -1,11 +1,10 @@
 import marshmallow as ma
+from sqlalchemy.sql import text
 
 from jsonapi.datatypes import DataType, Date, Integer
 from jsonapi.db.table import Cardinality, FromItem, get_foreign_key_pair
 from jsonapi.exc import APIError, Error
 from jsonapi.registry import model_registry, schema_registry
-
-from sqlalchemy.sql import text
 
 
 class BaseField:
@@ -99,7 +98,7 @@ class Aggregate(BaseField):
         elif self.rel.cardinality == Cardinality.ONE_TO_MANY:
             from_item = FromItem(
                 self.rel.model.primary_key.table,
-                onclause=self.rel.parent.primary_key == self.rel.model.get_db_column(self.rel.ref),
+                onclause=self.rel.parent.primary_key == self.rel.model.get_expr(self.rel.ref),
                 left=True)
             self.from_items[model.name] = (from_item,)
         else:
