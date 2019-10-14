@@ -1,6 +1,6 @@
 import pytest
 
-from jsonapi.datatypes import String, Bool
+from jsonapi.datatypes import Bool, String
 from jsonapi.exc import ModelError
 from jsonapi.model import Field, Model
 from jsonapi.tests.db import test_data_t, users_t
@@ -41,7 +41,7 @@ class FooBarModel(Model):
     type_ = 'test'
     from_ = test_data_t
     fields = ('test_int', 'test_float',
-              Field('test_float', test_data_t.c.test_text),
+              Field('test_float', String),
               Field('test_bool'))
 
 
@@ -62,6 +62,8 @@ def test_1_fields():
         model = cls()
         assert 'id' in model.fields.keys()
 
+        model.init_schema(model.parse_arguments({}))
+
         if cls is FooBarModel:
             assert len(model.fields.keys()) == 4
             assert 'test_int' in model.fields.keys()
@@ -72,7 +74,10 @@ def test_1_fields():
 
     with pytest.raises(ModelError, match='illegal field name'):
         IllegalFieldNameModel()
-    with pytest.raises(ModelError, match='not found'):
-        FieldNotFoundModel()
+
     with pytest.raises(ModelError, match='invalid field'):
         InvalidFieldModel()
+
+    model = FieldNotFoundModel()
+    with pytest.raises(ModelError, match='not found'):
+        model.init_schema(model.parse_arguments({}))

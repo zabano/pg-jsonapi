@@ -10,7 +10,7 @@ from inflection import camelize, dasherize, underscore
 
 from db.table import get_primary_key
 from jsonapi.args import RequestArguments
-from jsonapi.datatypes import DataType, Integer, String
+from jsonapi.datatypes import Integer, String
 from jsonapi.db.filter import FilterBy
 from jsonapi.db.query import exists, select_many, select_one, select_related
 from jsonapi.db.table import Cardinality, FromClause, FromItem, OrderBy, is_from_item
@@ -160,16 +160,15 @@ class Model:
         elif 'type' in fields.keys():
             raise ModelError('illegal field name: "type"', self)
 
-        fields['id'] = Field('id', self.primary_key, String)
+        id_field = Field('id', String)
+        id_field.load(self)
+        fields['id'] = id_field
         return fields
 
     def get_field(self, field_spec):
         if isinstance(field_spec, str):
-            return Field(field_spec, self.get_expr(field_spec))
+            return Field(field_spec)
         elif isinstance(field_spec, BaseField):
-            if isinstance(field_spec, Field) and field_spec.expr is None:
-                field_spec.expr = self.get_expr(field_spec.name)
-                field_spec.data_type = DataType.get(field_spec.expr)
             return copy(field_spec)
         else:
             raise ModelError('invalid field: {!r}'.format(field_spec), self)
@@ -258,27 +257,27 @@ class Model:
             field.sort_by = in_sort
 
             if isinstance(field, (Field, Derived)):
-                field.exclude = fieldset_defined and not in_fieldset
+                field.exclude = name != 'id' and fieldset_defined and not in_fieldset
+                if not field.exclude or in_sort or in_filter:
+                    logger.info('load field: {}.{}'.format(self.name, field.name))
+                    field.load(self)
 
             elif isinstance(field, Aggregate):
                 field.exclude = not in_fieldset
                 field.expr = None
                 if in_fieldset or in_sort or in_filter:
-                    logger.info('load aggregate: {}.{}'.format(self.name, field.name))
+                    logger.info('load field: {}.{}'.format(self.name, field.name))
                     field.load(self)
 
             elif isinstance(field, Relationship):
                 field.exclude = not in_include
                 if in_include or in_sort or in_filter:
-                    logger.info('load relationship: {}.{}'.format(self.name, field.name))
+                    logger.info('load field: {}.{}'.format(self.name, field.name))
                     field.load(self)
                     field.model.init_schema(args, parents=(field.name, *parents))
 
             else:
                 raise ModelError('unsupported field: {!r}'.format(field), self)
-
-            if not field.exclude:
-                logger.info('include field: {}.{}'.format(self.name, field.name))
 
         schema = type('{}Schema'.format(self.name),
                       (JSONSchema,),

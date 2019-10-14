@@ -19,7 +19,7 @@ class TestModel(Model):
 class UserModel(Model):
     from_ = users_t, user_names_t
     fields = ('email', 'first', 'last', 'created_on', 'status',
-              Derived('name', lambda rec: '{first} {last}'.format(**rec)),
+              Derived('name', '{1}.first + " " + {1}.last'),
               Relationship('bio', 'UserBioModel', ONE_TO_ONE),
               Relationship('articles', 'ArticleModel', ONE_TO_MANY, 'author_id'),
               Relationship('followers', 'UserModel', MANY_TO_MANY, ('user_id', 'follower_id')),

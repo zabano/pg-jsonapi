@@ -165,6 +165,7 @@ async def test_custom(articles, article_count, superuser_id):
             assert_attribute(article, 'isPublished', lambda v: v is True)
 
 
+@pytest.mark.dev
 @pytest.mark.asyncio
 async def test_relationship(articles, article_count, superuser_id):
     for args in [{'filter[publisher]': 'none'},

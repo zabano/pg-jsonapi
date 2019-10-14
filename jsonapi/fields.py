@@ -1,27 +1,28 @@
+import re
+
 import marshmallow as ma
 from sqlalchemy.sql import text
 
-from jsonapi.datatypes import DataType, Date, Integer
+from jsonapi.datatypes import DataType, Date, Integer, String
 from jsonapi.db.table import Cardinality, FromItem, get_foreign_key_pair
-from jsonapi.exc import APIError, Error
+from jsonapi.exc import APIError, Error, ModelError
 from jsonapi.registry import model_registry, schema_registry
 
 
 class BaseField:
     """ The base class for all field types """
 
-    def __init__(self, name, expr=None, data_type=None):
+    def __init__(self, name, data_type=None):
 
         if data_type is not None and not isinstance(data_type, DataType):
             raise Error('invalid data type provided: "{}"'.format(data_type))
 
         self.name = name
-        self.expr = expr
-        self.data_type = DataType.get(expr) if data_type is None else data_type
+        self.data_type = data_type
+        self.expr = None
         self.exclude = False
         self.sort_by = False
-
-        self.filter_clause = self.get_filter_clause()
+        self.filter_clause = None
 
     def get_filter_clause(self):
         data_type = Integer if self.name == 'id' else self.data_type
@@ -39,8 +40,6 @@ class BaseField:
             return ma.fields.Nested(
                 schema_registry['{}Schema'.format(self.model.name)](),
                 many=self.cardinality in (Cardinality.ONE_TO_MANY, Cardinality.MANY_TO_MANY))
-        if isinstance(self, Derived):
-            return ma.fields.Function(self.func)
         if issubclass(self.data_type.ma_type, ma.fields.Date):
             return self.data_type.ma_type(format=DataType.FORMAT_DATE)
         if issubclass(self.data_type.ma_type, ma.fields.DateTime):
@@ -53,14 +52,22 @@ class BaseField:
 
 class Field(BaseField):
     """
-    Basic field type, which maps to a database table column or expression.
+    Basic field type, which maps to a database table column.
 
     >>> from jsonapi.tests.db import users_t, user_names_t
     >>> from jsonapi.datatypes import Date
-    >>> Field('emil_address', users_t.c.email)
-    >>> Field('name', user_names_t.c.first + ' ' + user_names_t.c.last)
-    >>> Field('created_on', data_type=Date)
+    >>> Field('emil_address')
+    >>> Field('created_on', Date)
     """
+
+    def load(self, model):
+        if self.name == 'id':
+            self.expr = model.primary_key
+        else:
+            self.expr = model.get_expr(self.name)
+            if self.data_type is None:
+                self.data_type = DataType.get(self.expr)
+        self.filter_clause = self.get_filter_clause()
 
 
 class Aggregate(BaseField):
@@ -78,7 +85,7 @@ class Aggregate(BaseField):
         :param func: SQLAlchemy aggregate function (ex. func.count)
         :param DataType data_type: one of the supported data types (optional)
         """
-        super().__init__(name, expr=None, data_type=data_type if data_type is not None else Integer)
+        super().__init__(name, data_type=data_type if data_type is not None else Integer)
         self.func = func
         self.rel_name = rel_name
         self.rel = None
@@ -109,16 +116,24 @@ class Derived(BaseField):
     """
     Represents a derived field.
 
-    >>> Derived('name', lambda rec: '{first} {last}.format(**rec)')
+    >>> Derived('name', '{0}.first + ' ' + {0}.last')
     """
 
-    def __init__(self, name, expr):
+    def __init__(self, name, spec, data_type=None):
         """
         :param str name: a unique field name
-        :param lambda expr: a lambda function that accepts a single record as the first argument
+        :param lambda spec: a lambda function that accepts a single record as the first argument
+        :param DataType data_type: one of the supported data types (default: String)
         """
-        super().__init__(name)
-        self.func = expr
+        super().__init__(name, data_type=data_type if data_type is not None else String)
+        self.spec = spec
+
+    def load(self, model):
+        try:
+            self.expr = eval(re.sub(r'{(\d+)}', r'model.from_[\1].c', self.spec))
+        except SyntaxError:
+            raise ModelError('{} | invalid syntax: {}'.format(self.name, self.spec), model)
+        self.filter_clause = self.get_filter_clause()
 
 
 class Relationship(BaseField):
@@ -155,3 +170,4 @@ class Relationship(BaseField):
                        {'type_': base.get_type(),
                         'from_': base.get_from_aliases(self.name)})
         self.model = cls()
+        self.filter_clause = self.get_filter_clause()
