@@ -1,7 +1,7 @@
 import enum
 import re
 
-from sqlalchemy.sql import operators, or_
+from sqlalchemy.sql import and_, operators, or_
 
 from jsonapi.exc import APIError, Error
 from .table import Cardinality, get_from_items, is_clause, is_from_item
@@ -108,11 +108,11 @@ class FilterClause:
         if any(symbol in val for symbol in MODIFIERS):
             values = list()
             for v in val.split(','):
-                match = re.match('({})?(\w+)'.format('|'.join(MODIFIERS)), v)
+                match = re.match('({})?(.+)'.format('|'.join(MODIFIERS)), v)
                 if match:
                     mod = '=' if not match[1] else match[1]
                     values.append((mod, self.data_type.parse(match[2])))
-            return values
+            return sorted(values, key=lambda rec: (rec[1] is None, rec[1]))
         else:
             return [('=', self.data_type.parse(v)) for v in val.split(',')]
 
@@ -135,7 +135,7 @@ class FilterClause:
                     raise Error('invalid operator: {}')
             else:
                 expressions = list()
-                for mod, val in values:
+                for i, (mod, val) in enumerate(values):
                     if val in (True, False, None):
                         if mod == '=':
                             expressions.append(expr.is_(val))
@@ -144,7 +144,18 @@ class FilterClause:
                         else:
                             raise Error('invalid modifier: {}'.format(mod))
                     else:
-                        expressions.append(MODIFIERS[mod](expr, val))
+                        and_expr = list()
+                        and_expr.append(MODIFIERS[mod](expr, val))
+
+                        if i > 0:
+                            val_before = values[i - 1][1]
+                            if val_before is not None:
+                                and_expr.append(MODIFIERS['>'](expr, values[i - 1][1]))
+                        if i < len(values) - 1:
+                            val_after = values[i + 1][1]
+                            if val_after is not None:
+                                and_expr.append(MODIFIERS['<'](expr, values[i + 1][1]))
+                    expressions.append(and_(*and_expr))
                 return or_(*expressions)
 
         #

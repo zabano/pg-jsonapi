@@ -22,10 +22,6 @@ def init_pg(event_loop):
     event_loop.run_until_complete(init_db())
 
 
-#
-# models
-#
-
 @pytest.fixture()
 def users():
     return UserModel()
@@ -41,9 +37,14 @@ def keywords():
     return KeywordModel()
 
 
-#
-# test data
-#
+@pytest.fixture(scope='session')
+def true_values():
+    return 't', 'T', 'true', 'True', 'TRUE', '1', 'on', 'On', 'ON', 'yes', 'Yes', 'YES'
+
+
+@pytest.fixture(scope='session')
+def false_values():
+    return 'f', 'F', 'false', 'False', 'FALSE', '0', 'off', 'Off', 'OFF', 'no', 'No', 'NO'
 
 
 @pytest.fixture(scope='session')

@@ -135,6 +135,7 @@ def assert_meta(json, name, validator=None):
     assert name in json['meta']
     if validator is not None:
         assert validator(json['meta'][name])
+    return json['meta'][name]
 
 
 def assert_field(obj, name):
