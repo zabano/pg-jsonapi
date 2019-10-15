@@ -22,8 +22,7 @@ def field_name(name):
 # model interface
 ####################################################################################################
 
-def login_user(**kwargs):
-    user_id = kwargs.pop('login', None)
+def login_user(user_id):
     if user_id is not None:
         login(user_id)
     return user_id
@@ -36,7 +35,7 @@ def logout_user(user_id):
 
 @asynccontextmanager
 async def get_object(model, object_id, args=None, **kwargs):
-    user_id = login_user(**kwargs)
+    user_id = login_user(kwargs.pop('login', None))
     try:
         yield await model.get_object(args, object_id)
     finally:
@@ -45,18 +44,18 @@ async def get_object(model, object_id, args=None, **kwargs):
 
 @asynccontextmanager
 async def get_collection(model, args=None, **kwargs):
-    user_id = login_user(**kwargs)
+    user_id = login_user(kwargs.pop('login', None))
     try:
-        yield await model.get_collection(args)
+        yield await model.get_collection(args, search=kwargs.pop('search', None))
     finally:
         logout_user(user_id)
 
 
 @asynccontextmanager
 async def get_related(model, object_id, name, args=None, **kwargs):
-    user_id = login_user(**kwargs)
+    user_id = login_user(kwargs.pop('login', None))
     try:
-        yield await model.get_related(args, object_id, name)
+        yield await model.get_related(args, object_id, name, search=kwargs.pop('search', None))
     finally:
         logout_user(user_id)
 

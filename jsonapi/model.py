@@ -308,17 +308,25 @@ class Model:
         self.included.clear()
         self.meta = dict()
 
-    async def paginate(self, args, filter_by, object_id=None, rel=None):
+    async def set_meta(self, limit, object_id=None, rel=None, **kwargs):
+        filter_by = kwargs.get('filter_by', None)
+        search_term = kwargs.get('search_term', None)
         is_related = object_id is not None and rel is not None
-        if args.limit is not None or filter_by:
+        if limit is not None or search_term is not None or filter_by:
             query = select_related(rel, object_id, count=True) \
                 if is_related else select_many(self, count=True)
             log_query(query)
             self.meta['total'] = await pg.fetchval(query)
-            if filter_by:
-                self.meta['totalFiltered'] = await pg.fetchval(
+            if limit is not None and filter_by:
+                self.meta['filterTotal'] = await pg.fetchval(
                     select_related(rel, object_id, filter_by=filter_by, count=True)
                     if is_related else select_many(self, filter_by=filter_by, count=True))
+            if search_term is not None:
+                self.meta['searchTerm'] = search_term
+                if limit is not None:
+                    self.meta['searchTotal'] = await pg.fetchval(
+                        select_related(rel, object_id, search_term=search_term, count=True)
+                        if is_related else select_many(self, search_term=search_term, count=True))
 
     def get_filter_by(self, args):
         filter_by = FilterBy()
@@ -415,7 +423,7 @@ class Model:
         await self.fetch_included([rec], args)
         return self.response(rec)
 
-    async def get_collection(self, args, search_term=None):
+    async def get_collection(self, args, search=None):
         """
         Fetch a collection of resources.
 
@@ -428,21 +436,21 @@ class Model:
         >>> })
 
         :param dict args: a dictionary representing the request query string
-        :param str search_term: an optional search term
+        :param str search: an optional search term
         :return: a dictionary representing a JSON API response
         """
         args = self.parse_arguments(args)
         self.init_schema(args)
         filter_by, order_by = self.get_filter_by(args), self.get_order_by(args)
         query = select_many(self, filter_by=filter_by, order_by=order_by,
-                            offset=args.offset, limit=args.limit, search_term=search_term)
+                            offset=args.offset, limit=args.limit, search_term=search)
         log_query(query)
         recs = [dict(rec) for rec in await pg.fetch(query)]
-        await self.paginate(args, filter_by)
+        await self.set_meta(args.limit, filter_by=filter_by, search_term=search)
         await self.fetch_included(recs, args)
         return self.response(recs)
 
-    async def get_related(self, args, object_id, relationship_name, search_term=None):
+    async def get_related(self, args, object_id, relationship_name, search=None):
         """
         Fetch a collection of related resources.
 
@@ -456,7 +464,7 @@ class Model:
         :param dict args: a dictionary representing the request query string
         :param object_id: the resource object id
         :param relationship_name: relationship name
-        :param str search_term: an optional search term
+        :param str search: an optional search term
         :return: a dictionary representing a JSON API response
         """
 
@@ -473,14 +481,15 @@ class Model:
         rel.model.init_schema(args)
         filter_by, order_by = rel.model.get_filter_by(args), rel.model.get_order_by(args)
         query = select_related(rel, object_id, filter_by=filter_by, order_by=order_by,
-                               offset=args.offset, limit=args.limit, search=search_term)
+                               offset=args.offset, limit=args.limit, search_term=search)
         log_query(query)
         if rel.cardinality in (Cardinality.ONE_TO_ONE, Cardinality.MANY_TO_ONE):
             result = await pg.fetchrow(query)
             data = dict(result) if result is not None else None
         else:
             data = [dict(rec) for rec in await pg.fetch(query)]
-            await rel.model.paginate(args, filter_by, object_id, rel)
+            await rel.model.set_meta(args.limit, object_id, rel,
+                                     filter_by=filter_by, search_term=search)
         await rel.model.fetch_included(data, args)
         return rel.model.response(data)
 

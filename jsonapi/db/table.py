@@ -236,13 +236,13 @@ def get_primary_key(table):
         return table.primary_key[0]
 
 
-def get_foreign_key_pair(model, model_ref, parent_ref):
+def get_foreign_key_pair(model, model_ref, rel_ref):
     tb = get_table(model.primary_key.table)
     for table in tb.metadata.tables.values():
         ref_names = list(fk.parent.name for fk in table.foreign_keys)
-        if model_ref in ref_names and parent_ref in ref_names:
-            return table.c[model_ref], table.c[parent_ref]
-    raise Error('foreign key pair not found: {!r}'.format((model_ref, parent_ref)))
+        if rel_ref in ref_names and model_ref in ref_names:
+            return table.c[rel_ref], table.c[model_ref]
+    raise Error('foreign key pair not found: {!r}'.format((rel_ref, model_ref)))
 
 
 def get_from_items(rel):

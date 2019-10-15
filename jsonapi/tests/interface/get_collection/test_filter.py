@@ -60,6 +60,7 @@ async def test_bool(articles, superuser_id, true_values, false_values):
                                    'filter[is-published]': val,
                                    'page[size]': 10},
                                   login=superuser_id) as json:
+            assert_meta(json, 'filterTotal', lambda v: v > 0)
             for article in assert_collection(json, 'article'):
                 assert_attribute(article, 'is-published', lambda v: v is True)
     for val in false_values:
@@ -68,6 +69,7 @@ async def test_bool(articles, superuser_id, true_values, false_values):
                                    'filter[is-published]': val,
                                    'page[size]': 10},
                                   login=superuser_id) as json:
+            assert_meta(json, 'filterTotal', lambda v: v > 0)
             for article in assert_collection(json, 'article'):
                 assert_attribute(article, 'is-published', lambda v: v is False)
 
@@ -77,9 +79,7 @@ async def test_enum(users, user_count):
     for val in ('active', 'pending', 'active,pending'):
         async with get_collection(users, {'filter[status]': val}) as json:
             assert_meta(json, 'total', lambda v: int(v) == user_count)
-            total_filtered = assert_meta(json, 'totalFiltered')
-            assert total_filtered > 0
-            for user in assert_collection(json, 'user', lambda size: size == total_filtered):
+            for user in assert_collection(json, 'user', lambda size: size > 0):
                 assert_attribute(user, 'status',
                                  lambda v: v in val.split(',') if ',' in val else v == val)
 
@@ -92,9 +92,7 @@ async def test_datetime(users, user_count):
                                   {'filter[created-on:gt]': val,
                                    'sort': 'created-on'}) as json:
             assert_meta(json, 'total', lambda v: int(v) == user_count)
-            total_filtered = assert_meta(json, 'totalFiltered')
-            assert total_filtered > 0
-            for user in assert_collection(json, 'user', lambda size: size == total_filtered):
+            for user in assert_collection(json, 'user', lambda size: size > 0):
                 assert_attribute(user, 'created-on',
                                  lambda v: parse_datetime(v) > dt.datetime(2019, 10, 1))
 
@@ -102,15 +100,12 @@ async def test_datetime(users, user_count):
                               {'filter[created-on]': '>2018-08,<2018-09,'
                                                      '>2019-08,<2019-09'}) as json:
         assert_meta(json, 'total', lambda v: int(v) == user_count)
-        total_filtered = assert_meta(json, 'totalFiltered')
-        assert total_filtered > 0
-        for user in assert_collection(json, 'user', lambda size: size == total_filtered):
-            assert_attribute(
-                user, 'created-on',
-                lambda v: (dt.datetime(2018, 8, 1) < parse_datetime(v)
-                           < dt.datetime(2018, 9, 1)) or
-                          (dt.datetime(2019, 8, 1) < parse_datetime(v)
-                           < dt.datetime(2019, 9, 1)))
+        for user in assert_collection(json, 'user', lambda size: size > 0):
+            assert_attribute(user, 'created-on',
+                             lambda v: (dt.datetime(2018, 8, 1) < parse_datetime(v)
+                                        < dt.datetime(2018, 9, 1)) or
+                                       (dt.datetime(2019, 8, 1) < parse_datetime(v)
+                                        < dt.datetime(2019, 9, 1)))
 
 
 @pytest.mark.asyncio
@@ -121,9 +116,7 @@ async def test_aggregate(articles, article_count, superuser_id):
                                'fields[article]': 'comment-count,keyword-count'},
                               login=superuser_id) as json:
         assert_meta(json, 'total', lambda v: int(v) == article_count)
-        total_filtered = assert_meta(json, 'totalFiltered')
-        assert total_filtered > 0
-        for article in assert_collection(json, 'article', lambda size: size == total_filtered):
+        for article in assert_collection(json, 'article', lambda size: size > 0):
             assert_object(article, 'article')
             assert_attribute(article, 'comment-count', lambda v: v > 30)
             assert_attribute(article, 'keyword-count', lambda v: v == 3)
@@ -139,9 +132,7 @@ async def test_mixed(users, user_count, superuser_id):
                                'fields[user]': 'created-on,status,article-count'},
                               login=superuser_id) as json:
         assert_meta(json, 'total', lambda v: int(v) == user_count)
-        total_filtered = assert_meta(json, 'totalFiltered')
-        assert total_filtered > 0
-        for user in assert_collection(json, 'user', lambda size: size == total_filtered):
+        for user in assert_collection(json, 'user', lambda size: size > 0):
             assert_object(user, 'user', lambda v: int(v) > 100)
             assert_attribute(user, 'status', lambda v: v == 'pending')
             assert_attribute(user, 'article-count', lambda v: v <= 2)
@@ -157,9 +148,7 @@ async def test_custom(articles, article_count, superuser_id):
                                'fields[article]': 'title,is-published'},
                               login=superuser_id) as json:
         assert_meta(json, 'total', lambda v: int(v) == article_count)
-        total_filtered = assert_meta(json, 'totalFiltered')
-        assert total_filtered > 0
-        for article in assert_collection(json, 'article', lambda size: size == total_filtered):
+        for article in assert_collection(json, 'article', lambda size: size > 0):
             assert_object(article, 'article')
             assert_attribute(article, 'title', lambda v: len(v) == 15)
             assert_attribute(article, 'isPublished', lambda v: v is True)
@@ -173,9 +162,7 @@ async def test_relationship(articles, article_count, superuser_id):
                  {'filter[publisher.id:eq]': 'none'}]:
         async with get_collection(articles, args, login=superuser_id) as json:
             assert_meta(json, 'total', lambda v: int(v) == article_count)
-            total_filtered = assert_meta(json, 'totalFiltered')
-            assert total_filtered > 0
-            for article in assert_collection(json, 'article', lambda size: size == total_filtered):
+            for article in assert_collection(json, 'article', lambda size: size > 0):
                 assert_object(article, 'article')
                 assert_attribute(article, 'is-published', lambda v: v is False)
 
@@ -185,7 +172,6 @@ async def test_relationship(articles, article_count, superuser_id):
                                'filter[author.article-count:eq]': '3',
                                'filter[publisher:ne]': 'none'},
                               login=superuser_id) as json:
-
         for article in assert_collection(json, 'article', lambda size: size > 0):
             assert_attribute(article, 'is-published', lambda v: v is True)
             author = assert_included(json, assert_relationship(article, 'author'))
@@ -200,9 +186,7 @@ async def test_derived(users, user_count):
                                'fields[user]': 'id',
                                'fields[user-bio]': 'age'}) as json:
         assert_meta(json, 'total', lambda v: int(v) == user_count)
-        total_filtered = assert_meta(json, 'totalFiltered')
-        assert total_filtered > 0
-        for user in assert_collection(json, 'user', lambda size: size == total_filtered):
+        for user in assert_collection(json, 'user', lambda size: size > 0):
             assert_object(user, 'user')
             bio = assert_included(json, assert_relationship(user, 'bio'))
             assert_attribute(bio, 'age', lambda v: int(v) > 18)

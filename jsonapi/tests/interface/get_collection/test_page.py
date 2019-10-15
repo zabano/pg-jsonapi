@@ -13,7 +13,7 @@ async def test_size(users, user_count):
             for user in json['data']:
                 assert_object(user, 'user')
             assert_meta(json, 'total', lambda v: v == user_count)
-            assert 'totalFiltered' not in json['meta']
+            assert 'filterTotal' not in json['meta']
 
 
 @pytest.mark.asyncio
@@ -30,7 +30,7 @@ async def test_size_number(users, user_count):
                     assert_object(user, 'user', lambda v: v not in user_id_list)
                     user_id_list.append(user['id'])
                 assert_meta(json, 'total', lambda v: v == user_count)
-                assert 'totalFiltered' not in json['meta']
+                assert 'filterTotal' not in json['meta']
 
 
 @pytest.mark.asyncio
@@ -50,4 +50,4 @@ async def test_filter(users, user_count):
             assert_object(user, 'user')
             assert_attribute(user, 'status', lambda v: v == 'active')
         assert_meta(json, 'total', lambda v: v == user_count)
-        assert_meta(json, 'totalFiltered', lambda v: v < user_count)
+        assert_meta(json, 'filterTotal', lambda v: v < user_count)

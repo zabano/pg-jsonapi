@@ -1,6 +1,6 @@
 import sqlalchemy.sql as sql
 
-from jsonapi.exc import ModelError
+from jsonapi.exc import ModelError, APIError
 from jsonapi.fields import Aggregate, Derived, Field
 from .table import Cardinality, FromClause, FromItem, get_foreign_key_pair
 
@@ -34,6 +34,9 @@ def select_many(model, **kwargs):
     limit = kwargs.get('limit', None)
     offset = kwargs.get('offset', 0)
 
+    if filter_by and search_term:
+        raise APIError('cannot filter and search at the same time', model)
+
     query = sql.select(columns=_col_list(model, search_term=search_term),
                        from_obj=_from_obj(model,
                                           filter_by=filter_by,
@@ -59,6 +62,9 @@ def select_related(rel, obj_id, **kwargs):
     count = bool(kwargs.get('count', False))
     limit = kwargs.get('limit', None)
     offset = kwargs.get('offset', 0)
+
+    if filter_by and search_term:
+        raise APIError('cannot filter and search at the same time', rel.model)
 
     from_items = []
 
@@ -164,7 +170,7 @@ def _group_query(model, query, *extra_columns, **kwargs):
     filter_by = kwargs.get('filter_by', None)
     order_by = kwargs.get('order_by', None)
     if (filter_by is not None and len(filter_by.having) > 0) \
-        or (order_by is not None and order_by.distinct) \
+            or (order_by is not None and order_by.distinct) \
             or (any(isinstance(field, Aggregate) for field in model.attributes.values())):
         columns = list(extra_columns)
         if order_by:
