@@ -19,7 +19,7 @@ class TestModel(Model):
 class UserModel(Model):
     from_ = users_t, user_names_t
     fields = ('email', 'first', 'last', 'created_on', 'status',
-              Derived('name', '{1}.first + " " + {1}.last'),
+              Derived('name', lambda rec: rec.first + ' ' + rec.last),
               Relationship('bio', 'UserBioModel', ONE_TO_ONE),
               Relationship('articles', 'ArticleModel', ONE_TO_MANY, 'author_id'),
               Relationship('followers', 'UserModel', MANY_TO_MANY, ('user_id', 'follower_id')),
@@ -44,8 +44,8 @@ class ArticleModel(Model):
               Aggregate('author_count', 'author', func.count))
 
     @staticmethod
-    def filter_custom(v):
-        return func.char_length(articles_t.c.title) == int(v)
+    def filter_custom(rec, val):
+        return func.char_length(rec.title) == int(val)
 
     search = articles_ts
     access = func.check_article_read_access

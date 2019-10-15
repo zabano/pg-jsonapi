@@ -1,5 +1,3 @@
-import re
-
 import marshmallow as ma
 from sqlalchemy.sql import text
 
@@ -70,6 +68,30 @@ class Field(BaseField):
         self.filter_clause = self.get_filter_clause()
 
 
+class Derived(BaseField):
+    """
+    Represents a derived field.
+
+    >>> Derived('name', lambda rec: rec['first'] + ' ' + rec['last'])
+    >>> Derived('name', lambda rec: rec.first + ' ' + rec.last)
+    """
+
+    def __init__(self, name, spec, data_type=None):
+        """
+        :param str name: a unique field name
+        :param lambda spec: a lambda function that accepts a single record as the first argument
+        :param DataType data_type: one of the supported data types (default: String)
+        """
+        super().__init__(name, data_type=data_type if data_type is not None else String)
+        self.spec = spec
+
+    def load(self, model):
+        self.expr = self.spec(model.rec)
+        # except SyntaxError:
+        #     raise ModelError('{} | invalid syntax: {}'.format(self.name), model)
+        self.filter_clause = self.get_filter_clause()
+
+
 class Aggregate(BaseField):
     """
     Represents an aggregate field (e.g. count, max, etc.)
@@ -110,30 +132,6 @@ class Aggregate(BaseField):
             self.from_items[model.name] = (from_item,)
         else:
             raise APIError('error: "{}"'.format(self.name), model)
-
-
-class Derived(BaseField):
-    """
-    Represents a derived field.
-
-    >>> Derived('name', '{0}.first + ' ' + {0}.last')
-    """
-
-    def __init__(self, name, spec, data_type=None):
-        """
-        :param str name: a unique field name
-        :param lambda spec: a lambda function that accepts a single record as the first argument
-        :param DataType data_type: one of the supported data types (default: String)
-        """
-        super().__init__(name, data_type=data_type if data_type is not None else String)
-        self.spec = spec
-
-    def load(self, model):
-        try:
-            self.expr = eval(re.sub(r'{(\d+)}', r'model.from_[\1].c', self.spec))
-        except SyntaxError:
-            raise ModelError('{} | invalid syntax: {}'.format(self.name, self.spec), model)
-        self.filter_clause = self.get_filter_clause()
 
 
 class Relationship(BaseField):

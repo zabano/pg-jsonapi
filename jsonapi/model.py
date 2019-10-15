@@ -7,6 +7,7 @@ from itertools import islice
 import marshmallow as ma
 from asyncpgsa import pg
 from inflection import camelize, dasherize, underscore
+from sqlalchemy.sql.expression import ColumnCollection
 
 from db.table import get_primary_key
 from jsonapi.args import RequestArguments
@@ -242,6 +243,10 @@ class Model:
                 and (not field.exclude or field.sort_by)
                 and field.expr is not None}
 
+    @property
+    def rec(self):
+        return ColumnCollection(*self.from_clause().c.values()).as_immutable()
+
     ################################################################################################
     # core functionality
     ################################################################################################
@@ -320,7 +325,7 @@ class Model:
             custom_name = 'filter_{}'.format(field_name)
             if hasattr(self, custom_name):
                 custom_filter = getattr(self, 'filter_{}'.format(field_name))
-                filter_by.add_custom(field_name, custom_filter(arg.value))
+                filter_by.add_custom(field_name, custom_filter(self.rec, arg.value))
             elif field_name in self.fields:
                 field = self.fields[field_name]
                 try:
