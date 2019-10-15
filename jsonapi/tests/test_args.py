@@ -1,7 +1,4 @@
-import pytest
-
 from jsonapi.args import RequestArguments
-from jsonapi.exc import Error
 
 
 def test_fields_1():

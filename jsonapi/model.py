@@ -1,3 +1,4 @@
+import operator
 from collections import defaultdict
 from collections.abc import Sequence
 from copy import copy
@@ -325,7 +326,9 @@ class Model:
             custom_name = 'filter_{}'.format(field_name)
             if hasattr(self, custom_name):
                 custom_filter = getattr(self, 'filter_{}'.format(field_name))
-                filter_by.add_custom(field_name, custom_filter(self.rec, arg.value))
+                op = arg.operator if arg.operator else 'eq'
+                filter_by.add_custom(field_name, custom_filter(
+                    self.rec, arg.value, getattr(operator, op)))
             elif field_name in self.fields:
                 field = self.fields[field_name]
                 try:

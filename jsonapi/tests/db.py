@@ -1,17 +1,13 @@
 import datetime as dt
 import enum
 
+import sqlalchemy as sa
 from asyncpgsa import pg
 from sqlalchemy.dialects.postgresql import TSVECTOR
-from sqlalchemy.sql import false, text
-from sqlalchemy.sql.schema import Column, ForeignKey, MetaData, PrimaryKeyConstraint, Table, \
-    UniqueConstraint
-from sqlalchemy.sql.sqltypes import BigInteger, Boolean, CHAR, Date, DateTime, Enum, Float, \
-    Integer, JSON, Numeric, SmallInteger, String, Text, Time, VARCHAR
 
 PASSWORD_HASH_LENGTH = 128
 
-metadata = MetaData(schema='public')
+metadata = sa.MetaData(schema='public')
 
 
 async def init_db():
@@ -23,6 +19,7 @@ async def init_db():
         max_size=10
     )
 
+
 @enum.unique
 class UserStatus(enum.Enum):
     pending = 'Pending'
@@ -30,113 +27,114 @@ class UserStatus(enum.Enum):
     disabled = 'Disabled'
 
 
-test_data_t = Table(
+test_data_t = sa.Table(
     'test_data', metadata,
-    Column('test_bool', Boolean, nullable=False, index=True),
-    Column('test_small_int', SmallInteger, nullable=False, index=True),
-    Column('test_int', Integer, primary_key=True),
-    Column('test_big_int', BigInteger, nullable=False, index=True),
-    Column('test_float', Float, nullable=False, index=True),
-    Column('test_double', Float, nullable=False, index=True),
-    Column('test_numeric', Numeric(6, 4), nullable=False, index=True),
-    Column('test_char', CHAR(10), nullable=False, index=True),
-    Column('test_varchar', VARCHAR(100), nullable=False, index=True),
-    Column('test_text', Text, nullable=False, index=True),
-    Column('test_enum', Enum(UserStatus), nullable=False, index=True),
-    Column('test_time', Time, nullable=False, index=True),
-    Column('test_date', Date, nullable=False, index=True),
-    Column('test_timestamp', DateTime, nullable=False, index=True),
-    Column('test_timestamp_tz', DateTime(True), nullable=False, index=True),
-    Column('test_json', JSON, nullable=False, index=True),
-    Column('test_json_b', JSON, nullable=False, index=True))
+    sa.Column('test_bool', sa.Boolean, nullable=False, index=True),
+    sa.Column('test_small_int', sa.SmallInteger, nullable=False, index=True),
+    sa.Column('test_int', sa.Integer, primary_key=True),
+    sa.Column('test_big_int', sa.BigInteger, nullable=False, index=True),
+    sa.Column('test_float', sa.Float, nullable=False, index=True),
+    sa.Column('test_double', sa.Float, nullable=False, index=True),
+    sa.Column('test_numeric', sa.Numeric(6, 4), nullable=False, index=True),
+    sa.Column('test_char', sa.CHAR(10), nullable=False, index=True),
+    sa.Column('test_varchar', sa.VARCHAR(100), nullable=False, index=True),
+    sa.Column('test_text', sa.Text, nullable=False, index=True),
+    sa.Column('test_enum', sa.Enum(UserStatus), nullable=False, index=True),
+    sa.Column('test_time', sa.Time, nullable=False, index=True),
+    sa.Column('test_date', sa.Date, nullable=False, index=True),
+    sa.Column('test_timestamp', sa.DateTime, nullable=False, index=True),
+    sa.Column('test_timestamp_tz', sa.DateTime(True), nullable=False, index=True),
+    sa.Column('test_json', sa.JSON, nullable=False, index=True),
+    sa.Column('test_json_b', sa.JSON, nullable=False, index=True))
 
-users_t = Table(
+users_t = sa.Table(
     'users', metadata,
-    Column('id', Integer, primary_key=True),
-    Column('email', Text, unique=True, nullable=False),
-    Column('name', Text),
-    Column('status', Enum(UserStatus), index=True, nullable=False,
-           default=UserStatus.pending.name,
-           server_default=text(UserStatus.pending.name)),
-    Column('created_on', DateTime, nullable=False, default=dt.datetime.utcnow),
-    Column('password', String(PASSWORD_HASH_LENGTH), nullable=False),
-    Column('is_superuser', Boolean, default=False, server_default=false()))
+    sa.Column('id', sa.Integer, primary_key=True),
+    sa.Column('email', sa.Text, unique=True, nullable=False),
+    sa.Column('name', sa.Text),
+    sa.Column('status', sa.Enum(UserStatus), index=True, nullable=False,
+              default=UserStatus.pending.name,
+              server_default=sa.text(UserStatus.pending.name)),
+    sa.Column('created_on', sa.DateTime, nullable=False, default=dt.datetime.utcnow),
+    sa.Column('password', sa.String(PASSWORD_HASH_LENGTH), nullable=False),
+    sa.Column('is_superuser', sa.Boolean, default=False, server_default=sa.false()))
 
-user_bios_t = Table(
+user_bios_t = sa.Table(
     'user_bios', metadata,
-    Column('user_id', Integer, ForeignKey('users.id'), primary_key=True),
-    Column('birthday', Date, index=True),
-    Column('summary', Text))
+    sa.Column('user_id', sa.Integer, sa.ForeignKey('users.id'), primary_key=True),
+    sa.Column('birthday', sa.Date, index=True),
+    sa.Column('summary', sa.Text))
 
-user_names_t = Table(
+user_names_t = sa.Table(
     'user_names', metadata,
-    Column('user_id', Integer, ForeignKey('users.id'), primary_key=True, autoincrement=False),
-    Column('title', Text),
-    Column('first', Text, nullable=False),
-    Column('middle', Text),
-    Column('last', Text, nullable=False),
-    Column('suffix', Text),
-    Column('nickname', Text),
-    UniqueConstraint('first', 'last'))
+    sa.Column('user_id', sa.Integer, sa.ForeignKey('users.id'), primary_key=True,
+              autoincrement=False),
+    sa.Column('title', sa.Text),
+    sa.Column('first', sa.Text, nullable=False),
+    sa.Column('middle', sa.Text),
+    sa.Column('last', sa.Text, nullable=False),
+    sa.Column('suffix', sa.Text),
+    sa.Column('nickname', sa.Text),
+    sa.UniqueConstraint('first', 'last'))
 
-user_followers_t = Table(
+user_followers_t = sa.Table(
     'user_followers', metadata,
-    Column('user_id', Integer, ForeignKey('users.id'), nullable=False, index=True),
-    Column('follower_id', Integer, ForeignKey('users.id'), nullable=False, index=True),
-    PrimaryKeyConstraint('user_id', 'follower_id'))
+    sa.Column('user_id', sa.Integer, sa.ForeignKey('users.id'), nullable=False, index=True),
+    sa.Column('follower_id', sa.Integer, sa.ForeignKey('users.id'), nullable=False, index=True),
+    sa.PrimaryKeyConstraint('user_id', 'follower_id'))
 
-users_ts = Table(
+users_ts = sa.Table(
     'users_ts', metadata,
-    Column('user_id', Integer, ForeignKey('users.id'), primary_key=True),
-    Column('tsvector', TSVECTOR, index=True, nullable=False))
+    sa.Column('user_id', sa.Integer, sa.ForeignKey('users.id'), primary_key=True),
+    sa.Column('tsvector', TSVECTOR, index=True, nullable=False))
 
-articles_t = Table(
+articles_t = sa.Table(
     'articles', metadata,
-    Column('id', Integer, primary_key=True),
-    Column('author_id', Integer, ForeignKey('users.id'), nullable=False, index=True),
-    Column('published_by', Integer, ForeignKey('users.id'), index=True),
-    Column('title', Text, nullable=False, index=True),
-    Column('body', Text, nullable=False),
-    Column('created_on', DateTime(timezone=True)),
-    Column('updated_on', DateTime(timezone=True)),
-    Column('is_published', Boolean, nullable=False, default=False, server_default=false()))
+    sa.Column('id', sa.Integer, primary_key=True),
+    sa.Column('author_id', sa.Integer, sa.ForeignKey('users.id'), nullable=False, index=True),
+    sa.Column('published_by', sa.Integer, sa.ForeignKey('users.id'), index=True),
+    sa.Column('title', sa.Text, nullable=False, index=True),
+    sa.Column('body', sa.Text, nullable=False),
+    sa.Column('created_on', sa.DateTime(timezone=True)),
+    sa.Column('updated_on', sa.DateTime(timezone=True)),
+    sa.Column('is_published', sa.Boolean, nullable=False, default=False, server_default=sa.false()))
 
-articles_ts = Table(
+articles_ts = sa.Table(
     'articles_ts', metadata,
-    Column('article_id', Integer, ForeignKey('articles.id'), primary_key=True),
-    Column('tsvector', TSVECTOR, index=True, nullable=False))
+    sa.Column('article_id', sa.Integer, sa.ForeignKey('articles.id'), primary_key=True),
+    sa.Column('tsvector', TSVECTOR, index=True, nullable=False))
 
-comments_t = Table(
+comments_t = sa.Table(
     'comments', metadata,
-    Column('id', Integer, primary_key=True),
-    Column('article_id', Integer, ForeignKey('articles.id'), nullable=False, index=True),
-    Column('user_id', Integer, ForeignKey('users.id'), nullable=False, index=True),
-    Column('body', Text, nullable=False),
-    Column('created_on', DateTime(timezone=True)),
-    Column('updated_on', DateTime(timezone=True)))
+    sa.Column('id', sa.Integer, primary_key=True),
+    sa.Column('article_id', sa.Integer, sa.ForeignKey('articles.id'), nullable=False, index=True),
+    sa.Column('user_id', sa.Integer, sa.ForeignKey('users.id'), nullable=False, index=True),
+    sa.Column('body', sa.Text, nullable=False),
+    sa.Column('created_on', sa.DateTime(timezone=True)),
+    sa.Column('updated_on', sa.DateTime(timezone=True)))
 
-replies_t = Table(
+replies_t = sa.Table(
     'replies', metadata,
-    Column('id', Integer, primary_key=True),
-    Column('user_id', Integer, ForeignKey('users.id'), nullable=False, index=True),
-    Column('comment_id', Integer, ForeignKey('comments.id'), nullable=False, index=True),
-    Column('body', Text, nullable=False),
-    Column('created_on', DateTime(timezone=True)),
-    Column('updated_on', DateTime(timezone=True)))
+    sa.Column('id', sa.Integer, primary_key=True),
+    sa.Column('user_id', sa.Integer, sa.ForeignKey('users.id'), nullable=False, index=True),
+    sa.Column('comment_id', sa.Integer, sa.ForeignKey('comments.id'), nullable=False, index=True),
+    sa.Column('body', sa.Text, nullable=False),
+    sa.Column('created_on', sa.DateTime(timezone=True)),
+    sa.Column('updated_on', sa.DateTime(timezone=True)))
 
-keywords_t = Table(
+keywords_t = sa.Table(
     'keywords', metadata,
-    Column('id', Integer, primary_key=True),
-    Column('name', Text, nullable=False))
+    sa.Column('id', sa.Integer, primary_key=True),
+    sa.Column('name', sa.Text, nullable=False))
 
-article_keywords_t = Table(
+article_keywords_t = sa.Table(
     'article_keywords', metadata,
-    Column('article_id', Integer, ForeignKey('articles.id'), nullable=False, index=True),
-    Column('keyword_id', Integer, ForeignKey('keywords.id'), nullable=False, index=True),
-    PrimaryKeyConstraint('article_id', 'keyword_id'))
+    sa.Column('article_id', sa.Integer, sa.ForeignKey('articles.id'), nullable=False, index=True),
+    sa.Column('keyword_id', sa.Integer, sa.ForeignKey('keywords.id'), nullable=False, index=True),
+    sa.PrimaryKeyConstraint('article_id', 'keyword_id'))
 
-article_read_access_t = Table(
+article_read_access_t = sa.Table(
     'article_read_access', metadata,
-    Column('article_id', Integer, ForeignKey('articles.id'), nullable=False, index=True),
-    Column('user_id', Integer, ForeignKey('users.id'), nullable=False, index=True),
-    PrimaryKeyConstraint('article_id', 'user_id'))
+    sa.Column('article_id', sa.Integer, sa.ForeignKey('articles.id'), nullable=False, index=True),
+    sa.Column('user_id', sa.Integer, sa.ForeignKey('users.id'), nullable=False, index=True),
+    sa.PrimaryKeyConstraint('article_id', 'user_id'))

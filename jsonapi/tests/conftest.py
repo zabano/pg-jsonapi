@@ -3,7 +3,7 @@ import asyncio
 import pytest
 from sqlalchemy.sql import and_, func, select
 
-from jsonapi.tests.data import TOTAL_USERS
+from jsonapi.tests.data import MAX_ARTICLES_PER_USER, TOTAL_USERS
 from jsonapi.tests.db import *
 from jsonapi.tests.model import ArticleModel, CommentModel, TestModel, UserModel
 
@@ -62,6 +62,11 @@ def user_count():
 
 
 @pytest.fixture(scope='session')
+def max_articles_per_user():
+    return MAX_ARTICLES_PER_USER
+
+
+@pytest.fixture(scope='session')
 async def superuser_id():
     return await pg.fetchval(select([users_t.c.id]).select_from(
         users_t.join(articles_t, articles_t.c.author_id == users_t.c.id)).where(
@@ -102,3 +107,10 @@ async def user_2_id():
         users_t.outerjoin(articles_t, articles_t.c.author_id == users_t.c.id)).where(
         and_(~users_t.c.is_superuser,
              articles_t.c.id.is_(None))).group_by(users_t.c.id).limit(1))
+
+
+@pytest.fixture(scope='session')
+async def authors():
+    return [rec['id'] for rec in await pg.fetch(select([users_t.c.id]).select_from(
+        users_t.join(articles_t, articles_t.c.author_id == users_t.c.id)).group_by(
+        users_t.c.id))]

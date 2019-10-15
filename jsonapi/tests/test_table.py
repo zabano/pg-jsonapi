@@ -17,11 +17,6 @@ def test_is_clause():
     assert not is_clause(users_t)
 
 
-####################################################################################################
-# FromItem
-####################################################################################################
-
-
 def test_is_from_item():
     users_a = users_t.alias('test')
     assert is_from_item(FromItem(users_t))
@@ -95,10 +90,6 @@ def test_from_item_exc_5():
     with pytest.raises(Error):
         FromItem(users_t, onclause='test')
 
-
-####################################################################################################
-# FromClause
-####################################################################################################
 
 def test_from_clause():
     fc = FromClause(users_t)

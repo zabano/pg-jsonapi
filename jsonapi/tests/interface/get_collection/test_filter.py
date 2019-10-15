@@ -165,7 +165,6 @@ async def test_custom(articles, article_count, superuser_id):
             assert_attribute(article, 'isPublished', lambda v: v is True)
 
 
-@pytest.mark.dev
 @pytest.mark.asyncio
 async def test_relationship(articles, article_count, superuser_id):
     for args in [{'filter[publisher]': 'none'},
@@ -178,7 +177,7 @@ async def test_relationship(articles, article_count, superuser_id):
             assert total_filtered > 0
             for article in assert_collection(json, 'article', lambda size: size == total_filtered):
                 assert_object(article, 'article')
-                assert_attribute(article, 'isPublished', lambda v: v is False)
+                assert_attribute(article, 'is-published', lambda v: v is False)
 
     async with get_collection(articles,
                               {'include': 'author',
@@ -186,13 +185,24 @@ async def test_relationship(articles, article_count, superuser_id):
                                'filter[author.article-count:eq]': '3',
                                'filter[publisher:ne]': 'none'},
                               login=superuser_id) as json:
-        assert 'data' in json
-        assert isinstance(json['data'], list)
-        assert len(json['data']) > 0
-        for article in json['data']:
-            assert_object(article, 'article')
+
+        for article in assert_collection(json, 'article', lambda size: size > 0):
             assert_attribute(article, 'is-published', lambda v: v is True)
-        assert 'included' in json
-        assert len(json['included']) > 0
-        for author in json['included']:
+            author = assert_included(json, assert_relationship(article, 'author'))
             assert_attribute(author, 'article-count', lambda v: v == 3)
+
+
+@pytest.mark.asyncio
+async def test_derived(users, user_count):
+    async with get_collection(users,
+                              {'include': 'bio',
+                               'filter[bio.age:gt]': '18',
+                               'fields[user]': 'id',
+                               'fields[user-bio]': 'age'}) as json:
+        assert_meta(json, 'total', lambda v: int(v) == user_count)
+        total_filtered = assert_meta(json, 'totalFiltered')
+        assert total_filtered > 0
+        for user in assert_collection(json, 'user', lambda size: size == total_filtered):
+            assert_object(user, 'user')
+            bio = assert_included(json, assert_relationship(user, 'bio'))
+            assert_attribute(bio, 'age', lambda v: int(v) > 18)

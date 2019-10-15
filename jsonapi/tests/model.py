@@ -1,5 +1,6 @@
 from sqlalchemy.sql import func
 
+from jsonapi.datatypes import Integer
 from jsonapi.db.table import MANY_TO_MANY, MANY_TO_ONE, ONE_TO_MANY, ONE_TO_ONE
 from jsonapi.model import Aggregate, Derived, MixedModel, Model, Relationship
 from jsonapi.tests.auth import current_user
@@ -29,7 +30,8 @@ class UserModel(Model):
 
 class UserBioModel(Model):
     from_ = user_bios_t
-    fields = 'birthday', 'summary'
+    fields = ('summary', 'birthday',
+              Derived('age', lambda rec: func.extract('year', func.age(rec['birthday'])), Integer))
 
 
 class ArticleModel(Model):
@@ -44,8 +46,8 @@ class ArticleModel(Model):
               Aggregate('author_count', 'author', func.count))
 
     @staticmethod
-    def filter_custom(rec, val):
-        return func.char_length(rec.title) == int(val)
+    def filter_custom(rec, val, compare):
+        return compare(func.char_length(rec.title), int(val))
 
     search = articles_ts
     access = func.check_article_read_access
