@@ -72,7 +72,7 @@ def assert_object(obj, object_type, validator=None, nullable=True):
         assert 'id' in obj
         if validator is not None:
             assert validator(obj['id'])
-        return obj['id']
+        return obj
 
 
 def assert_attribute(obj, name, validator=None):
@@ -84,7 +84,7 @@ def assert_attribute(obj, name, validator=None):
     return obj['attributes'][name]
 
 
-def assert_attribute_does_not_exist(json, name):
+def assert_no_attribute(json, name):
     assert 'attributes' in json
     attributes = json['attributes']
     assert name not in attributes

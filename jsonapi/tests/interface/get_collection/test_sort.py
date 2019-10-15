@@ -24,7 +24,7 @@ async def test_exclude(users, user_count, superuser_id):
                                   login=superuser_id) as json:
             for user in assert_collection(json, 'user', lambda size: size == user_count):
                 assert_attribute(user, 'email')
-                assert_attribute_does_not_exist(user, attr_name)
+                assert_no_attribute(user, attr_name)
 
 
 @pytest.mark.asyncio
@@ -36,7 +36,7 @@ async def test_aggregate(users, user_count, superuser_id):
             assert_attribute(user, 'email')
             assert_attribute(user, 'createdOn')
             assert_attribute(user, 'name')
-            assert_attribute_does_not_exist(user, 'article-count')
+            assert_no_attribute(user, 'article-count')
 
     async with get_collection(users,
                               {'fields[user]': 'email',
@@ -44,9 +44,9 @@ async def test_aggregate(users, user_count, superuser_id):
                               login=superuser_id) as json:
         for user in assert_collection(json, 'user', lambda size: size == user_count):
             assert_attribute(user, 'email')
-            assert_attribute_does_not_exist(user, 'createdOn')
-            assert_attribute_does_not_exist(user, 'name')
-            assert_attribute_does_not_exist(user, 'article-count')
+            assert_no_attribute(user, 'createdOn')
+            assert_no_attribute(user, 'name')
+            assert_no_attribute(user, 'article-count')
 
     async with get_collection(users,
                               {'fields[user]': 'email,article-count',
@@ -54,8 +54,8 @@ async def test_aggregate(users, user_count, superuser_id):
                               login=superuser_id) as json:
         for user in assert_collection(json, 'user', lambda size: size == user_count):
             assert_attribute(user, 'email')
-            assert_attribute_does_not_exist(user, 'createdOn')
-            assert_attribute_does_not_exist(user, 'name')
+            assert_no_attribute(user, 'createdOn')
+            assert_no_attribute(user, 'name')
             assert_attribute(user, 'article-count', lambda v: is_size(v))
         assert_sorted(json, 'article-count', 'user',
                       validator_length=lambda size: size == user_count)
@@ -65,9 +65,9 @@ async def test_aggregate(users, user_count, superuser_id):
                                'sort': '-article-count'},
                               login=superuser_id) as json:
         for user in assert_collection(json, 'user', lambda size: size == user_count):
-            assert_attribute_does_not_exist(user, 'email')
-            assert_attribute_does_not_exist(user, 'createdOn')
-            assert_attribute_does_not_exist(user, 'name')
+            assert_no_attribute(user, 'email')
+            assert_no_attribute(user, 'createdOn')
+            assert_no_attribute(user, 'name')
             assert_attribute(user, 'article-count', lambda v: is_size(v))
         assert_sorted(json, 'article-count', 'user', reverse=True,
                       validator_length=lambda size: size == user_count)

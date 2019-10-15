@@ -60,12 +60,12 @@ def test_assert_attribute(rec):
 
 
 def test_assert_attribute_does_not_exist(rec):
-    assert_attribute_does_not_exist(rec, 'testDoesNotExist')
-    assert_attribute_does_not_exist(rec, 'oneToMany')
+    assert_no_attribute(rec, 'testDoesNotExist')
+    assert_no_attribute(rec, 'oneToMany')
     with pytest.raises(AssertionError):
-        assert assert_attribute_does_not_exist(rec, 'testFloat')
+        assert assert_no_attribute(rec, 'testFloat')
     with pytest.raises(AssertionError):
-        assert assert_attribute_does_not_exist(rec, 'testInt')
+        assert assert_no_attribute(rec, 'testInt')
 
 
 def test_assert_relationship(rec):

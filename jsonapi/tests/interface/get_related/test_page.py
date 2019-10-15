@@ -34,7 +34,7 @@ async def test_size_number(users, users_with_5_articles, superuser_id):
     for user_id in users_with_5_articles:
         for step in (3, 5, 10):
             article_id_list = list()
-            for offset in range(0, 100, step):
+            for offset in range(0, 30, step):
                 async with get_related(users, user_id, 'articles',
                                        {'page[size]': step,
                                         'page[number]': int(offset / step) + 1},

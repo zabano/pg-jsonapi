@@ -60,7 +60,8 @@ class KeywordModel(Model):
 class CommentModel(Model):
     from_ = comments_t
     fields = ('body', 'created_on', 'updated_on',
-              Relationship('author', 'UserModel', MANY_TO_ONE, 'user_id'),
+              Relationship('article', 'ArticleModel', MANY_TO_ONE, 'article_id'),
+              Relationship('user', 'UserModel', MANY_TO_ONE, 'user_id'),
               Relationship('replies', 'ReplyModel', ONE_TO_MANY, 'comment_id'),
               Aggregate('reply_count', 'replies', func.count))
 

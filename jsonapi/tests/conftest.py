@@ -1,12 +1,11 @@
 import asyncio
 
 import pytest
-from asyncpgsa import pg
 from sqlalchemy.sql import and_, func, select
 
 from jsonapi.tests.data import TOTAL_USERS
 from jsonapi.tests.db import *
-from jsonapi.tests.model import ArticleModel, KeywordModel, TestModel, UserModel
+from jsonapi.tests.model import ArticleModel, CommentModel, TestModel, UserModel
 
 
 @pytest.yield_fixture(scope='session')
@@ -33,8 +32,8 @@ def articles():
 
 
 @pytest.fixture()
-def keywords():
-    return KeywordModel()
+def comments():
+    return CommentModel()
 
 
 @pytest.fixture(scope='session')
