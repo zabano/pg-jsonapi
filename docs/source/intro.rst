@@ -73,12 +73,16 @@ Now we define the model::
 
 .. note::
 
-    There is no need to define an ``id`` field.
-    The primary key of the mapped table is automatically assigned to the ``id`` field, regardless of
-    what the column is called. Composite primary keys are not allowed in mapped columns (with the
-     exception of join tables in many to many relationships, as discussed later). Also note that
-     you can define fields for a subset of the available database columns. In the example above,
-     we chose not to expose the "password" column, for example.
+    There is no need to define an ``id`` field. In fact, defining an ``id`` (or ``type``) field
+    will raise an exception. The primary key of the mapped table is automatically assigned to the
+    ``id`` field, regardless of what the column is called. Composite primary keys are not allowed
+    in mapped columns (with the exception of join tables in many to many relationships, as
+    discussed later).
+
+.. note::
+
+    You can define fields for a subset of the available database
+    columns. In the example above, we chose not to expose the ``password`` column, for example.
 
 Now we are ready to implement the API calls.
 In this tutorial we will be using the ``Quart`` web framework for demonstration purposes::
