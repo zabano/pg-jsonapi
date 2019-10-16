@@ -122,6 +122,7 @@ class FromClause(MutableSequence):
     """
     Represent the FROM clause of a SELECT query.
     A :class:`FromClause` object is a sequence of :class:`FromItem` objects.
+
     >>> from jsonapi.tests.db import users_t, user_names_t
     >>> fc = FromClause(users_t)
     >>> fc.append(FromItem(user_names_t, left=True))

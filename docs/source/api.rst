@@ -35,6 +35,10 @@ Data Types
 
 .. automodule:: jsonapi.datatypes
 
+.. autoclass:: jsonapi.datatypes.DataType
+
+    .. automothod:: __init__
+
 .. note::
 
     Field data types are detected automatically. Use one of the following data types when
@@ -103,13 +107,19 @@ Database
 Queries
 -------
 
-.. autoclass:: jsonapi.db.Query
+.. automodule:: jsonapi.db.query
+
+    .. autofunction:: jsonapi.db.query.exists
+    .. autofunction:: jsonapi.db.query.select_one
+    .. autofunction:: jsonapi.db.query.select_many
+    .. autofunction:: jsonapi.db.query.select_related
+    .. autofunction:: jsonapi.db.query.search_query
 
 
 From Clauses
 ------------
 
-.. autoclass:: jsonapi.db.FromClause
+.. autoclass:: jsonapi.db.table.FromClause
 
     .. automethod:: __init__
 
@@ -117,7 +127,21 @@ From Clauses
 From Items
 ----------
 
-.. autoclass:: jsonapi.db.FromItem
+.. autoclass:: jsonapi.db.table.FromItem
+
+    .. automethod:: __init__
+
+FilterBy
+--------
+
+.. autoclass:: jsonapi.db.filter.FilterBy
+
+    .. automethod:: __init__
+
+OrderBy
+-------
+
+.. autoclass:: jsonapi.db.table.OrderBy
 
     .. automethod:: __init__
 
@@ -125,13 +149,8 @@ From Items
 Cardinality
 -----------
 
-.. autodata:: jsonapi.db.ONE_TO_ONE
-.. autodata:: jsonapi.db.MANY_TO_ONE
-.. autodata:: jsonapi.db.ONE_TO_MANY
-.. autodata:: jsonapi.db.MANY_TO_MANY
+.. autodata:: jsonapi.db.table.ONE_TO_ONE
+.. autodata:: jsonapi.db.table.MANY_TO_ONE
+.. autodata:: jsonapi.db.table.ONE_TO_MANY
+.. autodata:: jsonapi.db.table.MANY_TO_MANY
 
-
-Utility Functions
------------------
-
-.. autofunction:: jsonapi.db.get_primary_key
