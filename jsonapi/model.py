@@ -535,12 +535,26 @@ class ModelSet(Set):
         return '{' + ','.join(model.name for model in self._models) + '}'
 
 
+def _extract_model_args(model, args):
+    model_args = dict()
+    include_key = 'include[{}]'.format(model.type_)
+    if include_key in args:
+        model_args['include'] = args[include_key]
+    for key, val in args.items():
+        if key.startswith('fields'):
+            model_args[key] = val
+    return model_args
+
+
 async def search(args, term, *models):
     if not isinstance(term, str):
         raise Error('search | "term" must be a string')
 
-    args.setdefault('page[size]', 50)
-    args = RequestArguments(args)
+    search_args = RequestArguments({
+        'page[size]': args['page[size]'] if 'page[size]' in args else 50,
+        'page[number]': args['page[number]'] if 'page[number]' in args else 1,
+    })
+
     models = ModelSet(*models)
 
     data = list()
@@ -555,24 +569,27 @@ async def search(args, term, *models):
     data = sorted(data, key=lambda x: x['rank'], reverse=True)
 
     sliced_data = defaultdict(dict)
-    for rec in islice(data, args.offset, args.offset + args.limit):
+    for rec in islice(data, search_args.offset, search_args.offset + search_args.limit):
         sliced_data[rec['type']][rec['id']] = rec['rank']
 
-    result = list()
+    data = list()
+    included = defaultdict(dict)
     for model in models:
         id_list = list(object_id for object_id in sliced_data[model.type_].keys())
         if len(id_list) > 0:
-            model.init_schema(model.parse_arguments({}))
+            model_args = model.parse_arguments(_extract_model_args(model, args))
+            model.init_schema(model_args)
             query = select_many(model, filter_by=FilterBy(
                 model.primary_key.in_(
                     [int(object_id) if isinstance(model.primary_key.type, Integer.sa_types)
-                     else object_id for object_id in id_list])),
-                                limit=args.limit, offset=args.offset)
+                     else object_id for object_id in id_list])))
             log_query(query)
-            result.extend(model.schema.dump(
-                [{'type': model.type_, **rec} for rec in await pg.fetch(query)], many=True))
-
-            # todo:: add support for "fields" and "include" request parameters
+            recs = [{'type': model.type_, **rec} for rec in await pg.fetch(query)]
+            await model.fetch_included(recs, model_args)
+            data.extend(model.schema.dump(recs, many=True))
+            if len(model.included) > 0:
+                included.update(model.included)
+                model.reset()
 
     meta = dict(total=0, searchType=dict())
     for model in models:
@@ -580,6 +597,10 @@ async def search(args, term, *models):
         meta['searchType'][model.type_] = dict(total=n)
         meta['total'] += n
 
-    return dict(
-        data=sorted(result, key=lambda x: sliced_data[x['type']][x['id']], reverse=True),
+    response = dict(
+        data=sorted(data, key=lambda x: sliced_data[x['type']][x['id']], reverse=True),
         meta=meta)
+    if included:
+        response['included'] = reduce(lambda a, b: a + [r for r in b.values()],
+                                      included.values(), list())
+    return response
