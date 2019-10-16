@@ -23,7 +23,7 @@ class Operator(enum.Enum):
 class FilterBy:
 
     def __init__(self, where=None, *from_items):
-        self.where = list(where) if where is not None else list()
+        self.where = [where] if where is not None else list()
         self.having = list()
         self.from_items = list(from_items)
         self.from_items_last = list()

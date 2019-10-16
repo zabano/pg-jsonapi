@@ -2,7 +2,7 @@ from sqlalchemy.sql import func
 
 from jsonapi.datatypes import Integer
 from jsonapi.db.table import MANY_TO_MANY, MANY_TO_ONE, ONE_TO_MANY, ONE_TO_ONE
-from jsonapi.model import Aggregate, Derived, MixedModel, Model, Relationship
+from jsonapi.model import Aggregate, Derived, Model, Relationship
 from jsonapi.tests.auth import current_user
 from jsonapi.tests.db import *
 
@@ -71,7 +71,3 @@ class CommentModel(Model):
 class ReplyModel(Model):
     from_ = replies_t
     fields = 'body', 'created_on', 'updated_on'
-
-
-class SearchModel(MixedModel):
-    models = UserModel, ArticleModel

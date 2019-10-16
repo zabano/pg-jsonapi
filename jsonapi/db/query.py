@@ -124,9 +124,9 @@ def select_related(rel, obj_id, **kwargs):
     return _count_query(query) if count else query
 
 
-def search(model, term):
+def search_query(model, term):
     query = sql.select(columns=[model.primary_key, _rank_column(model, term)],
-                       from_obj=_from_obj(model.search))
+                       from_obj=_from_obj(model, model.search))
     query = _search_query(model, query, term)
     return _protect_query(model, query)
 

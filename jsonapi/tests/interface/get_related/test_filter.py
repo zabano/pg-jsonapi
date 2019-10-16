@@ -80,22 +80,22 @@ async def test_enum(users, user_count):
 
 @pytest.mark.asyncio
 async def test_datetime(users, user_count):
-    for user_id in sample_integers(1, user_count):
+    for user_id in sample_integers(1, user_count, 10):
         for val in ('2019-10-01T00:00:00Z', '2019-10-01T00:00:00',
                     '2019-10-01T00:00', '2019-10-01', '2019-10'):
             async with get_related(users, user_id, 'followers',
                                    {'filter[created-on:gt]': val,
                                     'sort': 'created-on'}) as json:
-                assert_meta(json, 'total', lambda v: int(v) > 0)
-                for user in assert_collection(json, 'user', lambda size: size > 0):
+                assert_meta(json, 'total')
+                for user in assert_collection(json, 'user'):
                     assert_attribute(user, 'created-on',
                                      lambda v: parse_datetime(v) > dt.datetime(2019, 10, 1))
 
         async with get_related(users, user_id, 'followers',
                                {'filter[created-on]': '>2018-08,<2018-09,'
                                                       '>2019-08,<2019-09'}) as json:
-            assert_meta(json, 'total', lambda v: int(v) > 0)
-            for user in assert_collection(json, 'user', lambda size: size > 0):
+            assert_meta(json, 'total')
+            for user in assert_collection(json, 'user'):
                 assert_attribute(
                     user, 'created-on',
                     lambda v: (dt.datetime(2018, 8, 1) < parse_datetime(v)

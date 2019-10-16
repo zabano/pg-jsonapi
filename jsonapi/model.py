@@ -1,6 +1,6 @@
 import operator
 from collections import defaultdict
-from collections.abc import Sequence
+from collections.abc import Sequence, Set
 from copy import copy
 from functools import reduce
 from itertools import islice
@@ -14,7 +14,8 @@ from db.table import get_primary_key
 from jsonapi.args import RequestArguments
 from jsonapi.datatypes import Integer, String
 from jsonapi.db.filter import FilterBy
-from jsonapi.db.query import exists, select_many, select_one, select_related
+from jsonapi.db.query import SEARCH_LABEL, exists, search_query, select_many, select_one, \
+    select_related
 from jsonapi.db.table import Cardinality, FromClause, FromItem, OrderBy, is_from_item
 from jsonapi.exc import APIError, Error, Forbidden, ModelError, NotFound
 from jsonapi.fields import Aggregate, BaseField, Derived, Field, Relationship
@@ -22,6 +23,7 @@ from jsonapi.log import log_query, logger
 from jsonapi.registry import model_registry, schema_registry
 
 MIME_TYPE = 'application/vnd.api+json'
+SEARCH_LIMIT = 50
 
 
 def get_error_object(e):
@@ -497,64 +499,87 @@ class Model:
         return '<Model({})>'.format(self.name)
 
 
-class MixedModel:
-    """
-    A mixed model defines a heterogeneous set of JSON API resources.
-    """
+class ModelSet(Set):
 
-    models = None
-    """
-    A set of resource models
-    """
+    def __init__(self, *models):
 
-    def __init__(self):
-        models = set()
-        for model in self.models:
-            if isinstance(model, Model):
-                models.add(model)
-            elif issubclass(model, Model):
-                models.add(model())
-            else:
-                raise ModelError('invalid model: {:!r}'.format(model), self)
-        self.models = models
+        if len(models) < 2:
+            raise Error('at least two models are required')
 
-    @property
-    def name(self):
-        return self.__class__.__name__
+        models_uniq = list(set(models))
+        if len(models) > len(models_uniq):
+            raise Error('models must be unique')
 
-    async def search(self, args, term):
+        for i, model in enumerate(models_uniq):
+            if isinstance(model, type) and issubclass(model, Model):
+                models_uniq[i] = model()
+            elif not isinstance(model, Model):
+                raise Error('invalid model: {!r}'.format(model))
 
-        args = RequestArguments(args)
+        for model in models_uniq:
+            if model.search is None:
+                raise Error('model must be searchable: {!r}'.format(model))
 
-        data = list()
-        total = 0
-        for model in self.models:
-            async with pg.query(model.query.search(term)) as cursor:
-                async for row in cursor:
-                    data.append(dict(type=model.type_, id=str(row['id']), rank=row['_ts_rank']))
-                    total += 1
-        data = sorted(data, key=lambda x: x['rank'], reverse=True)
+        self._models = set(models)
 
-        sliced_data = defaultdict(dict)
-        for rec in islice(data, args.offset, args.offset + args.limit):
-            sliced_data[rec['type']][rec['id']] = rec['rank']
+    def __iter__(self):
+        return iter(self._models)
 
-        result = list()
-        for model in self.models:
-            id_list = list(object_id for object_id in sliced_data[model.type_].keys())
-            if len(id_list) > 0:
-                model.parse_arguments({})
-                model.init_schema()
-                result.extend(model.schema.dump(
-                    [{'type': model.type_, **rec} for rec in await pg.fetch(
-                        model.query.all(filter_by=model.primary_key.in_(
-                            [int(object_id) if isinstance(model.primary_key.type,
-                                                          Integer.sa_types)
-                             else object_id for object_id in id_list]
-                        )))], many=True))
+    def __contains__(self, item):
+        return item in self._models
 
-        # todo:: add support for "fields" and "include" request parameters
+    def __len__(self):
+        return len(self._models)
 
-        return dict(
-            data=sorted(result, key=lambda x: sliced_data[x['type']][x['id']], reverse=True),
-            meta=dict(total=total))
+    def __repr__(self):
+        return '{' + ','.join(model.name for model in self._models) + '}'
+
+
+async def search(args, term, *models):
+    if not isinstance(term, str):
+        raise Error('search | "term" must be a string')
+
+    args.setdefault('page[size]', 50)
+    args = RequestArguments(args)
+    models = ModelSet(*models)
+
+    data = list()
+    total = 0
+    for model in models:
+        query = search_query(model, term)
+        log_query(query)
+        async with pg.query(query) as cursor:
+            async for row in cursor:
+                data.append(dict(type=model.type_, id=str(row['id']), rank=row[SEARCH_LABEL]))
+                total += 1
+    data = sorted(data, key=lambda x: x['rank'], reverse=True)
+
+    sliced_data = defaultdict(dict)
+    for rec in islice(data, args.offset, args.offset + args.limit):
+        sliced_data[rec['type']][rec['id']] = rec['rank']
+
+    result = list()
+    for model in models:
+        id_list = list(object_id for object_id in sliced_data[model.type_].keys())
+        if len(id_list) > 0:
+            model.init_schema(model.parse_arguments({}))
+            query = select_many(model, filter_by=FilterBy(
+                model.primary_key.in_(
+                    [int(object_id) if isinstance(model.primary_key.type, Integer.sa_types)
+                     else object_id for object_id in id_list])),
+                                limit=args.limit, offset=args.offset)
+            log_query(query)
+            result.extend(model.schema.dump(
+                [{'type': model.type_, **rec} for rec in await pg.fetch(query)], many=True))
+
+            # todo:: add support for "fields" and "include" request parameters
+
+    meta = dict(total=0, searchType=dict())
+    for model in models:
+        n = await pg.fetchval(select_many(model, count=True))
+        meta['searchType'][model.type_] = dict(total=n)
+        meta['total'] += n
+
+    return dict(
+        data=sorted(result, key=lambda x: sliced_data[x['type']][x['id']], reverse=True),
+        meta=meta)

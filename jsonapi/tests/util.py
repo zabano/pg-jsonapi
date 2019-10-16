@@ -7,6 +7,7 @@ from inflection import camelize, underscore
 
 from jsonapi.datatypes import DataType
 from jsonapi.log import logger
+from jsonapi.model import search as search_models
 from jsonapi.tests.auth import login, logout
 
 
@@ -60,6 +61,15 @@ async def get_related(model, object_id, name, args=None, **kwargs):
         logout_user(user_id)
 
 
+@asynccontextmanager
+async def search(term, args, *models, **kwargs):
+    user_id = login_user(kwargs.pop('login', None))
+    try:
+        yield await search_models(args, term, *models)
+    finally:
+        logout_user(user_id)
+
+
 ####################################################################################################
 # asserts
 ####################################################################################################
@@ -67,7 +77,10 @@ async def get_related(model, object_id, name, args=None, **kwargs):
 def assert_object(obj, object_type, validator=None, nullable=True):
     if not nullable or obj is not None:
         assert 'type' in obj
-        assert obj['type'] == object_type
+        if isinstance(object_type, str):
+            assert obj['type'] == object_type
+        else:
+            assert obj['type'] in object_type
         assert 'id' in obj
         if validator is not None:
             assert validator(obj['id'])
@@ -94,9 +107,7 @@ def assert_collection(json, object_type, validate_length=None, validator=None):
     assert isinstance(json['data'], list)
     if validate_length is not None:
         assert validate_length(len(json['data']))
-    for obj in json['data']:
-        assert_object(obj, object_type, validator)
-        yield obj
+    return [assert_object(obj, object_type, validator) for obj in json['data']]
 
 
 def assert_relationship(obj, name, validate_length=None):
