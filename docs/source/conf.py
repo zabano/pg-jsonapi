@@ -23,7 +23,7 @@ copyright = '2019, Omar Zabaneh'
 author = 'Omar Zabaneh'
 
 # The full version, including alpha/beta/rc tags
-release = '0.1.0dev'
+release = '0.1.0.dev0'
 
 # -- General configuration ---------------------------------------------------
 
@@ -50,12 +50,13 @@ exclude_patterns = []
 html_theme = 'alabaster'
 html_short_title = 'Home'
 html_theme_options = {
-    'page_width': '70%',
     'description': 'Build JSON API v1.0 compliant RESTFul api for PostgreSQL backends. '
                    'Powered by asyncpgsa, SQLAlchemy Core, and marshmallow libraries.',
+    'description_font_style': '',
+    'page_width': '60%',
     'sidebar_collapse': False,
     'show_related': False,
-    'fixed_sidebar': True,
+    'fixed_sidebar': False,
     'github_user': 'zabano',
     'github_repo': 'pg-jsonapi',
     'github_type': 'star',

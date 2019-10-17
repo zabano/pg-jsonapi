@@ -399,12 +399,14 @@ class Model:
         Fetch a resource object.
 
         >>> from jsonapi.tests.model import UserModel
-        >>> await UserModel().get_object({
-        >>>     'include': 'articles.comments.author,articles.keywords',
-        >>>     'fields[article]': 'title,body',
-        >>>     'fields[comments]': 'body',
-        >>>     'fields[user]': 'name'
-        >>> }, 1)
+        >>> await UserModel().get_object({}, 1)
+        {
+            'data': {
+                'id': '1',
+                'type': 'user',
+                'attributes': {...}
+            }
+        }
 
         :param dict args: a dictionary representing the request query string
         :param int or str object_id: the resource object id
@@ -429,13 +431,7 @@ class Model:
         """
         Fetch a collection of resources.
 
-        >>> from jsonapi.tests.model import UserModel
-        >>> await UserModel().get_collection({
-        >>>     'include': 'articles.comments.author,articles.keywords',
-        >>>     'fields[article]': 'title,body',
-        >>>     'fields[comments]': 'body',
-        >>>     'fields[user]': 'name'
-        >>> })
+
 
         :param dict args: a dictionary representing the request query string
         :param str search: an optional search term

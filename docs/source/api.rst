@@ -1,6 +1,6 @@
-=============
+#############
 API Reference
-=============
+#############
 
 .. warning:: Under Development
 
@@ -8,8 +8,9 @@ API Reference
 
 .. automodule:: jsonapi.model
 
+******
 Models
-======
+******
 
 .. autoclass:: jsonapi.model.Model
 
@@ -30,14 +31,15 @@ Models
     .. automethod:: get_collection
     .. automethod:: get_related
 
+**********
 Data Types
-==========
+**********
 
 .. automodule:: jsonapi.datatypes
 
 .. autoclass:: jsonapi.datatypes.DataType
 
-    .. automothod:: __init__
+    .. automethod:: __init__
 
 .. note::
 
@@ -65,13 +67,14 @@ Data Types
 .. autodata:: jsonapi.datatypes.Time
     :annotation: time values (sa.Time)
 
+******
 Fields
-======
+******
 
 .. automodule:: jsonapi.fields
 
 Simple Fields
--------------
+=============
 
 .. autoclass:: jsonapi.fields.Field
 
@@ -79,33 +82,34 @@ Simple Fields
 
 
 Derived Fields
---------------
+==============
 
 .. autoclass:: jsonapi.fields.Derived
 
     .. automethod:: __init__
 
 Aggregate Fields
-----------------
+================
 
 .. class:: jsonapi.fields.Aggregate(name, expr, func, field_type=Integer)
 
     .. automethod:: __init__(name, expr, func, field_type=Integer)
 
 Relationships
--------------
+=============
 
 .. autoclass:: jsonapi.fields.Relationship
 
     .. automethod:: __init__
 
+********
 Database
-========
+********
 
 .. automodule:: jsonapi.db
 
 Queries
--------
+=======
 
 .. automodule:: jsonapi.db.query
 
@@ -117,7 +121,7 @@ Queries
 
 
 From Clauses
-------------
+============
 
 .. autoclass:: jsonapi.db.table.FromClause
 
@@ -125,21 +129,21 @@ From Clauses
 
 
 From Items
-----------
+==========
 
 .. autoclass:: jsonapi.db.table.FromItem
 
     .. automethod:: __init__
 
 FilterBy
---------
+========
 
 .. autoclass:: jsonapi.db.filter.FilterBy
 
     .. automethod:: __init__
 
 OrderBy
--------
+=======
 
 .. autoclass:: jsonapi.db.table.OrderBy
 
@@ -147,7 +151,7 @@ OrderBy
 
 
 Cardinality
------------
+===========
 
 .. autodata:: jsonapi.db.table.ONE_TO_ONE
 .. autodata:: jsonapi.db.table.MANY_TO_ONE

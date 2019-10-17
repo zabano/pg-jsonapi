@@ -1,6 +1,6 @@
-============
+############
 Introduction
-============
+############
 
 .. warning:: Under Development
 
@@ -26,7 +26,7 @@ The library supports the fetching of resource data, as well as fieldsets, sortin
 inclusion of related resources.
 
 Quick Start
-===========
+***********
 
 In this simple start up example, we will show how to create a resource model and use it to
 implement two basic API calls.
@@ -184,6 +184,6 @@ Example 2::
 
 
 Next Steps
-----------
+**********
 
 In the following sections we will guide you through the different features available.
