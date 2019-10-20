@@ -1,6 +1,8 @@
-***************
+###############
 Defining Models
-***************
+###############
+
+.. warning:: Under Development
 
 .. currentmodule:: jsonapi.model
 
@@ -35,16 +37,17 @@ The :attr:`fields <Model.fields>` attribute can be used to define the set of att
 relationships for the resource. To define attributes that map directly to table columns of the
 same name, simply list their names as string literals::
 
-    class UserModel(ja.Model):
+    class UserModel(Model):
         type_ = 'user'
         from_ = users_t
-        fields = 'email', 'created-on'
+        fields = 'email', 'created_on'
 
-The fields ``email`` and ``created-on`` will be created and mapped to the database columns:
+The fields ``email`` and ``created_on`` will be created and mapped to the database columns:
 ``users_t.c.email`` and ``users_t.c.created_on``, respectively.
 
+*************
 Custom Fields
-=============
+*************
 
 If you wish to map a field to a column of a different name, do so in the SQLAlchemy table
 definition. For example, in the following example, "email_address" database column is mapped to
@@ -57,9 +60,9 @@ definition. For example, in the following example, "email_address" database colu
                   unique=True, nullable=False),
         ...
 
-The datatype of the field is detected automatically from the column datatype.
-To override datatype auto-detection, you can explicitly set the datatype of the field
-using the :class:`Field <jsonapi.fields.Field>` class::
+The datatype of the field is determined automatically from the datatype of the database column it
+maps to. To override datatype auto-detection, you can explicitly set the datatype using the
+:class:`Field <jsonapi.fields.Field>` class::
 
     from jsonapi.fields import Field
     from jsonapi.datatypes import Date
@@ -72,20 +75,21 @@ using the :class:`Field <jsonapi.fields.Field>` class::
 The type of ``created_on`` field, which maps to a timestamp database column, is set to
 :data:`Date` instead of :data:`DateTime`.
 
+***************
 Multiple Tables
-===============
+***************
 
-A resource can be mapped to more than one database table::
+A resource model can be mapped to more than one database table::
 
     from jsonapi.tests.db import user_names_t
 
     class UserModel(Model):
         from_ = users_t, user_names_t
 
-Fields are mapped to the columns of the joined tables. In the following example, the ``first``
-and ``last`` columns of the ``user_names_t`` table are made available::
+In the following example, we define three fields. One maps to ``users_t.c.email`` column,
+and two map to ``user_names_t.c.first`` and ``user_names_t.c.last`` columns::
 
-    class UserModel(ja.Model):
+    class UserModel(Model):
         type_ = 'user'
         from_ = users_t, user_names_t
         fields = 'email', 'first', 'last'
@@ -98,8 +102,9 @@ object can be passed in place of the table object. For example::
     UserModel(Model):
         from_ = users_t, FromItem(user_names_t, left=True)
 
+**************
 Derived Fields
-==============
+**************
 
 The :class:`Derived <jsonapi.fields.Derived>` class can be used to define derived fields::
 
@@ -117,8 +122,9 @@ The function must return a valid column expression (including function calls)::
                                  func.age(c.birthday)), Integer))
 
 
+*************
 Relationships
-=============
+*************
 
 The :class:`Relationship <jsonapi.fields.Relationship>` class can be used to define
 relationships between resource models::
@@ -139,7 +145,7 @@ relationships between resource models::
                   Relationship('author', 'UserModel',
                                MANY_TO_ONE, 'author_id'))
 
-In this example, a ``user`` can author multiple ``article``s, and an ``article``
+In this example, a ``user`` can author multiple ``article`` s, and an ``article``
 is authored by one ``user``. This relationship is represented by two
 :class:`Relationship <jsonapi.fields.Relationship>` objects, each defined in it's respective model.
 
@@ -172,8 +178,9 @@ The fourth argument depends on the cardinality of the relationship.
     Relationship('keywords', 'KeywordModel',
                  MANY_TO_MANY, ('article_id', 'keyword_id'))
 
+****************
 Aggregate Fields
-================
+****************
 
 The :class:`Aggregate <jsonapi.fields.Aggregate>` class can be used to define fields
 that map to aggregate functions::

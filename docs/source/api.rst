@@ -2,7 +2,7 @@
 API Reference
 #############
 
-.. warning:: Under Development
+.. include:: warning.rst
 
 .. automodule:: jsonapi
 

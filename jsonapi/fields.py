@@ -3,7 +3,7 @@ from sqlalchemy.sql import text
 
 from jsonapi.datatypes import DataType, Date, Integer, String
 from jsonapi.db.table import Cardinality, FromItem, get_foreign_key_pair
-from jsonapi.exc import APIError, Error, ModelError
+from jsonapi.exc import APIError, Error
 from jsonapi.registry import model_registry, schema_registry
 
 
@@ -87,8 +87,6 @@ class Derived(BaseField):
 
     def load(self, model):
         self.expr = self.spec(model.rec)
-        # except SyntaxError:
-        #     raise ModelError('{} | invalid syntax: {}'.format(self.name), model)
         self.filter_clause = self.get_filter_clause()
 
 

@@ -2,34 +2,30 @@
 Introduction
 ############
 
-.. warning:: Under Development
+.. include:: warning.rst
 
 **pg-jsonapi** is an asynchronous Python library for building `JSON API v1.0
 <https://jsonapi.org/format/>`_  compliant calls using a very simple declarative syntax.
 
-Only ``PostgreSQL`` is supported.
-``PostgreSQL`` integration is powered by the
+Only ``PostgreSQL`` is supported. ``PostgreSQL`` integration is powered by the
 `asyncpgsa <https://asyncpgsa.readthedocs.io/en/latest/>`_ library.
-
-`SQLAlchemy <https://www.sqlalchemy.org/>`_ core is also required for describing database objects.
-
+`SQLAlchemy <https://www.sqlalchemy.org/>`_ is required for describing database objects.
 Under the hood, the `marshmallow <https://marshmallow.readthedocs.io/en/stable/>`_ library is used
-for object serialization. No previous knowledge of ``marshmallow`` is required.
+for object serialization. No previous knowledge of ``marshmallow`` is needed.
 
-The user can define models that map to ``SQLAlchemy`` tables. Each model represents a single
-JSON API resource. Each resource has a unique type. A set of fields can be defined for each
-resource. A field can be a simple attribute that maps directly to a database column,
+The user defines models that map to ``SQLAlchemy`` tables. Each model represents a single
+JSONAPI resource. Each resource has a type. A set of fields can be defined for each
+resource. A field can be a simple attribute mapping directly to a database column,
 or derived from multiple columns. The user may also define aggregate fields (ex. counts, max
 values, etc.). Relationship fields can be used to define relationships between models.
 
-The library supports the fetching of resource data, as well as fieldsets, sorting, filtering, and
-inclusion of related resources.
+The library supports the fetching of resource data, inclusion of related resources, sparse
+fieldsets, sorting, pagination, and filtering.
 
 Quick Start
 ***********
 
-In this simple start up example, we will show how to create a resource model and use it to
-implement two basic API calls.
+As an example, we create a resource model and use it to implement two basic API calls.
 
 First we use SQLAlchemy to describe the database tables::
 
@@ -60,7 +56,7 @@ First we use SQLAlchemy to describe the database tables::
         sa.Column('suffix', sa.Text),
         sa.Column('nickname', sa.Text))
 
-Now we define the model::
+Then we define the model::
 
     from jsonapi.model import Model
     from jsonapi.fields import Derived
@@ -73,19 +69,24 @@ Now we define the model::
 
 .. note::
 
-    There is no need to define an ``id`` field. In fact, defining an ``id`` (or ``type``) field
-    will raise an exception. The primary key of the mapped table is automatically assigned to the
-    ``id`` field, regardless of what the column is called. Composite primary keys are not allowed
-    in mapped columns (with the exception of join tables in many to many relationships, as
-    discussed later).
+    The ``id`` and ``type`` fields are predefined.
+    Attempting to do define them explicitly will raise an exception.
+
+    The primary key of the mapped table is automatically assigned to the ``id`` field, regardless
+    of what the database column is called. The ``type`` field is determined by the value of
+    the :attr:`Model.type_` attribute (see :doc:`model` for more details).
 
 .. note::
 
-    You can define fields for a subset of the available database
-    columns. In the example above, we chose not to expose the ``password`` column, for example.
+    Composite primary keys are not allowed in the mapped tables.
 
-Now we are ready to implement the API calls.
-In this tutorial we will be using the ``Quart`` web framework for demonstration purposes::
+.. note::
+
+    You can define fields for a subset of the available database columns. In the example above,
+    we chose not to expose the ``password`` column, for example.
+
+Now we are ready to implement the API calls. We use the ``Quart`` web framework for demonstration
+purposes::
 
     import asyncio
     import uvloop
@@ -116,7 +117,36 @@ In this tutorial we will be using the ``Quart`` web framework for demonstration 
     if __name__ == "__main__":
         app.run(host="localhost", port=8080, loop=asyncio.get_event_loop())
 
-Example 1::
+
+Example 1. Fetching a Single Object
+===================================
+
+::
+
+    GET http://localhost/users/1
+        ?fields[user]=email,name
+
+::
+
+    HTTP/1.1 200
+    Content-Type: application/vnd.api+json
+
+    {
+      "data": {
+        "attributes": {
+          "email": "dianagraham@fisher.com",
+          "name": "Robert Camacho"
+        },
+        "id": "1",
+        "type": "user"
+      }
+    }
+
+
+Example 2. Fetching a Collection of Objects
+===========================================
+
+::
 
     GET http://localhost/users/
         ?fields[user]=created-on,name,email
@@ -126,10 +156,7 @@ Example 1::
 ::
 
     HTTP/1.1 200
-    content-type: application/vnd.api+json
-    ...
-
-::
+    Content-Type: application/vnd.api+json
 
     {
       "data": [
@@ -158,32 +185,7 @@ Example 1::
       }
     }
 
-Example 2::
-
-    GET http://localhost/users/1
-        ?fields[user]=email,name
-
-::
-
-    HTTP/1.1 200
-    content-type: application/vnd.api+json
-    ...
-
-::
-
-    {
-      "data": {
-        "attributes": {
-          "email": "dianagraham@fisher.com",
-          "name": "Robert Camacho"
-        },
-        "id": "1",
-        "type": "user"
-      }
-    }
-
-
 Next Steps
-**********
+==========
 
 In the following sections we will guide you through the different features available.

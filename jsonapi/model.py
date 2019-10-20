@@ -585,7 +585,7 @@ async def search(args, term, *models):
             data.extend(model.schema.dump(recs, many=True))
             if len(model.included) > 0:
                 included.update(model.included)
-                model.reset()
+        model.reset()
 
     meta = dict(total=0, searchType=dict())
     for model in models:

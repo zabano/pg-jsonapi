@@ -1,15 +1,10 @@
-*************
-Fetching Data
-*************
+#############################
+Fetching Data: Single Objects
+#############################
 
 .. currentmodule:: jsonapi.model
 
-For a given model instance, three methods are available for fetching resource data.
-All three methods expect a dictionary representing the request query string parameters as the
-first argument.
-
-Fetching a Single Object
-========================
+.. include:: shared.rst
 
 To fetch a single resource object, call the :meth:`Model.get_object` method, supplying the
 object id as the second argument::
@@ -47,13 +42,13 @@ The generated SQL query may look like this:
 
 
 Sparse Fieldsets
-----------------
+================
 
 By default, all non aggregate attribute fields are included in the response.
 Aggregate fields must be requested explicitly.
 
 In addition, relationship fields are not included. They are only included when related resources
-are requested using the ``include`` request parameter (see the next section).
+are requested using the ``include`` request parameter (see :ref:`object_include`).
 
 To include specific attributes in the response, simply pass on the appropriate ``fields[TYPE]``
 request parameter::
@@ -71,9 +66,10 @@ request parameter::
     }
 
 
+.. _object_include:
 
 Inclusion of Related Resources
-------------------------------
+==============================
 
 As mentioned above, to include related resources pass on the ``include`` request parameter::
 
@@ -128,13 +124,5 @@ response document::
         ]
     }
 
-
-Fetching a Collection of Objects
-================================
-
-
-
-Fetching Related Objects
-========================
 
 

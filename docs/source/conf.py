@@ -53,6 +53,7 @@ html_theme_options = {
     'description': 'Build JSON API v1.0 compliant RESTFul api for PostgreSQL backends. '
                    'Powered by asyncpgsa, SQLAlchemy Core, and marshmallow libraries.',
     'description_font_style': '',
+    'sidebar_width': '25%',
     'page_width': '60%',
     'sidebar_collapse': False,
     'show_related': False,

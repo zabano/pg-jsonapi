@@ -1,7 +1,10 @@
 .. toctree::
-   :maxdepth: 3
+   :maxdepth: 2
    :caption: Table of Contents
 
    intro
-   guide
+   model
+   fetch/object
+   fetch/collection
+   fetch/related
    api
