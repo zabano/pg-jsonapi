@@ -4,7 +4,5 @@
 
    intro
    model
-   fetch/object
-   fetch/collection
-   fetch/related
+   fetch
    api

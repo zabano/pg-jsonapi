@@ -10,13 +10,14 @@ from asyncpgsa import pg
 from inflection import camelize, dasherize, underscore
 from sqlalchemy.sql.expression import ColumnCollection
 
-from db.table import get_primary_key
-from jsonapi.args import RequestArguments
+from jsonapi.db.table import get_primary_key
+from jsonapi.args import parse_arguments
 from jsonapi.datatypes import Integer, String
 from jsonapi.db.filter import FilterBy
-from jsonapi.db.query import SEARCH_LABEL, exists, search_query, select_many, select_one, \
-    select_related
-from jsonapi.db.table import Cardinality, FromClause, FromItem, OrderBy, is_from_item
+from jsonapi.db.query import SEARCH_LABEL, exists, search_query, select_many, \
+    select_one, select_related
+from jsonapi.db.table import Cardinality, FromClause, FromItem, OrderBy, \
+    is_from_item
 from jsonapi.exc import APIError, Error, Forbidden, ModelError, NotFound
 from jsonapi.fields import Aggregate, BaseField, Derived, Field, Relationship
 from jsonapi.log import log_query, logger
@@ -48,15 +49,17 @@ class JSONSchema(ma.Schema):
             resource['meta'] = dict(rank=orig['_ts_rank'])
 
         for name, field in self.declared_fields.items():
-            if name not in ('id', 'type') and not isinstance(field, ma.fields.Nested):
+            if name not in ('id', 'type') \
+                    and not isinstance(field, ma.fields.Nested):
                 resource['attributes'][camelize(name, False)] = data[name]
             elif isinstance(field, ma.fields.Nested) and not field.load_only:
                 if 'relationships' not in resource:
                     resource['relationships'] = dict()
                 included = self.context['root'].included
                 if isinstance(data[name], list):
-                    resource['relationships'][name] = [
-                        dict(id=rec['id'], type=rec['type']) for rec in data[name]]
+                    resource['relationships'][name] = [dict(
+                        id=rec['id'],
+                        type=rec['type']) for rec in data[name]]
                     if len(data[name]) > 0:
                         for rec in data[name]:
                             included[rec['type']][rec['id']] = rec
@@ -64,9 +67,10 @@ class JSONSchema(ma.Schema):
                     if data[name] is None:
                         resource['relationships'][name] = None
                     else:
+                        type_ = orig[name]['type']
                         resource['relationships'][name] = dict(
-                            id=data[name]['id'], type=orig[name]['type'])
-                        included[orig[name]['type']][data[name]['id']] = data[name]
+                            id=data[name]['id'], type=type_)
+                        included[type_][data[name]['id']] = data[name]
         return resource
 
 
@@ -82,7 +86,8 @@ class Model:
 
     from_ = None
     """
-    A variable length list of tables, table aliases, or :class:`jsonapi.db.FromItem` s.
+    A variable length list of tables, table aliases, 
+    or :class:`jsonapi.db.FromItem` s.
     """
 
     fields = None
@@ -100,9 +105,9 @@ class Model:
     A full-text index table.
     """
 
-    ################################################################################################
+    ############################################################################
     # initialization
-    ################################################################################################
+    ############################################################################
 
     def __init_subclass__(cls, **kwargs):
         super().__init_subclass__(**kwargs)
@@ -126,7 +131,8 @@ class Model:
     @classmethod
     def get_type(cls):
         if cls.type_ is None:
-            return dasherize(underscore(cls.__name__)).replace('model', '').strip('-')
+            type_ = dasherize(underscore(cls.__name__))
+            return type_.replace('model', '').strip('-')
         if not isinstance(cls.type_, str):
             raise Error('"type_" must be a string')
         return cls.type_
@@ -137,11 +143,13 @@ class Model:
         try:
             for from_item in self.from_:
                 if not is_from_item(from_item):
-                    raise ModelError('invalid from item: {!r}'.format(from_item), self)
+                    raise ModelError(
+                        'invalid from item: {!r}'.format(from_item), self)
             return FromClause(*self.from_)
         except TypeError:
             if not is_from_item(self.from_):
-                raise ModelError('invalid from item: {!r}'.format(self.from_), self)
+                raise ModelError('invalid from item: {!r}'.format(self.from_),
+                                 self)
             return FromClause(self.from_)
 
     def get_fields(self):
@@ -185,7 +193,8 @@ class Model:
 
     @classmethod
     def get_from_aliases(cls, name, index=None):
-        from_ = list(cls.from_) if isinstance(cls.from_, Sequence) else [cls.from_]
+        from_ = list(cls.from_) if isinstance(cls.from_, Sequence) \
+            else [cls.from_]
         for i, from_item in enumerate(from_):
             alias_name = '_{}__{}_t'.format(name, from_item.name)
             if isinstance(from_item, FromItem):
@@ -196,23 +205,26 @@ class Model:
 
     def parse_arguments(self, args):
         try:
-            return RequestArguments(args)
+            return parse_arguments(args)
         except Error as e:
             raise APIError('request args | {}'.format(e), self)
 
     def attribute(self, name):
-        if name in self.fields.keys() and not isinstance(self.fields[name], Relationship):
+        if name in self.fields.keys() \
+                and not isinstance(self.fields[name], Relationship):
             return self.fields[name]
         raise ModelError('attribute does not exist: "{}"'.format(name), self)
 
     def relationship(self, name):
-        if name in self.fields.keys() and isinstance(self.fields[name], Relationship):
+        if name in self.fields.keys() \
+                and isinstance(self.fields[name], Relationship):
             return self.fields[name]
-        return ModelError('relationship does not exist: "{}"'.format(name), self)
+        return ModelError('relationship does not exist: "{}"'.format(name),
+                          self)
 
-    ################################################################################################
+    ############################################################################
     # properties
-    ################################################################################################
+    ############################################################################
 
     @property
     def name(self):
@@ -250,9 +262,9 @@ class Model:
     def rec(self):
         return ColumnCollection(*self.from_clause().c.values()).as_immutable()
 
-    ################################################################################################
+    ############################################################################
     # core functionality
-    ################################################################################################
+    ############################################################################
 
     def init_schema(self, args, parents=tuple()):
         for name, field in self.fields.items():
@@ -265,41 +277,49 @@ class Model:
             field.sort_by = in_sort
 
             if isinstance(field, (Field, Derived)):
-                field.exclude = name != 'id' and fieldset_defined and not in_fieldset
+                field.exclude = name != 'id' \
+                                and fieldset_defined and not in_fieldset
                 if not field.exclude or in_sort or in_filter:
-                    logger.info('load field: {}.{}'.format(self.name, field.name))
+                    logger.info(
+                        'load field: {}.{}'.format(self.name, field.name))
                     field.load(self)
 
             elif isinstance(field, Aggregate):
                 field.exclude = not in_fieldset
                 field.expr = None
                 if in_fieldset or in_sort or in_filter:
-                    logger.info('load field: {}.{}'.format(self.name, field.name))
+                    logger.info(
+                        'load field: {}.{}'.format(self.name, field.name))
                     field.load(self)
 
             elif isinstance(field, Relationship):
                 field.exclude = not in_include
                 if in_include or in_sort or in_filter:
-                    logger.info('load field: {}.{}'.format(self.name, field.name))
+                    logger.info(
+                        'load field: {}.{}'.format(self.name, field.name))
                     field.load(self)
-                    field.model.init_schema(args, parents=(field.name, *parents))
+                    field.model.init_schema(args,
+                                            parents=(field.name, *parents))
 
             else:
                 raise ModelError('unsupported field: {!r}'.format(field), self)
 
         schema = type('{}Schema'.format(self.name),
                       (JSONSchema,),
-                      {name: field.get_ma_field() for name, field in self.fields.items()
+                      {name: field.get_ma_field() for name, field in
+                       self.fields.items()
                        if not field.exclude})
         schema_registry[schema.__name__] = schema
         self.schema = schema()
         self.schema.context['root'] = self
 
     def response(self, data):
-        response = dict(data=self.schema.dump(data, many=isinstance(data, list)))
+        response = dict(
+            data=self.schema.dump(data, many=isinstance(data, list)))
         if len(self.included) > 0:
-            response['included'] = reduce(lambda a, b: a + [rec for rec in b.values()],
-                                          self.included.values(), list())
+            response['included'] = reduce(
+                lambda a, b: a + [rec for rec in b.values()],
+                self.included.values(), list())
 
         if len(self.meta) > 0:
             response['meta'] = dict(self.meta)
@@ -321,14 +341,20 @@ class Model:
             self.meta['total'] = await pg.fetchval(query)
             if limit is not None and filter_by:
                 self.meta['filterTotal'] = await pg.fetchval(
-                    select_related(rel, object_id, filter_by=filter_by, count=True)
-                    if is_related else select_many(self, filter_by=filter_by, count=True))
+                    select_related(rel, object_id,
+                                   filter_by=filter_by,
+                                   count=True)
+                    if is_related else select_many(
+                        self, filter_by=filter_by, count=True))
             if search_term is not None:
                 self.meta['searchTerm'] = search_term
                 if limit is not None:
                     self.meta['searchTotal'] = await pg.fetchval(
-                        select_related(rel, object_id, search_term=search_term, count=True)
-                        if is_related else select_many(self, search_term=search_term, count=True))
+                        select_related(rel, object_id,
+                                       search_term=search_term,
+                                       count=True)
+                        if is_related else select_many(
+                            self, search_term=search_term, count=True))
 
     def get_filter_by(self, args):
         filter_by = FilterBy()
@@ -353,7 +379,8 @@ class Model:
             try:
                 order_by.add(self.fields[field_name], arg)
             except AttributeError:
-                raise APIError('sort:{} | does not exist'.format(field_name), self)
+                raise APIError('sort:{} | does not exist'.format(field_name),
+                               self)
         return order_by
 
     async def fetch_included(self, data, args):
@@ -378,7 +405,8 @@ class Model:
 
             for parent in data:
                 parent_id = parent['id']
-                if rel.cardinality in (Cardinality.ONE_TO_ONE, Cardinality.MANY_TO_ONE):
+                if rel.cardinality in (
+                        Cardinality.ONE_TO_ONE, Cardinality.MANY_TO_ONE):
                     parent[rel.name] = recs_by_parent_id[parent_id][0] \
                         if parent_id in recs_by_parent_id else None
                 else:
@@ -387,12 +415,13 @@ class Model:
 
             await rel.model.fetch_included(
                 reduce(lambda a, b: a + b if isinstance(b, list) else a + [b],
-                       [rec[rel.name] for rec in data if rec[rel.name] is not None],
+                       [rec[rel.name] for rec in data if
+                        rec[rel.name] is not None],
                        list()), args)
 
-    ################################################################################################
+    ############################################################################
     # public interface
-    ################################################################################################
+    ############################################################################
 
     async def get_object(self, args, object_id):
         """
@@ -441,14 +470,16 @@ class Model:
         self.init_schema(args)
         filter_by, order_by = self.get_filter_by(args), self.get_order_by(args)
         query = select_many(self, filter_by=filter_by, order_by=order_by,
-                            offset=args.offset, limit=args.limit, search_term=search)
+                            offset=args.offset, limit=args.limit,
+                            search_term=search)
         log_query(query)
         recs = [dict(rec) for rec in await pg.fetch(query)]
         await self.set_meta(args.limit, filter_by=filter_by, search_term=search)
         await self.fetch_included(recs, args)
         return self.response(recs)
 
-    async def get_related(self, args, object_id, relationship_name, search=None):
+    async def get_related(self, args, object_id, relationship_name,
+                          search=None):
         """
         Fetch a collection of related resources.
 
@@ -477,9 +508,12 @@ class Model:
         args = self.parse_arguments(args)
         rel.load(self)
         rel.model.init_schema(args)
-        filter_by, order_by = rel.model.get_filter_by(args), rel.model.get_order_by(args)
-        query = select_related(rel, object_id, filter_by=filter_by, order_by=order_by,
-                               offset=args.offset, limit=args.limit, search_term=search)
+        filter_by, order_by = rel.model.get_filter_by(
+            args), rel.model.get_order_by(args)
+        query = select_related(rel, object_id, filter_by=filter_by,
+                               order_by=order_by,
+                               offset=args.offset, limit=args.limit,
+                               search_term=search)
         log_query(query)
         if rel.cardinality in (Cardinality.ONE_TO_ONE, Cardinality.MANY_TO_ONE):
             result = await pg.fetchrow(query)
@@ -546,7 +580,7 @@ async def search(args, term, *models):
     if not isinstance(term, str):
         raise Error('search | "term" must be a string')
 
-    search_args = RequestArguments({
+    search_args = parse_arguments({
         'page[size]': args['page[size]'] if 'page[size]' in args else 50,
         'page[number]': args['page[number]'] if 'page[number]' in args else 1,
     })
@@ -560,27 +594,32 @@ async def search(args, term, *models):
         log_query(query)
         async with pg.query(query) as cursor:
             async for row in cursor:
-                data.append(dict(type=model.type_, id=str(row['id']), rank=row[SEARCH_LABEL]))
+                data.append(dict(type=model.type_, id=str(row['id']),
+                                 rank=row[SEARCH_LABEL]))
                 total += 1
     data = sorted(data, key=lambda x: x['rank'], reverse=True)
 
     sliced_data = defaultdict(dict)
-    for rec in islice(data, search_args.offset, search_args.offset + search_args.limit):
+    for rec in islice(data, search_args.offset,
+                      search_args.offset + search_args.limit):
         sliced_data[rec['type']][rec['id']] = rec['rank']
 
     data = list()
     included = defaultdict(dict)
     for model in models:
-        id_list = list(object_id for object_id in sliced_data[model.type_].keys())
+        id_list = list(
+            object_id for object_id in sliced_data[model.type_].keys())
         if len(id_list) > 0:
             model_args = model.parse_arguments(_extract_model_args(model, args))
             model.init_schema(model_args)
             query = select_many(model, filter_by=FilterBy(
                 model.primary_key.in_(
-                    [int(object_id) if isinstance(model.primary_key.type, Integer.sa_types)
+                    [int(object_id) if isinstance(model.primary_key.type,
+                                                  Integer.sa_types)
                      else object_id for object_id in id_list])))
             log_query(query)
-            recs = [{'type': model.type_, **rec} for rec in await pg.fetch(query)]
+            recs = [{'type': model.type_, **rec} for rec in
+                    await pg.fetch(query)]
             await model.fetch_included(recs, model_args)
             data.extend(model.schema.dump(recs, many=True))
             if len(model.included) > 0:
@@ -594,7 +633,8 @@ async def search(args, term, *models):
         meta['total'] += n
 
     response = dict(
-        data=sorted(data, key=lambda x: sliced_data[x['type']][x['id']], reverse=True),
+        data=sorted(data, key=lambda x: sliced_data[x['type']][x['id']],
+                    reverse=True),
         meta=meta)
     if included:
         response['included'] = reduce(lambda a, b: a + [r for r in b.values()],

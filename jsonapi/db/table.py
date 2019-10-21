@@ -41,20 +41,24 @@ class OrderBy:
         if field.is_relationship():
             attr_name = arg.attr_name if arg.attr_name else 'id'
             if attr_name not in field.model.fields.keys():
-                raise APIError('sort: {}.{} | does not exist'.format(field.name, attr_name),
-                               field.model)
+                raise APIError('sort: {}.{} | does not exist'.format(
+                    field.name, attr_name), field.model)
             attr = field.model.fields[attr_name]
             self.from_items.extend(get_from_items(field))
-            self.exprs.append(getattr(attr.expr, 'desc' if arg.desc else 'asc')().nullslast())
+            expr = getattr(attr.expr, 'desc' if arg.desc else 'asc')
+            self.exprs.append(expr().nullslast())
             if not attr.is_aggregate():
                 self.group_by.append(attr.expr)
-            if field.cardinality in (Cardinality.ONE_TO_MANY, Cardinality.MANY_TO_MANY):
+            if field.cardinality in (Cardinality.ONE_TO_MANY,
+                                     Cardinality.MANY_TO_MANY):
                 self.distinct = True
         else:
-            self.exprs.append(getattr(field.expr, 'desc' if arg.desc else 'asc')().nullslast())
+            expr = getattr(field.expr, 'desc' if arg.desc else 'asc')
+            self.exprs.append(expr().nullslast())
             if field.is_aggregate():
                 self.from_items.extend(get_from_items(field.rel))
-                if field.rel.cardinality in (Cardinality.ONE_TO_MANY, Cardinality.MANY_TO_MANY):
+                if field.rel.cardinality in (Cardinality.ONE_TO_MANY,
+                                             Cardinality.MANY_TO_MANY):
                     self.distinct = True
             else:
                 self.group_by.append(field.expr)
@@ -65,9 +69,9 @@ class FromItem:
     Represent a single item in the FROM list of a SELECT query.
 
     Each :class:`FromItem` item represents a table (or an alias to a table).
-    A :class:`FromItem` object may include an :attr:`onclause` used when joining
-    with other :class:`FromItem` objects. If the :attr:`left` flag is set, an outer left join is
-    performed.
+    A :class:`FromItem` object may include an :attr:`onclause` used when
+    joining with other :class:`FromItem` objects. If the :attr:`left` flag is
+    set, an outer left join is performed.
 
     >>> from jsonapi.tests.db import users_t, user_names_t
     >>> a = FromItem(user_names_t)
@@ -91,18 +95,20 @@ class FromItem:
         """
         :param table: an SQLAlchemy Table or Alias object
         :param onclause: an onclause join expression (optional)
-        :param left: if set perform outer left join, otherwise perform inner join (optional)
+        :param left: if set perform outer left join (optional)
         """
         self.table = table
         self.onclause = kwargs.get('onclause', None)
         self.left = bool(kwargs.get('left', False))
 
         if not isinstance(self.table, (Table, Alias)):
-            raise Error('[FromItem] invalid "table" argument: {}'.format(self.table))
+            raise Error(
+                '[FromItem] invalid "table" argument: {}'.format(self.table))
 
         if self.onclause is not None:
             if not is_clause(self.onclause):
-                raise Error('[FromItem] invalid "onclause" argument: {}'.format(self.onclause))
+                raise Error('[FromItem] invalid "onclause" argument: {}'.format(
+                    self.onclause))
 
     @property
     def name(self):
@@ -167,7 +173,8 @@ class FromClause(MutableSequence):
     def __call__(self):
         tables = [self._from_items[0].table] + self._from_items[1:]
         try:
-            return reduce(lambda l, r: l.join(r.table, onclause=r.onclause, isouter=r.left), tables)
+            return reduce(lambda l, r: l.join(r.table, onclause=r.onclause,
+                                              isouter=r.left), tables)
         except NoForeignKeysError:
             left = tables.pop(0)
             n = len(tables)
@@ -175,7 +182,8 @@ class FromClause(MutableSequence):
                 for j in range(len(tables)):
                     right = tables[j]
                     try:
-                        left = left.join(right.table, onclause=right.onclause, isouter=right.left)
+                        left = left.join(right.table, onclause=right.onclause,
+                                         isouter=right.left)
                     except NoForeignKeysError:
                         pass
                     else:
@@ -196,7 +204,8 @@ class FromClause(MutableSequence):
         return (from_item.name for from_item in self._from_items)
 
     def is_valid(self, item):
-        return isinstance(item, (Table, Alias, FromItem)) and item.name not in self.keys()
+        return isinstance(item, (
+            Table, Alias, FromItem)) and item.name not in self.keys()
 
     def __repr__(self):
         return "<{}({})>".format(self.__class__.__name__, ', '.join(
@@ -204,7 +213,8 @@ class FromClause(MutableSequence):
 
     def __str__(self):
         if len(self) > 0:
-            return self._from_items[0].table.name if len(self) == 1 else str(self().compile())
+            return self._from_items[0].table.name \
+                if len(self) == 1 else str(self().compile())
         return ''
 
 
@@ -243,7 +253,8 @@ def get_foreign_key_pair(model, model_ref, rel_ref):
         ref_names = list(fk.parent.name for fk in table.foreign_keys)
         if rel_ref in ref_names and model_ref in ref_names:
             return table.c[rel_ref], table.c[model_ref]
-    raise Error('foreign key pair not found: {!r}'.format((rel_ref, model_ref)))
+    raise Error('foreign key pair not found: {!r}'.format(
+        (rel_ref, model_ref)))
 
 
 def get_from_items(rel):
@@ -261,7 +272,9 @@ def get_from_items(rel):
                 FromItem(rel.model.primary_key.table,
                          onclause=rel.model.primary_key == ref_col,
                          left=True)]
-    return [FromItem(rel.model.primary_key.table, onclause=onclause, left=True)]
+    return [FromItem(rel.model.primary_key.table,
+                     onclause=onclause,
+                     left=True)]
 
 
 def is_from_item(from_item):

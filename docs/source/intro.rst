@@ -93,6 +93,7 @@ purposes::
     from quart import Quart, jsonify, request
     from asyncpgsa import pg
     from jsonapi.model import MIME_TYPE
+    from jsonapi.tests.model import UserModel
 
     asyncio.set_event_loop_policy(uvloop.EventLoopPolicy())
 

@@ -7,7 +7,8 @@ from jsonapi.exc import APIError, Error
 from .table import Cardinality, get_from_items, is_clause, is_from_item
 
 MODIFIERS = {'=': operators.eq, '<>': operators.ne, '!=': operators.ne,
-             '>=': operators.ge, '<=': operators.le, '>': operators.gt, '<': operators.lt}
+             '>=': operators.ge, '<=': operators.le,
+             '>': operators.gt, '<': operators.lt}
 
 
 class Operator(enum.Enum):
@@ -36,12 +37,15 @@ class FilterBy:
         if field.is_relationship():
             attr_name = arg.attr_name if arg.attr_name else 'id'
             if attr_name not in field.model.fields.keys():
-                raise APIError('field: {} does not exist'.format(attr_name), field.model)
+                raise APIError('field: {} does not exist'.format(attr_name),
+                               field.model)
             attr = field.model.fields[attr_name]
-            filter_clause = attr.filter_clause.get(attr.expr, arg.operator, arg.value)
+            filter_clause = attr.filter_clause.get(
+                attr.expr, arg.operator, arg.value)
             self.from_items.extend(get_from_items(field))
             if attr.is_aggregate():
-                self.from_items_last.extend(attr.from_items.get(field.model.name, list()))
+                self.from_items_last.extend(attr.from_items.get(
+                    field.model.name, list()))
                 self.having.append(filter_clause)
             else:
                 self.where.append(filter_clause)
@@ -49,10 +53,11 @@ class FilterBy:
                     Cardinality.ONE_TO_MANY, Cardinality.MANY_TO_MANY):
                 self.distinct = True
         else:
-            clause = field.filter_clause.get(field.expr, arg.operator, arg.value)
+            clause = field.filter_clause.get(
+                field.expr, arg.operator, arg.value)
             if field.is_aggregate():
-                if field.rel.cardinality in (
-                        Cardinality.ONE_TO_MANY, Cardinality.MANY_TO_MANY):
+                if field.rel.cardinality in (Cardinality.ONE_TO_MANY,
+                                             Cardinality.MANY_TO_MANY):
                     self.distinct = True
                 self.from_items.extend(get_from_items(field.rel))
                 self.having.append(clause)
@@ -71,8 +76,8 @@ class FilterBy:
                 else:
                     raise TypeError
             except TypeError:
-                raise Error('filter:{} | expected a where clause and a sequence '
-                            'of from items'.format(name))
+                raise Error('filter:{} | expected a where clause '
+                            'and a sequence of from items'.format(name))
 
 
 class FilterClause:
@@ -99,16 +104,18 @@ class FilterClause:
 
     def check_operator(self, op):
         if not isinstance(op, Operator):
-            raise ValueError('[{}}] invalid operator: {!r}'.format(op, self.__class__.__name__))
+            raise ValueError('[{}}] invalid operator: '
+                             '{!r}'.format(op, self.__class__.__name__))
 
     def has_operator(self, op, multiple=False):
-        return op in (o.value for o in (self.multiple if multiple else self.operators))
+        return op in (o.value for o in
+                      (self.multiple if multiple else self.operators))
 
     def parse_values(self, val):
         if any(symbol in val for symbol in MODIFIERS):
             values = list()
             for v in val.split(','):
-                match = re.match('({})?(.+)'.format('|'.join(MODIFIERS)), v)
+                match = re.match(r'({})?(.+)'.format('|'.join(MODIFIERS)), v)
                 if match:
                     mod = '=' if not match[1] else match[1]
                     values.append((mod, self.data_type.parse(match[2])))
@@ -150,12 +157,14 @@ class FilterClause:
                         if i > 0:
                             val_before = values[i - 1][1]
                             if val_before is not None:
-                                and_expr.append(MODIFIERS['>'](expr, values[i - 1][1]))
+                                and_expr.append(
+                                    MODIFIERS['>'](expr, values[i - 1][1]))
                         if i < len(values) - 1:
                             val_after = values[i + 1][1]
                             if val_after is not None:
-                                and_expr.append(MODIFIERS['<'](expr, values[i + 1][1]))
-                    expressions.append(and_(*and_expr))
+                                and_expr.append(
+                                    MODIFIERS['<'](expr, values[i + 1][1]))
+                        expressions.append(and_(*and_expr))
                 return or_(*expressions)
 
         #

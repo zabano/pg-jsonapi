@@ -10,9 +10,14 @@ from jsonapi.exc import DataTypeError
 accept_date = ('%Y-%m-%d', '%Y-%m')
 accept_time = ('%H:%M:%S', '%H:%M', '%I:%M%p', '%I:%M %p')
 accept_datetime = ('%Y-%m-%dT%H:%M:%SZ',
-                   '%Y-%m-%dT%H:%M:%S', '%Y-%m-%d %H:%M:%S', '%Y-%m-%d %I:%M:%S%p',
+                   '%Y-%m-%dT%H:%M:%S',
+                   '%Y-%m-%d %H:%M:%S',
+                   '%Y-%m-%d %I:%M:%S%p',
                    '%Y-%m-%d %I:%M:%S %p',
-                   '%Y-%m-%dT%H:%M', '%Y-%m-%d %H:%M', '%Y-%m-%d %I:%M', '%Y-%m-%d %I:%M%p',
+                   '%Y-%m-%dT%H:%M',
+                   '%Y-%m-%d %H:%M',
+                   '%Y-%m-%d %I:%M',
+                   '%Y-%m-%d %I:%M%p',
                    '%Y-%m-%d %I:%M %p')
 
 
@@ -32,8 +37,9 @@ class DataType:
         self.sa_types = tuple(self.get_sa_type(sa_type) for sa_type in sa_types)
         self.parser = kwargs.get('parser', str)
         self.accept = kwargs.get('accept', tuple())
-        self.filter_clause = FilterClause(self, *kwargs.get('filter_ops', (Operator.NONE,)),
-                                          multiple=kwargs.get('filter_ops_multi', None))
+        self.filter_clause = FilterClause(
+            self, *kwargs.get('filter_ops', (Operator.NONE,)),
+            multiple=kwargs.get('filter_ops_multi', None))
 
     @property
     def name(self):
@@ -50,8 +56,11 @@ class DataType:
             raise ValueError('[{}] sa_type | invalid SQLAlchemy'
                              ' sql type: {!r}'.format(self.name, sa_type))
         if sa_type in DataType.registry.keys():
-            raise ValueError('[{}] sa_type | {!r} sql type is already registered '
-                             'to: {!r}'.format(self.name, sa_type, DataType.registry[sa_type]))
+            raise ValueError('[{}] sa_type | {!r} sql type '
+                             'is already registered to: '
+                             '{!r}'.format(self.name,
+                                           sa_type,
+                                           DataType.registry[sa_type]))
         DataType.registry[sa_type] = self
         return sa_type
 
@@ -79,7 +88,8 @@ class DataType:
 def parse_bool(val):
     if not isinstance(val, str):
         raise ValueError
-    if val.lower() not in DataType.VALUES_TRUE and val.lower() not in DataType.VALUES_FALSE:
+    if val.lower() not in DataType.VALUES_TRUE \
+            and val.lower() not in DataType.VALUES_FALSE:
         raise ValueError
     return val.lower() in DataType.VALUES_TRUE
 

@@ -93,25 +93,29 @@ def select_related(rel, obj_id, **kwargs):
             onclause=rel.model.primary_key == ref_col,
             left=True))
 
-    query = sql.select(columns=_col_list(rel.model,
-                                         parent_col.label('parent_id')
-                                         if isinstance(obj_id, list) else None,
-                                         search_term=search_term),
-                       from_obj=_from_obj(rel.model, *from_items,
-                                          filter_by=filter_by,
-                                          order_by=order_by,
-                                          search_term=search_term))
+    query = sql.select(
+        columns=_col_list(
+            rel.model,
+            parent_col.label('parent_id') if isinstance(obj_id, list) else None,
+            search_term=search_term),
+        from_obj=_from_obj(rel.model, *from_items,
+                           filter_by=filter_by,
+                           order_by=order_by,
+                           search_term=search_term))
+
     if not isinstance(obj_id, list):
         query = query.where(parent_col == obj_id)
 
     if not count:
         query = _protect_query(rel.model, query)
-        if rel.cardinality in (Cardinality.ONE_TO_MANY, Cardinality.MANY_TO_MANY):
+        if rel.cardinality in (
+                Cardinality.ONE_TO_MANY, Cardinality.MANY_TO_MANY):
             query = _sort_query(rel.model, query, order_by, search_term)
         if limit is not None:
             query = query.offset(offset).limit(limit)
 
-    query = _group_query(rel.model, query, parent_col if isinstance(obj_id, list) else None,
+    query = _group_query(rel.model, query,
+                         parent_col if isinstance(obj_id, list) else None,
                          filter_by=filter_by, order_by=order_by)
     query = _filter_query(query, filter_by)
     query = _search_query(rel.model, query, search_term)
@@ -131,16 +135,18 @@ def search_query(model, term):
     return _protect_query(model, query)
 
 
-####################################################################################################
+################################################################################
 # helpers
-####################################################################################################
+################################################################################
 
 def _col_list(model, *extra_columns, **kwargs):
     group_by = bool(kwargs.get('group_by', False))
     col_list = [model.attributes['id'].expr.label('id')]
     for field in model.attributes.values():
-        if (isinstance(field, (Field, Derived)) and field.name != 'id') \
-                or (not group_by and isinstance(field, Aggregate) and field.expr is not None):
+        if (isinstance(field, (Field, Derived))
+            and field.name != 'id') \
+                or (not group_by and isinstance(field, Aggregate) and
+                    field.expr is not None):
             col_list.append(field.expr.label(field.name))
     col_list.extend(col for col in extra_columns if col is not None)
     return col_list
@@ -171,7 +177,8 @@ def _group_query(model, query, *extra_columns, **kwargs):
     order_by = kwargs.get('order_by', None)
     if (filter_by is not None and len(filter_by.having) > 0) \
             or (order_by is not None and order_by.distinct) \
-            or (any(isinstance(field, Aggregate) for field in model.attributes.values())):
+            or (any(isinstance(field, Aggregate) for field in
+                    model.attributes.values())):
         columns = list(extra_columns)
         if order_by:
             columns.extend(order_by.group_by)
@@ -216,7 +223,8 @@ def _search_query(model, query, search_term):
 
 def _rank_column(model, search_term):
     return sql.func.ts_rank_cd(
-        model.search.c.tsvector, sql.func.to_tsquery(search_term)).label(SEARCH_LABEL)
+        model.search.c.tsvector, sql.func.to_tsquery(search_term)).label(
+        SEARCH_LABEL)
 
 
 def _count_query(query):

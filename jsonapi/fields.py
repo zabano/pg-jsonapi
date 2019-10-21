@@ -37,7 +37,8 @@ class BaseField:
         if isinstance(self, Relationship):
             return ma.fields.Nested(
                 schema_registry['{}Schema'.format(self.model.name)](),
-                many=self.cardinality in (Cardinality.ONE_TO_MANY, Cardinality.MANY_TO_MANY))
+                many=self.cardinality in (Cardinality.ONE_TO_MANY,
+                                          Cardinality.MANY_TO_MANY))
         if issubclass(self.data_type.ma_type, ma.fields.Date):
             return self.data_type.ma_type(format=DataType.FORMAT_DATE)
         if issubclass(self.data_type.ma_type, ma.fields.DateTime):
@@ -72,17 +73,18 @@ class Derived(BaseField):
     """
     Represents a derived field.
 
-    >>> Derived('name', lambda rec: rec['first'] + ' ' + rec['last'])
-    >>> Derived('name', lambda rec: rec.first + ' ' + rec.last)
+    >>> Derived('name', lambda c: c['first'] + ' ' + c['last'])
+    >>> Derived('name', lambda c: c.first + ' ' + c.last)
     """
 
     def __init__(self, name, spec, data_type=None):
         """
         :param str name: a unique field name
-        :param lambda spec: a lambda function that accepts a single record as the first argument
-        :param DataType data_type: one of the supported data types (default: String)
+        :param lambda spec: a lambda function that accepts a ColumnCollection
+        :param DataType data_type: defaults to String
         """
-        super().__init__(name, data_type=data_type if data_type is not None else String)
+        data_type = data_type if data_type is not None else String
+        super().__init__(name, data_type=data_type)
         self.spec = spec
 
     def load(self, model):
@@ -105,7 +107,8 @@ class Aggregate(BaseField):
         :param func: SQLAlchemy aggregate function (ex. func.count)
         :param DataType data_type: one of the supported data types (optional)
         """
-        super().__init__(name, data_type=data_type if data_type is not None else Integer)
+        data_type = data_type if data_type is not None else Integer
+        super().__init__(name, data_type=data_type)
         self.func = func
         self.rel_name = rel_name
         self.rel = None
@@ -125,7 +128,8 @@ class Aggregate(BaseField):
         elif self.rel.cardinality == Cardinality.ONE_TO_MANY:
             from_item = FromItem(
                 self.rel.model.primary_key.table,
-                onclause=self.rel.parent.primary_key == self.rel.model.get_expr(self.rel.ref),
+                onclause=self.rel.parent.primary_key == self.rel.model.get_expr(
+                    self.rel.ref),
                 left=True)
             self.from_items[model.name] = (from_item,)
         else:
