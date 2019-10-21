@@ -4,16 +4,15 @@ Fetching Data
 
 .. include:: warning.rst
 
-For a given model instance, three methods are available for fetching resource
-data. All three methods expect a dictionary of options as the first argument.
-These options represent the request query string parameters.
+For a given model instance, three methods are available for fetching resource data. All three methods expect a
+dictionary of options as the first argument. These options represent the request query string parameters.
 
 **************
 Single Objects
 **************
 
-To fetch a single resource object, call the :meth:`Model.get_object` method,
-supplying the object id as the second argument::
+To fetch a single resource object, call the :meth:`Model.get_object` method, supplying the object id as the second
+argument::
 
     >>> await UserModel().get_object({}, 1)
     {
@@ -88,9 +87,8 @@ The generated SQL query may look like this:
 Related Objects
 ***************
 
-To fetch related resource objects, call the :meth:`Model.get_related` method,
-supplying the object id and the relation name as the second and third
-arguments::
+To fetch related resource objects, call the :meth:`Model.get_related` method, supplying the object id and the
+relation name as the second and third arguments::
 
     >>> await UserModel().get_related({}, 276, 'bio')
     {
@@ -125,16 +123,12 @@ The generated SQL query may look like this:
 Sparse Fieldsets
 ****************
 
-By default, all non aggregate attribute fields are included in the response.
-Aggregate fields must be requested explicitly.
+By default, only non-aggregate attribute fields are included in the response.
+Aggregate fields must be requested explicitly and relationship fields are included when related resources are
+requested using the ``include`` request parameter (see :ref:`include`).
 
-In addition, relationship fields are not included. They are only included
-when related resources are requested using the ``include`` request parameter
-(see :ref:`include`).
-
-To include specific attributes in the response, simply pass on the
-appropriate ``fields[TYPE]`` option, where ``TYPE`` is the ``type`` of the
-resource::
+To include specific attributes in the response, pass a comma separated list of field names using the appropriate
+``fields[TYPE]`` option, where ``TYPE`` is the ``type`` of the resource model::
 
     >>> await UserModel().get_object({
     >>>     'fields[user]': 'name,email,created-on'
@@ -150,7 +144,7 @@ resource::
         }
     }
 
-You can pass an option for each resource type included in the response.
+You can pass an option for different resource types included in the response.
 For an example, see :ref:`this <example_1>`.
 
 .. _include:
@@ -159,8 +153,8 @@ For an example, see :ref:`this <example_1>`.
 Inclusion of Related Resources
 ******************************
 
-As mentioned above, to include related resources pass on the ``include``
-request parameter::
+To include related resources pass a comma separated list of relationship field names using the ``include``
+option::
 
     >>> await UserModel().get_object({
     >>>     'include': 'bio',
@@ -180,9 +174,9 @@ request parameter::
 
 .. _example_1:
 
-This user has no bio record, as indicated by the ``None`` value of the
-``bio`` relationship. When related resources exist, they will be returned as
-part of the ``included`` section of the response document::
+This user has no bio record, as indicated by the ``None`` value of the ``bio`` relationship. In the case of a non-empty
+``bio`` relationship, the value will be set to a resource identifier object and a corresponding resource object will
+be listed in the ``included`` section of the response document::
 
     >>> await UserModel().get_object({
     >>>     'include': 'bio',
@@ -215,28 +209,35 @@ part of the ``included`` section of the response document::
         ]
     }
 
+You can use dot notation to include nested relationships::
+
+    >>> await UserModel().get_object({
+    >>>     'include': 'articles.comments.replies,'
+    >>>     'articles.keywords,articles.author,articles.publisher,'
+    >>>     'bio'})
+
+There is no limit on how many relationships can be included or nested.
+
 *******
 Sorting
 *******
 
-To sort a collection of resource objects, pass on the names of fields to
-order by as a comma separated list using the ``sort`` request parameter.
-You can use "+" or "-" prefix to indicate the sorting direction for each filed:
-ascending or descending, respectively. No prefix implies ascending order.
+To sort a collection of resource objects, pass on the names of fields to order by as a comma separated list using the
+``sort`` request parameter. You can use "+" or "-" prefix to indicate the sorting direction for each filed: ascending
+or descending, respectively. No prefix implies ascending order.
 
-For example, the following returns a collection of ``user``
-objects sorted by the ``created-on`` field in descending order::
+For example, the following returns a collection of ``user`` objects sorted by the ``created-on`` field in descending
+order::
 
      >>> await UserModel().get_collection({'sort': '-created-on'})
 
-To sort the collection of followers of a specific ``user`` by last name and
-then first name::
+To sort the collection of followers of a specific ``user`` by last name first, and then by first name::
 
      >>> await UserModel().get_related({
      >>>     'sort': 'last,first'
      >>> }, 1, 'followers')
 
-Collections can be sorted using aggregate fields::
+Collections can be sorted by aggregate fields::
 
     >>> await UserModel().get_collection({'sort': '-follower-count'})
 
@@ -246,21 +247,18 @@ The following calls have identical effect::
     >>> await ArticleModel().get_collection({'sort': 'author'})
     >>> await ArticleModel().get_collection({'sort': 'author.id'})
 
-You can use dot notation to specify a different attribute field.
-To sort articles by author name::
+You can use dot notation to specify a different attribute. To sort articles by the author name::
 
     >>> await ArticleModel().get_collection({'sort': 'author.name'})
 
-Currently, dot notation can only be used to reference attribute fields of a
-relationship (one level of descent).
+Currently, dot notation can only be used to reference attribute fields of a relationship (one level of descent).
 
 **********
 Pagination
 **********
 
-To limit the number of objects returned in the ``data`` section of the
-response document, you can pass on the number as the value of the
-``page[size]`` option::
+To limit the number of objects returned in the ``data`` section of the response document, you can pass on the number
+as the value of the ``page[size]`` option::
 
     >>> await UserModel().get_collection({
     >>>     'page[size]': 10,
@@ -268,8 +266,8 @@ response document, you can pass on the number as the value of the
     >>> })
 
 The above call will return the 10 most recent ``user`` accounts.
-To return the next batch, you can set the ``page[number]`` option to the
-appropriate value (defaults to 1)::
+
+To return the next batch, you can set the ``page[number]`` option to the appropriate value (defaults to 1)::
 
     >>> await UserModel().get_collection({
     >>>     'page[size]': 10,
@@ -279,11 +277,10 @@ appropriate value (defaults to 1)::
 
 .. note::
 
-    If ``page[number]`` parameter is set without providing ``page[size]``, an
-    exception will be raised.
+    If ``page[number]`` parameter is set without providing ``page[size]``, an exception will be raised.
 
-When pagination options are set, the ``total`` number of objects is provided in
-the ``meta`` section of the response document::
+When pagination options are set, the ``total`` number of objects is provided in the ``meta`` section of the response
+document::
 
     >>> await UserModel().get_collection({'page[size]': 10})
     {
@@ -296,3 +293,66 @@ the ``meta`` section of the response document::
 *********
 Filtering
 *********
+
+The ``filter[SPEC]`` option can be used to filter a collection of objects (or related objects).
+
+In the simplest form, ``SPEC`` can be the name of any field in the model.
+This filter would include all objects where the field has a value equal to that supplied by the filter.
+The value is parsed based on the datatype of the field.
+
+For example, the following returns a list of active user accounts::
+
+    >>> await UserModel().get_collection({
+    >>>     'filter[status]': 'active'
+    >>> })
+
+By default, the filter will use the equality operator. To specify a different operator, you can append a colin and
+the operator symbol to the name of the field. For example, to return all accounts created since September of 2019::
+
+    >>> await UserModel().get_collection({
+    >>>     'filter[created-on:gt]': '2019-09'
+    >>> })
+
+The supported operators (and their symbols) and value formats depends of the field's datatype.
+For more details see :module:``jsonapi.datatypes``.
+
+You can combine multiple filters, which will be AND-ed together::
+
+    >>> await UserModel().get_collection({
+    >>>     'filter[status:eq]': 'active',
+    >>>     'filter[created-on:gt]': '2019-09'
+    >>> })
+
+Some datatypes accept comma-separated values. To fetch a specific list of users::
+
+    >>> await UserModel().get_collection({
+    >>>     'filter[id]': '1,2,3,6,8,9,10,11,12'
+    >>> })
+
+Ranges are also supported. The following is equivalent to the example above::
+
+     >>> await UserModel().get_collection({'filter[id]': '<=3,6,>=8,12'})
+     >>> await UserModel().get_collection({'filter[id]': '<4,6,>7,<13'})
+
+Ranges are also supported by the date and time datatypes. To return all accounts created in September of 2019::
+
+     >>> await UserModel().get_collection({
+     >>>    'filter[created-on]': '>2019-09,<2019-10'
+     >>> })
+
+When filtering by a relationship fields, the objects are filtered by the ``id`` field related resource model. The
+following calls are equivalent::
+
+     >>> await ArticleModel().get_collection({'filter[author]': '1,2,3'})
+     >>> await ArticleModel().get_collection({'filter[author.id]': '1,2,3'})
+
+You can also filter by an attribute of a related resource model::
+
+    >>> await ArticleModel().get_collection({'filter[author.status]': 'active'})
+
+The reserved literals ``none``, ``null``, or ``na`` to filter empty relationships. The values are case-insensitive::
+
+    >>> await ArticleModel().get_collection({'filter[author:eq]': 'none'})
+    >>> await ArticleModel().get_collection({'filter[author:ne]': 'none'})
+
+Currently, dot notation can only be used to reference attribute fields of a relationship (one level of descent).

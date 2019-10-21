@@ -4,8 +4,8 @@ Introduction
 
 .. include:: warning.rst
 
-**pg-jsonapi** is an asynchronous Python library for building `JSON API v1.0
-<https://jsonapi.org/format/>`_  compliant calls using a very simple declarative syntax.
+**pg-jsonapi** is an asynchronous Python library for building `JSON API v1.0 <https://jsonapi.org/format/>`_
+compliant calls using a very simple declarative syntax.
 
 Only ``PostgreSQL`` is supported. ``PostgreSQL`` integration is powered by the
 `asyncpgsa <https://asyncpgsa.readthedocs.io/en/latest/>`_ library.
@@ -13,14 +13,13 @@ Only ``PostgreSQL`` is supported. ``PostgreSQL`` integration is powered by the
 Under the hood, the `marshmallow <https://marshmallow.readthedocs.io/en/stable/>`_ library is used
 for object serialization. No previous knowledge of ``marshmallow`` is needed.
 
-The user defines models that map to ``SQLAlchemy`` tables. Each model represents a single
-JSONAPI resource. Each resource has a type. A set of fields can be defined for each
-resource. A field can be a simple attribute mapping directly to a database column,
-or derived from multiple columns. The user may also define aggregate fields (ex. counts, max
-values, etc.). Relationship fields can be used to define relationships between models.
+The user defines models that map to ``SQLAlchemy`` tables. Each model represents a single JSONAPI resource. Each
+resource has a type. A set of fields can be defined for each resource. A field can be a simple attribute mapping
+directly to a database column, or derived from multiple columns. The user may also define aggregate fields (ex.
+counts, max values, etc.). Relationship fields can be used to define relationships between models.
 
-The library supports the fetching of resource data, inclusion of related resources, sparse
-fieldsets, sorting, pagination, and filtering.
+The library supports the fetching of resource data, inclusion of related resources, sparse fieldsets, sorting,
+pagination, and filtering.
 
 Quick Start
 ***********
@@ -72,9 +71,9 @@ Then we define the model::
     The ``id`` and ``type`` fields are predefined.
     Attempting to do define them explicitly will raise an exception.
 
-    The primary key of the mapped table is automatically assigned to the ``id`` field, regardless
-    of what the database column is called. The ``type`` field is determined by the value of
-    the :attr:`Model.type_` attribute (see :doc:`model` for more details).
+    The primary key of the mapped table is automatically assigned to the ``id`` field, regardless of what the
+    database column is called. The ``type`` field is determined by the value of  the :attr:`Model.type_` attribute
+    (see :doc:`model` for more details).
 
 .. note::
 
@@ -82,8 +81,8 @@ Then we define the model::
 
 .. note::
 
-    You can define fields for a subset of the available database columns. In the example above,
-    we chose not to expose the ``password`` column, for example.
+    You can define fields for a subset of the available database columns. In the example above, we chose not to
+    expose the ``password`` column, for example.
 
 Now we are ready to implement the API calls. We use the ``Quart`` web framework for demonstration
 purposes::
