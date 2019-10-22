@@ -1,8 +1,9 @@
 import marshmallow as ma
 from sqlalchemy.sql import text
+from sqlalchemy.sql.schema import Column
 
 from jsonapi.datatypes import DataType, Date, Integer, String
-from jsonapi.db.table import Cardinality, FromItem, get_foreign_key_pair
+from jsonapi.db.table import Cardinality, FromItem, get_table_name
 from jsonapi.exc import APIError, Error
 from jsonapi.registry import model_registry, schema_registry
 
@@ -53,8 +54,8 @@ class Field(BaseField):
     """
     Basic field type, which maps to a database table column.
 
-    >>> from jsonapi.tests.db import users_t, user_names_t
     >>> from jsonapi.datatypes import Date
+    >>>
     >>> Field('emil_address')
     >>> Field('created_on', Date)
     """
@@ -121,15 +122,14 @@ class Aggregate(BaseField):
         self.filter_clause = self.get_filter_clause()
 
         if self.rel.cardinality == Cardinality.MANY_TO_MANY:
-            ref_model, _ = get_foreign_key_pair(self.rel.model, *self.rel.ref)
+            ref_model, _ = self.rel.ref
             self.from_items[model.name] = (
                 FromItem(ref_model.table, left=True),
                 FromItem(self.rel.model.primary_key.table, left=True))
         elif self.rel.cardinality == Cardinality.ONE_TO_MANY:
             from_item = FromItem(
                 self.rel.model.primary_key.table,
-                onclause=self.rel.parent.primary_key == self.rel.model.get_expr(
-                    self.rel.ref),
+                onclause=self.rel.parent.primary_key == self.rel.ref,
                 left=True)
             self.from_items[model.name] = (from_item,)
         else:
@@ -141,22 +141,52 @@ class Relationship(BaseField):
     Represents a relationship field.
 
     >>> from jsonapi.model import ONE_TO_MANY
-    >>> Relationship('articles', 'ArticleModel', ONE_TO_MANY, 'author_id'))
+    >>> from jsonapi.tests.db import articles_t
+    >>>
+    >>> Relationship('articles', 'ArticleModel', ONE_TO_MANY,
+    >>>              articles_t.c.author_id)
     """
 
-    def __init__(self, name, model_name, cardinality, ref=None):
+    def __init__(self, name, model_name, cardinality, *refs):
         """
         :param str name: relationship name
         :param str model_name: related model name
         :param Cardinality cardinality: relationship cardinality
+        :param refs: a variable length list of foreign key columns
         """
         super().__init__(name)
         self.cardinality = cardinality
         self.model_name = model_name
-        self.ref = ref
+        self.check_refs(refs)
+        self.refs = refs
         self.model = None
         self.nested = None
         self.parent = None
+
+    def check_refs(self, refs):
+        for ref in refs:
+            if not isinstance(ref, Column):
+                raise Error('invalid "ref" value: {!r}'.format(ref))
+
+        if self.cardinality == Cardinality.MANY_TO_MANY and len(refs) != 2:
+            raise Error('two "ref" columns required: {}'.format(', '.join(r.name) for r in refs))
+
+        if self.cardinality in (Cardinality.MANY_TO_ONE, Cardinality.ONE_TO_MANY) and len(refs) != 1:
+            raise Error('one "ref" column required: {}'.format(', '.join(r.name) for r in refs))
+
+        if self.cardinality == Cardinality.ONE_TO_ONE and len(refs) > 1:
+            raise Error('too many "ref" columns: {}'.format(', '.join(r.name) for r in refs))
+
+    @property
+    def ref(self):
+        if self.model and self.parent:
+            if self.cardinality == Cardinality.MANY_TO_MANY:
+                return self.refs
+            if self.cardinality != Cardinality.ONE_TO_ONE:
+                for from_clause in (self.model.from_clause, self.parent.from_clause):
+                    ref = from_clause.get_column(self.refs[0].name)
+                    if ref is not None:
+                        return ref
 
     def load(self, parent):
         self.parent = parent

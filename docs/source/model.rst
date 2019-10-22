@@ -136,13 +136,13 @@ models::
         fields = ('email',
                   Derived('name', lambda c: c.first + ' ' + c.last)
                   Relationship('articles', 'ArticleModel',
-                               ONE_TO_MANY, 'author_id'))
+                               ONE_TO_MANY, articles_t.c.author_id))
 
     class ArticleModel(Model):
         from_ = articles_t
         fields = ('title', 'body', 'created_on',
                   Relationship('author', 'UserModel',
-                               MANY_TO_ONE, 'author_id'))
+                               MANY_TO_ONE, articles_t.c.author_id))
 
 In this example, a ``user`` can author multiple ``article`` s, and an ``article`` is authored by one ``user``. This
 relationship is represented by two :class:`Relationship <jsonapi.fields.Relationship>` objects, each defined in it's
@@ -151,16 +151,18 @@ respective model.
 The first argument to :class:`Relationship <jsonapi.fields.Relationship>` is the name of the field. The second
 arguments is the target model class name. The third argument is cardinality of the relationship.
 
-The fourth argument depends on the cardinality of the relationship.
+The fourth and possibly fifth arguments depend on the cardinality of the relationship.
+Both arguments, if provided must be SQLAlchemy ``Column`` objects that are part of a foreign key and are not a
+primary key of any model.
 
-    - For ``ONE_TO_ONE`` relationships, no argument is required.
-    - For ``ONE_TO_MANY`` and ``MANY_TO_ONE`` relationships, the argument must be a string  representing the name of
-      the column of the (non-composite) foreign key that is not the primary key of either related models.
-    - For ``MANY_TO_MANY`` relationships, the argument is a 2-tuple representing the primary key of the join table,
-      where the first must be part of the foreign key referencing the model's primary key (as opposed to the related
-      model's primary key)
+    - For ``ONE_TO_ONE`` relationships, no argument is required in most cases.
+      The only exception is when the foreign key of the relationship lives in a standalone one-to-one join table.
+    - For ``ONE_TO_MANY`` and ``MANY_TO_ONE`` relationships, one argument is required.
+    - For ``MANY_TO_MANY`` relationships, two arguments are required and the second must be the one referencing the
+      primary key of the related resource model
 
-::
+.. code-block::
+    :emphasize-lines: 14-16
 
     article_keywords_t = sa.Table(
         'article_keywords', metadata,
@@ -172,8 +174,12 @@ The fourth argument depends on the cardinality of the relationship.
                   nullable=False, index=True),
         sa.PrimaryKeyConstraint('article_id', 'keyword_id'))
 
-    Relationship('keywords', 'KeywordModel',
-                 MANY_TO_MANY, ('article_id', 'keyword_id'))
+    class ArticleModel(Model):
+        from_ = articles_t
+        fields = ('title', 'body', ...
+                  Relationship('keywords', 'KeywordModel', MANY_TO_MANY,
+                               article_keywords_t.c.article_id,
+                               article_keywords_t.c.keyword_id))
 
 ****************
 Aggregate Fields

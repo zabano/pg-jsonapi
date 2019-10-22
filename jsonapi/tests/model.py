@@ -22,8 +22,9 @@ class UserModel(Model):
     fields = ('email', 'first', 'last', 'created_on', 'status',
               Derived('name', lambda rec: rec.first + ' ' + rec.last),
               Relationship('bio', 'UserBioModel', ONE_TO_ONE),
-              Relationship('articles', 'ArticleModel', ONE_TO_MANY, 'author_id'),
-              Relationship('followers', 'UserModel', MANY_TO_MANY, ('user_id', 'follower_id')),
+              Relationship('articles', 'ArticleModel', ONE_TO_MANY, articles_t.c.author_id),
+              Relationship('followers', 'UserModel', MANY_TO_MANY,
+                           user_followers_t.c.user_id, user_followers_t.c.follower_id),
               Aggregate('article_count', 'articles', func.count))
     search = users_ts
 
@@ -37,10 +38,11 @@ class UserBioModel(Model):
 class ArticleModel(Model):
     from_ = articles_t
     fields = ('title', 'body', 'created_on', 'updated_on', 'is_published',
-              Relationship('author', 'UserModel', MANY_TO_ONE, 'author_id'),
-              Relationship('publisher', 'UserModel', MANY_TO_ONE, 'published_by'),
-              Relationship('keywords', 'KeywordModel', MANY_TO_MANY, ('article_id', 'keyword_id')),
-              Relationship('comments', 'CommentModel', ONE_TO_MANY, 'article_id'),
+              Relationship('author', 'UserModel', MANY_TO_ONE, articles_t.c.author_id),
+              Relationship('publisher', 'UserModel', MANY_TO_ONE, articles_t.c.published_by),
+              Relationship('keywords', 'KeywordModel', MANY_TO_MANY,
+                           article_keywords_t.c.article_id, article_keywords_t.c.keyword_id),
+              Relationship('comments', 'CommentModel', ONE_TO_MANY, comments_t.c.article_id),
               Aggregate('keyword_count', 'keywords', func.count),
               Aggregate('comment_count', 'comments', func.count),
               Aggregate('author_count', 'author', func.count))
@@ -62,9 +64,9 @@ class KeywordModel(Model):
 class CommentModel(Model):
     from_ = comments_t
     fields = ('body', 'created_on', 'updated_on',
-              Relationship('article', 'ArticleModel', MANY_TO_ONE, 'article_id'),
-              Relationship('user', 'UserModel', MANY_TO_ONE, 'user_id'),
-              Relationship('replies', 'ReplyModel', ONE_TO_MANY, 'comment_id'),
+              Relationship('article', 'ArticleModel', MANY_TO_ONE, comments_t.c.article_id),
+              Relationship('user', 'UserModel', MANY_TO_ONE, comments_t.c.user_id),
+              Relationship('replies', 'ReplyModel', ONE_TO_MANY, replies_t.c.comment_id),
               Aggregate('reply_count', 'replies', func.count))
 
 

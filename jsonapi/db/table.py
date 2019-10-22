@@ -266,11 +266,11 @@ def get_from_items(rel):
     if rel.cardinality == Cardinality.ONE_TO_ONE:
         onclause = rel.model.primary_key == rel.parent.primary_key
     elif rel.cardinality == Cardinality.ONE_TO_MANY:
-        onclause = rel.model.get_expr(rel.ref) == rel.parent.primary_key
+        onclause = rel.ref == rel.parent.primary_key
     elif rel.cardinality == Cardinality.MANY_TO_ONE:
-        onclause = rel.model.primary_key == rel.parent.get_expr(rel.ref)
+        onclause = rel.model.primary_key == rel.ref
     else:
-        ref_col, parent_col = get_foreign_key_pair(rel.model, *rel.ref)
+        ref_col, parent_col = rel.ref
         return [FromItem(parent_col.table,
                          onclause=parent_col == rel.parent.primary_key,
                          left=True),

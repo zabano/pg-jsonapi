@@ -77,17 +77,18 @@ def select_related(rel, obj_id, **kwargs):
                 left=True))
 
     elif rel.cardinality == Cardinality.ONE_TO_MANY:
-        parent_col = rel.model.get_expr(rel.ref)
+        from_items.append(rel.ref.table)
+        parent_col = rel.ref
 
     elif rel.cardinality == Cardinality.MANY_TO_ONE:
         parent_col = rel.parent.primary_key
         from_items.append(FromItem(
             rel.parent.primary_key.table,
-            onclause=rel.model.primary_key == rel.parent.get_expr(rel.ref),
+            onclause=rel.model.primary_key == rel.ref,
             left=True))
 
     else:
-        ref_col, parent_col = get_foreign_key_pair(rel.model, *rel.ref)
+        ref_col, parent_col = rel.ref
         from_items.append(FromItem(
             ref_col.table,
             onclause=rel.model.primary_key == ref_col,
@@ -119,7 +120,6 @@ def select_related(rel, obj_id, **kwargs):
                          filter_by=filter_by, order_by=order_by)
     query = _filter_query(query, filter_by)
     query = _search_query(rel.model, query, search_term)
-    # query = query.distinct()
 
     if isinstance(obj_id, list):
         return (query.where(parent_col.in_(x))
