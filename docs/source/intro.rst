@@ -112,7 +112,7 @@ purposes::
 
     @app.route('/users/<int:user_id>')
     async def user(user_id):
-        return jsonify(await UserModel().get_resource(request.args, user_id))
+        return jsonify(await UserModel().get_object(request.args, user_id))
 
     if __name__ == "__main__":
         app.run(host="localhost", port=8080, loop=asyncio.get_event_loop())

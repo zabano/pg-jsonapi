@@ -45,6 +45,13 @@ The generated SQL query may look like this:
     JOIN public.user_names ON public.users.id = public.user_names.user_id
     WHERE public.users.id = 1
 
+If the resource object does not exist, a :exc:`NotFound <jsonapi.exc.NotFound>` exception is raised::
+
+    >>> await UserModel().get_object({}, 1001)
+    Traceback (most recent call last):
+      ...
+    jsonapi.exc.NotFound: [UserModel] object not found: user(1001)
+
 ***********
 Collections
 ***********
@@ -117,7 +124,9 @@ The generated SQL query may look like this:
 
 .. note::
 
-    When fetching related (or included) object, table aliases are used.
+    When fetching related (or included) objects, table aliases are used to allow the referencing of relationships
+    involving the same model definitions (for example: self-reference relationships). This is an implementation
+    detail and users of the library need not to worry about it.
 
 ****************
 Sparse Fieldsets
@@ -350,9 +359,10 @@ You can also filter by an attribute of a related resource model::
 
     >>> await ArticleModel().get_collection({'filter[author.status]': 'active'})
 
-The reserved literals ``none``, ``null``, or ``na`` to filter empty relationships. The values are case-insensitive::
+The reserved literals ``none``, ``null``, or ``na`` can be used to filter empty relationships. The values are
+case-insensitive. The following calls return articles with and without a publisher, respectively::
 
-    >>> await ArticleModel().get_collection({'filter[author:eq]': 'none'})
-    >>> await ArticleModel().get_collection({'filter[author:ne]': 'none'})
+    >>> await ArticleModel().get_collection({'filter[publisher:ne]': 'none'})
+    >>> await ArticleModel().get_collection({'filter[publisher:eq]': 'none'})
 
 Currently, dot notation can only be used to reference attribute fields of a relationship (one level of descent).
