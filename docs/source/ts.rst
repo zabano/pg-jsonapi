@@ -65,9 +65,9 @@ Filtering and searching are not compatible, and cannot be used simultaneously. D
     ...
     jsonapi.exc.APIError: [UserModel] cannot filter and search at the same time
 
-**************
-Multiple Model
-**************
+***************
+Multiple Models
+***************
 
 Use the :func:`search` function to search multiple resource models at once and return a heterogeneous collection of
 objects::
