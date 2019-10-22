@@ -85,8 +85,8 @@ To include related resources for a model type, provide an appropriate ``include[
 option will be ignored::
 
     >>> search({'include[user]': 'bio',
-                'include[article]': 'keywords,author.bio,publisher.bio',
-                'fields[user]': 'name,email',
-                'fields[user-bio]': 'birthday,age',
-                'fields[article]': 'title'},
-                'John', UserModel, ArticleModel)
+    >>>         'include[article]': 'keywords,author.bio,publisher.bio',
+    >>>         'fields[user]': 'name,email',
+    >>>         'fields[user-bio]': 'birthday,age',
+    >>>         'fields[article]': 'title'},
+    >>>         'John', UserModel, ArticleModel)
