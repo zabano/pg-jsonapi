@@ -14,17 +14,27 @@ from jsonapi.db.table import get_primary_key
 from jsonapi.args import parse_arguments
 from jsonapi.datatypes import Integer, String
 from jsonapi.db.filter import FilterBy
-from jsonapi.db.query import SEARCH_LABEL, exists, search_query, select_many, \
-    select_one, select_related
-from jsonapi.db.table import Cardinality, FromClause, FromItem, OrderBy, \
-    is_from_item
+from jsonapi.db.query import SEARCH_LABEL, exists, search_query, select_many, select_one, select_related
+from jsonapi.db.table import Cardinality, FromClause, FromItem, OrderBy, is_from_item
 from jsonapi.exc import APIError, Error, Forbidden, ModelError, NotFound
 from jsonapi.fields import Aggregate, BaseField, Derived, Field, Relationship
 from jsonapi.log import log_query, logger
 from jsonapi.registry import model_registry, schema_registry
 
 MIME_TYPE = 'application/vnd.api+json'
-SEARCH_LIMIT = 50
+"""
+The mime type to be used as the value of the Content-Type header
+"""
+
+SEARCH_PAGE_SIZE = 50
+"""
+The default value for the "page[number]" option when searching
+"""
+
+ONE_TO_ONE = Cardinality.ONE_TO_ONE
+MANY_TO_ONE = Cardinality.MANY_TO_ONE
+ONE_TO_MANY = Cardinality.ONE_TO_MANY
+MANY_TO_MANY = Cardinality.MANY_TO_MANY
 
 
 def get_error_object(e):
@@ -49,8 +59,7 @@ class JSONSchema(ma.Schema):
             resource['meta'] = dict(rank=orig['_ts_rank'])
 
         for name, field in self.declared_fields.items():
-            if name not in ('id', 'type') \
-                    and not isinstance(field, ma.fields.Nested):
+            if name not in ('id', 'type') and not isinstance(field, ma.fields.Nested):
                 resource['attributes'][camelize(name, False)] = data[name]
             elif isinstance(field, ma.fields.Nested) and not field.load_only:
                 if 'relationships' not in resource:
@@ -67,10 +76,8 @@ class JSONSchema(ma.Schema):
                     if data[name] is None:
                         resource['relationships'][name] = None
                     else:
-                        type_ = orig[name]['type']
-                        resource['relationships'][name] = dict(
-                            id=data[name]['id'], type=type_)
-                        included[type_][data[name]['id']] = data[name]
+                        resource['relationships'][name] = dict(id=data[name]['id'], type=orig[name]['type'])
+                        included[orig[name]['type']][data[name]['id']] = data[name]
         return resource
 
 
@@ -86,18 +93,22 @@ class Model:
 
     from_ = None
     """
-    A variable length list of tables, table aliases, 
-    or :class:`jsonapi.db.FromItem` s.
+    A variable length list of tables, table aliases, or :class:`jsonapi.db.FromItem` s.
     """
 
     fields = None
     """
-    A variable length list of fields or field names.
+    A sequence of fields or field names.
     """
 
     access = None
     """
-    Resource access protection.
+    An SQL function providing object-level access protection.
+    """
+
+    user = None
+    """
+    A thread-safe object representing a logged-in user.
     """
 
     search = None
@@ -438,8 +449,8 @@ class Model:
         }
 
         :param dict args: a dictionary representing the request query string
-        :param int or str object_id: the resource object id
-        :return: a dictionary representing a JSON API response
+        :param int|str object_id: the resource object id
+        :return: JSON API response document
         """
         args = self.parse_arguments(args)
         self.init_schema(args)
@@ -460,11 +471,27 @@ class Model:
         """
         Fetch a collection of resources.
 
-
+        >>> from jsonapi.tests.model import UserModel
+        >>> await UserModel().get_collection({})
+        {'data':
+            [
+                {'id': '1',
+                 'type': 'user',
+                 'attributes': {
+                     'email': 'dianagraham@fisher.com',
+                     'first': 'Robert',
+                     'last': 'Camacho',
+                     'createdOn': '2019-05-18T11:49:43Z',
+                     'status': 'active',
+                     'name': 'Robert Camacho'}
+                 },
+                ...
+            ]
+        }
 
         :param dict args: a dictionary representing the request query string
         :param str search: an optional search term
-        :return: a dictionary representing a JSON API response
+        :return: JSON API response document
         """
         args = self.parse_arguments(args)
         self.init_schema(args)
@@ -491,10 +518,10 @@ class Model:
         >>> }, 1, 'author')
 
         :param dict args: a dictionary representing the request query string
-        :param object_id: the resource object id
-        :param relationship_name: relationship name
+        :param int|str object_id: the resource object id
+        :param str relationship_name: relationship name
         :param str search: an optional search term
-        :return: a dictionary representing a JSON API response
+        :return: JSON API response document
         """
 
         if not await pg.fetchval(exists(self, object_id)):
@@ -577,11 +604,30 @@ def _extract_model_args(model, args):
 
 
 async def search(args, term, *models):
+    """
+    Search multiple models.
+
+    Returns a heterogeneous list of objects, sorted by search result rank.
+
+    >>> from jsonapi.model import search
+    >>> search({'include[user]': 'bio',
+    >>>         'include[article]': 'keywords,author.bio,publisher.bio',
+    >>>         'fields[user]': 'name,email',
+    >>>         'fields[user-bio]': 'birthday,age',
+    >>>         'fields[article]': 'title'},
+    >>>         'John', UserModel, ArticleModel)
+
+    :param dict args: a dictionary representing the request query string
+    :param str term: a PostgreSQL full text search query string (e.x. ``'foo:* & !bar'``)
+    :param Model models: variable length list of model classes or instances
+    :return: JSON API response document
+    """
+
     if not isinstance(term, str):
         raise Error('search | "term" must be a string')
 
     search_args = parse_arguments({
-        'page[size]': args['page[size]'] if 'page[size]' in args else 50,
+        'page[size]': args['page[size]'] if 'page[size]' in args else SEARCH_PAGE_SIZE,
         'page[number]': args['page[number]'] if 'page[number]' in args else 1,
     })
 

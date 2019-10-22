@@ -6,10 +6,15 @@ Protecting Models
 
 .. currentmodule:: jsonapi.model
 
-A model can be protected by setting the :attr:`access <Model.access>` attribute of the model to an SQL function that
-accepts two arguments: the ``id`` of the resource object and the current (logged-in) user id, and return a boolean.
+By default, models are not protected and all their objects are accessible (i.e. visible).
 
-Returning a ``TRUE`` value grants user access the resource object, otherwise access is not granted.
+Protected models control access to their objects.
+A protected model checks access for each object to be included in the response.
+If access is not granted, the object is either silently excluded from the response or an appropriate exception is
+raised, depending on the context.
+
+A model can be protected by setting the :attr:`access <Model.access>` attribute of the model to an SQL function that
+accepts two arguments: the ``id`` of the resource object and the current (logged-in) user id, and returns a boolean.
 
 Here is an example SQL function to protect our ``article`` resource model:
 
@@ -22,7 +27,7 @@ Here is an example SQL function to protect our ``article`` resource model:
     $$
     BEGIN
 
-        -- return true if the user is a global admin
+        -- always return true for superusers
         PERFORM * FROM users WHERE id = p_user_id AND is_superuser;
         IF FOUND THEN
             RETURN TRUE;
@@ -37,7 +42,7 @@ Here is an example SQL function to protect our ``article`` resource model:
             RETURN TRUE;
         END IF;
 
-        -- if the user is not granted read access, raise an exception
+        -- check if the user has read access
         PERFORM *
         FROM article_read_access
         WHERE article_id = p_article_id
@@ -65,14 +70,19 @@ For this purpose you may want to use ``LocalProxy`` from the ``werkzeug`` librar
 
 .. note::
     The authentication layer should be responsible for ensuring the value of this variable is set correctly (this is
-    outside the scope of this article). If the value of this
+    outside the scope of this article).
 
-As an example, to protect the ``article`` resource model, we redefine it as follows::
+As an example, to protect the ``article`` resource model, we redefine it as follows:
+
+.. code-block:: python
+    :emphasize-lines: 4,5
+
+    import sqlalchemy as sa
 
     class ArticleModel(Model):
         from_ = articles_t
-        fields = (...)
-        access = func.check_article_access
+        fields = ('title', 'body', 'created_on', ...)
+        access = sa.func.check_article_access
         user = current_user
 
 If the current_user variable evaluates to ``None``, access is not granted for all objects of this type, otherwise
@@ -91,5 +101,4 @@ exception is raised if no user is logged in or the current user does not have ac
     jsonapi.exc.Forbidden: [ArticleModel] access denied for: article(1)
 
 When fetching a collection or related objects in a to-many relationship, objects to which access is not granted are
-simply not included in the response and no error is raised.
-
+silently excluded from the response.

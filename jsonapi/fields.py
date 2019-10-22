@@ -140,7 +140,7 @@ class Relationship(BaseField):
     """
     Represents a relationship field.
 
-    >>> from jsonapi.db.table import ONE_TO_MANY
+    >>> from jsonapi.model import ONE_TO_MANY
     >>> Relationship('articles', 'ArticleModel', ONE_TO_MANY, 'author_id'))
     """
 

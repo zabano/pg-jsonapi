@@ -6,66 +6,71 @@ API Reference
 
 .. automodule:: jsonapi
 
-.. automodule:: jsonapi.model
-
 ******
 Models
 ******
+
+.. automodule:: jsonapi.model
+
+.. autodata:: jsonapi.model.MIME_TYPE
+
+.. autodata:: jsonapi.model.SEARCH_PAGE_SIZE
 
 .. autoclass:: jsonapi.model.Model
 
     .. autoattribute:: type_
         :annotation:
 
+        See :doc:`model` for more details.
+
     .. autoattribute:: from_
         :annotation:
+
+        See :doc:`model` for more details.
 
     .. autoattribute:: fields
         :annotation:
 
+        See :doc:`model` for more details.
+
+    .. autoattribute:: access
+        :annotation:
+
+        See :doc:`access` for more details.
+
+    .. autoattribute:: user
+        :annotation:
+
+        See :doc:`access` for more details.
+
     .. autoattribute:: search
         :annotation:
 
+        See :doc:`ts` for more details.
 
     .. automethod:: get_object
+
+        See :ref:`Fetching Data: Single Object <object>` for more details.
+
     .. automethod:: get_collection
+
+        See :ref:`Fetching Data: Collections <collection>` for more details.
+
     .. automethod:: get_related
 
+        See :ref:`Fetching Data: Related Objects <related>` for more details.
+
+.. autofunction:: search
+
+    See :doc:`ts` for more details.
+
 **********
-Data Types
+From Items
 **********
 
-.. automodule:: jsonapi.datatypes
-
-.. autoclass:: jsonapi.datatypes.DataType
+.. autoclass:: jsonapi.db.table.FromItem
 
     .. automethod:: __init__
-
-.. note::
-
-    Field data types are detected automatically. Use one of the following data types when
-    an explicit type is required.
-
-.. autodata:: jsonapi.datatypes.Bool
-    :annotation: bool types (sa.Boolean)
-
-.. autodata:: jsonapi.datatypes.Integer
-    :annotation: integer types (sa.Integer, sa.SmallInteger, sa.BigInteger)
-
-.. autodata:: jsonapi.datatypes.Float
-    :annotation: floating point or fixed precision numbers (sa.Float, sa.Numeric)
-
-.. autodata:: jsonapi.datatypes.String
-    :annotation: string and character types (sa.String, sa.Text, sa.Enum, sa.Unicode, sa.UnicodeText)
-
-.. autodata:: jsonapi.datatypes.Date
-    :annotation: date values (sa.Date)
-
-.. autodata:: jsonapi.datatypes.DateTime
-    :annotation: timestamps without time zone (sa.DateTime)
-
-.. autodata:: jsonapi.datatypes.Time
-    :annotation: time values (sa.Time)
 
 ******
 Fields
@@ -73,8 +78,8 @@ Fields
 
 .. automodule:: jsonapi.fields
 
-Simple Fields
-=============
+Basic Fields
+============
 
 .. autoclass:: jsonapi.fields.Field
 
@@ -102,59 +107,7 @@ Relationships
 
     .. automethod:: __init__
 
-********
-Database
-********
-
-.. automodule:: jsonapi.db
-
-Queries
-=======
-
-.. automodule:: jsonapi.db.query
-
-    .. autofunction:: jsonapi.db.query.exists
-    .. autofunction:: jsonapi.db.query.select_one
-    .. autofunction:: jsonapi.db.query.select_many
-    .. autofunction:: jsonapi.db.query.select_related
-    .. autofunction:: jsonapi.db.query.search_query
-
-
-From Clauses
-============
-
-.. autoclass:: jsonapi.db.table.FromClause
-
-    .. automethod:: __init__
-
-
-From Items
-==========
-
-.. autoclass:: jsonapi.db.table.FromItem
-
-    .. automethod:: __init__
-
-FilterBy
-========
-
-.. autoclass:: jsonapi.db.filter.FilterBy
-
-    .. automethod:: __init__
-
-OrderBy
-=======
-
-.. autoclass:: jsonapi.db.table.OrderBy
-
-    .. automethod:: __init__
-
-
 Cardinality
-===========
+-----------
 
-.. autodata:: jsonapi.db.table.ONE_TO_ONE
-.. autodata:: jsonapi.db.table.MANY_TO_ONE
-.. autodata:: jsonapi.db.table.ONE_TO_MANY
-.. autodata:: jsonapi.db.table.MANY_TO_MANY
-
+.. autoclass:: jsonapi.db.table.Cardinality

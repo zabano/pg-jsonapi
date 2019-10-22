@@ -7,6 +7,8 @@ Fetching Data
 For a given model instance, three methods are available for fetching resource data. All three methods expect a
 dictionary of options as the first argument. These options represent the request query string parameters.
 
+.. _object:
+
 **************
 Single Objects
 **************
@@ -52,6 +54,8 @@ If the resource object does not exist, a :exc:`NotFound <jsonapi.exc.NotFound>` 
       ...
     jsonapi.exc.NotFound: [UserModel] object not found: user(1001)
 
+.. _collection:
+
 ***********
 Collections
 ***********
@@ -89,6 +93,8 @@ The generated SQL query may look like this:
            user_names.first || ' ' || user_names.last AS name
     FROM users
     JOIN user_names ON users.id = user_names.user_id
+
+.. _related:
 
 ***************
 Related Objects

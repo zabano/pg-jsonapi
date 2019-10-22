@@ -10,7 +10,7 @@ A model can be made searchable by setting the :attr:`search <Model.search>` attr
 ``Table`` object representing a fulltext search index table. The table must consist of a primary key column that
 references the model's primary key, and an indexed ``TSVECTOR`` column.
 
-For an example, to make our ``UserModel`` searchable we define a text search table as follows::
+For an example, to make our ``UserModel`` searchable we define a text search table::
 
     from sqlalchemy.dialects.postgresql import TSVECTOR
 
@@ -22,7 +22,7 @@ For an example, to make our ``UserModel`` searchable we define a text search tab
         sa.Column('tsvector', TSVECTOR,
                   index=True, nullable=False))
 
-And then we redefine the model as follows:
+And then we redefine the model:
 
 .. code-block:: python
     :emphasize-lines: 4

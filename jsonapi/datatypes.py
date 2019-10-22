@@ -22,6 +22,10 @@ accept_datetime = ('%Y-%m-%dT%H:%M:%SZ',
 
 
 class DataType:
+    """
+    Defines field datatypes.
+    """
+
     FORMAT_DATETIME = '%Y-%m-%dT%H:%M:%SZ'
     FORMAT_DATE = '%Y-%m-%d'
     FORMAT_TIME = '%H:%M:%S'
@@ -33,10 +37,34 @@ class DataType:
     registry = dict()
 
     def __init__(self, ma_type, *sa_types, **kwargs):
+        """
+        :param marshmallow.fields.Field ma_type: marshmallow field type
+        :param sa_types: supported SQLAlchemy data types
+        :param kwargs: see below
+
+        Keyword Arguments:
+
+            - parser: function for parsing a value from string
+            - filter_ops: a sequence of supported operators (for single values)
+            - filter_ops_multi: sequence of supported operators (for multiple values)
+
+        >>> import marshmallow as ma
+        >>> from sqlalchemy as sa
+        >>>
+        >>> from jsonapi.datatypes import DataType, Operator
+        >>>
+        >>> Integer = DataType(
+        >>>     ma.fields.Integer,
+        >>>     sa.Integer,
+        >>>     parser=int,
+        >>>     filter_ops=(Operator.NONE, Operator.EQ, Operator.NE,
+        >>>             Operator.GT, Operator.GE, Operator.LT, Operator.LE),
+        >>>     filter_ops_multi=(Operator.NONE, Operator.EQ, Operator.NE))
+
+        """
         self.ma_type = self.get_ma_type(ma_type)
         self.sa_types = tuple(self.get_sa_type(sa_type) for sa_type in sa_types)
         self.parser = kwargs.get('parser', str)
-        self.accept = kwargs.get('accept', tuple())
         self.filter_clause = FilterClause(
             self, *kwargs.get('filter_ops', (Operator.NONE,)),
             multiple=kwargs.get('filter_ops_multi', None))
@@ -168,6 +196,7 @@ Time = DataType(
     parser=parse_time,
     filter_ops=(Operator.GT, Operator.LT),
     filter_ops_multi=(Operator.NONE, Operator.EQ, Operator.NE))
+
 
 DateTime = DataType(
     ma.fields.DateTime,
