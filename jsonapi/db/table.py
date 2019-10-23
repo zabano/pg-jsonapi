@@ -4,7 +4,7 @@ from functools import reduce
 
 from sqlalchemy.exc import NoForeignKeysError
 from sqlalchemy.sql.elements import BinaryExpression, BooleanClauseList
-from sqlalchemy.sql.schema import Table
+from sqlalchemy.sql.schema import Table, Column
 from sqlalchemy.sql.selectable import Alias
 
 from jsonapi.exc import APIError, Error
@@ -196,10 +196,15 @@ class FromClause(MutableSequence):
                         break
             return left
 
-    def get_column(self, name):
-        for col in self().columns:
-            if col.name == name:
-                return col
+    def get_column(self, col):
+        if isinstance(col, str):
+            for c in self().columns:
+                if c.name == col:
+                    return c
+        elif isinstance(col, Column):
+            for c in self().columns:
+                if get_table_name(c) == get_table_name(col) and c.name == col.name:
+                    return c
 
     @staticmethod
     def value(item):

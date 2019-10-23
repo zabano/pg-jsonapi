@@ -61,20 +61,22 @@ class Field(BaseField):
     >>> Field('name', lambda c: c.first + ' ' + c.last)
     >>> Field('created-on', data_type=Date)
     """
-    def __init__(self, name, func=None, data_type=None):
+    def __init__(self, name, col=None, data_type=None):
         """
         :param str name: a unique field name
         :param lambda func: a lambda function that accepts a ColumnCollection (optional)
         :param DataType data_type: defaults to String (optional)
         """
         super().__init__(name, data_type=data_type)
-        self.func = func
+        self.col = col
 
     def load(self, model):
         if self.name == 'id':
             self.expr = model.primary_key
-        elif self.func is not None:
-            self.expr = self.func(model.rec)
+        elif isinstance(self.col, Column):
+            self.expr = model.get_expr(self.col)
+        elif self.col is not None:
+            self.expr = self.col(model.rec)
         else:
             self.expr = model.get_expr(self.name)
         if self.data_type is None:
@@ -144,7 +146,7 @@ class Relationship(BaseField):
     >>>              articles_t.c.author_id)
     """
 
-    def __init__(self, name, model_name, cardinality, *refs):
+    def __init__(self, name, model_name, cardinality, *refs, **kwargs):
         """
         :param str name: relationship name
         :param str model_name: related model name
@@ -159,6 +161,7 @@ class Relationship(BaseField):
         self.model = None
         self.nested = None
         self.parent = None
+        self.where = kwargs.get('where', None)
 
     def check_refs(self, refs):
         for ref in refs:

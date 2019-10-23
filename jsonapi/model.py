@@ -195,10 +195,10 @@ class Model:
         else:
             raise ModelError('invalid field: {!r}'.format(field_spec), self)
 
-    def get_expr(self, name):
-        expr = self.from_clause.get_column(name)
+    def get_expr(self, col):
+        expr = self.from_clause.get_column(col)
         if expr is None:
-            raise ModelError('db column: "{}" not found'.format(name), self)
+            raise ModelError('db column: {!r} not found'.format(col), self)
         return expr
 
     @classmethod
