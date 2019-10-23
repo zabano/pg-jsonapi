@@ -85,14 +85,6 @@ Basic Fields
 
     .. automethod:: __init__
 
-
-Derived Fields
-==============
-
-.. autoclass:: jsonapi.fields.Derived
-
-    .. automethod:: __init__
-
 Aggregate Fields
 ================
 

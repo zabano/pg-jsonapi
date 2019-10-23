@@ -49,16 +49,6 @@ The fields ``email`` and ``created_on`` will be created and mapped to the databa
 Custom Fields
 *************
 
-If you wish to map a field to a column of a different name, do so in the SQLAlchemy table definition. For example, in
- the following example, "email_address" database column is mapped to ``users_t.c.email``::
-
-    users_t = sa.Table(
-        'users', metadata,
-        sa.Column('id', sa.Integer, primary_key=True),
-        sa.Column('email_address', sa.Text, key='email',
-                  unique=True, nullable=False),
-        ...
-
 The datatype of the field is determined automatically from the datatype of the database column it maps to. To
 override datatype auto-detection, you can explicitly set the datatype using the :class:`Field <jsonapi.fields.Field>`
 class::
@@ -68,11 +58,29 @@ class::
 
     class UserModel(Model):
         from_ = users_t
-        fields = ('email', 'name',
-                  Field('created_on', field_type=Date))
+        fields = ('email', 'status', Field('created_on', field_type=Date))
 
 The type of ``created_on`` field, which maps to a timestamp database column, is set to :data:`Date` instead of
 :data:`DateTime`.
+
+To define a field that maps to a number of columns (a column expression)::
+
+    class UserModel(Model):
+            from_ = users_t, user_names_t
+            fields = 'email', Field('name', lambda c: c.first + ' ' + c.last)
+
+The second argument takes a function that accepts an SQLAlchemy ``ImmutableColumnCollection`` representing the join
+result of the mapped tables listed in the ``from_`` attribute. The function must return a valid column expression
+(including function calls)::
+
+    Field('age', lambda c: func.extract('year', func.age(c.birthday)), Integer))
+
+
+If you wish to map a field to a database column of a different name::
+
+    class UserModel(Model):
+        from_ = users_t
+        fields = 'status', Field('email_address', lambda c: c.email)
 
 ***************
 Multiple Tables
@@ -100,25 +108,6 @@ passed in place of the table object. For example::
 
     UserModel(Model):
         from_ = users_t, FromItem(user_names_t, left=True)
-
-**************
-Derived Fields
-**************
-
-The :class:`Derived <jsonapi.fields.Derived>` class can be used to define derived fields::
-
-    from jsonapi.fields import Derived
-
-    class UserModel(Model):
-            from_ = users_t, user_names_t
-            fields = 'email', Derived('name', lambda c: c.first + ' ' + c.last)
-
-The second argument takes a function that accepts an SQLAlchemy ``ImmutableColumnCollection`` representing the join
-result of the mapped tables listed in the ``from_`` attribute. The function must return a valid column expression
-(including function calls)::
-
-    Derived('age', lambda c: func.extract('year',
-                                 func.age(c.birthday)), Integer))
 
 
 *************
@@ -192,7 +181,7 @@ The :class:`Aggregate <jsonapi.fields.Aggregate>` class can be used to define fi
 
         fields = ('email', 'name', 'created_on',
                   Relationship('articles', 'ArticleModel',
-                               ONE_TO_MANY, 'articles_author_id_fkey'),
+                               ONE_TO_MANY, articles_t.c.author_id),
                   Aggregate('article_count', 'articles', sa.func.count))
 
 .. note::

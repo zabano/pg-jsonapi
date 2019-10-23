@@ -1,20 +1,19 @@
 import sqlalchemy.sql as sql
 
 from jsonapi.exc import ModelError, APIError
-from jsonapi.fields import Aggregate, Derived, Field
-from .table import Cardinality, FromClause, FromItem, get_foreign_key_pair
+from jsonapi.fields import Aggregate, Field
+from .table import Cardinality, FromClause, FromItem
 
 SQL_PARAM_LIMIT = 10000
 SEARCH_LABEL = '_ts_rank'
 
 
-####################################################################################################
+########################################################################################################################
 # public interface
-####################################################################################################
+########################################################################################################################
 
 def exists(model, obj_id):
-    return sql.select([sql.exists(sql.select([model.primary_key]).where(
-        model.primary_key == obj_id))])
+    return sql.select([sql.exists(sql.select([model.primary_key]).where(model.primary_key == obj_id))])
 
 
 def select_one(model, obj_id):
@@ -135,18 +134,16 @@ def search_query(model, term):
     return _protect_query(model, query)
 
 
-################################################################################
+########################################################################################################################
 # helpers
-################################################################################
+########################################################################################################################
 
 def _col_list(model, *extra_columns, **kwargs):
     group_by = bool(kwargs.get('group_by', False))
     col_list = [model.attributes['id'].expr.label('id')]
     for field in model.attributes.values():
-        if (isinstance(field, (Field, Derived))
-            and field.name != 'id') \
-                or (not group_by and isinstance(field, Aggregate) and
-                    field.expr is not None):
+        if (isinstance(field, Field) and field.name != 'id') \
+                or (not group_by and isinstance(field, Aggregate) and field.expr is not None):
             col_list.append(field.expr.label(field.name))
     col_list.extend(col for col in extra_columns if col is not None)
     return col_list
@@ -177,8 +174,7 @@ def _group_query(model, query, *extra_columns, **kwargs):
     order_by = kwargs.get('order_by', None)
     if (filter_by is not None and len(filter_by.having) > 0) \
             or (order_by is not None and order_by.distinct) \
-            or (any(isinstance(field, Aggregate) for field in
-                    model.attributes.values())):
+            or (any(isinstance(field, Aggregate) for field in model.attributes.values())):
         columns = list(extra_columns)
         if order_by:
             columns.extend(order_by.group_by)

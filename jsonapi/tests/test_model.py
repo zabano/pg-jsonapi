@@ -41,7 +41,7 @@ class FooBarModel(Model):
     type_ = 'test'
     from_ = test_data_t
     fields = ('test_int', 'test_float',
-              Field('test_float', String),
+              Field('test_float', data_type=String),
               Field('test_bool'))
 
 

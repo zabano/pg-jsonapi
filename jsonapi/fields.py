@@ -19,6 +19,7 @@ class BaseField:
         self.name = name
         self.data_type = data_type
         self.expr = None
+        self.spec = None
         self.exclude = False
         self.sort_by = False
         self.filter_clause = None
@@ -52,44 +53,33 @@ class BaseField:
 
 class Field(BaseField):
     """
-    Basic field type, which maps to a database table column.
+    Basic field type, which maps to a database table column or a column expression.
 
     >>> from jsonapi.datatypes import Date
     >>>
-    >>> Field('emil_address')
-    >>> Field('created_on', Date)
+    >>> Field('email')
+    >>> Field('email-address', lambda c: c['email'])
+    >>> Field('name', lambda c: c.first + ' ' + c.last)
+    >>> Field('created-on', data_type=Date)
     """
+    def __init__(self, name, func=None, data_type=None):
+        """
+        :param str name: a unique field name
+        :param lambda func: a lambda function that accepts a ColumnCollection (optional)
+        :param DataType data_type: defaults to String (optional)
+        """
+        super().__init__(name, data_type=data_type)
+        self.func = func
 
     def load(self, model):
         if self.name == 'id':
             self.expr = model.primary_key
+        elif self.func is not None:
+            self.expr = self.func(model.rec)
         else:
             self.expr = model.get_expr(self.name)
-            if self.data_type is None:
-                self.data_type = DataType.get(self.expr)
-        self.filter_clause = self.get_filter_clause()
-
-
-class Derived(BaseField):
-    """
-    Represents a derived field.
-
-    >>> Derived('name', lambda c: c['first'] + ' ' + c['last'])
-    >>> Derived('name', lambda c: c.first + ' ' + c.last)
-    """
-
-    def __init__(self, name, spec, data_type=None):
-        """
-        :param str name: a unique field name
-        :param lambda spec: a lambda function that accepts a ColumnCollection
-        :param DataType data_type: defaults to String
-        """
-        data_type = data_type if data_type is not None else String
-        super().__init__(name, data_type=data_type)
-        self.spec = spec
-
-    def load(self, model):
-        self.expr = self.spec(model.rec)
+        if self.data_type is None:
+            self.data_type = DataType.get(self.expr)
         self.filter_clause = self.get_filter_clause()
 
 

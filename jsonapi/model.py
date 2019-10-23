@@ -17,7 +17,7 @@ from jsonapi.db.filter import FilterBy
 from jsonapi.db.query import SEARCH_LABEL, exists, search_query, select_many, select_one, select_related
 from jsonapi.db.table import Cardinality, FromClause, FromItem, OrderBy, is_from_item
 from jsonapi.exc import APIError, Error, Forbidden, ModelError, NotFound
-from jsonapi.fields import Aggregate, BaseField, Derived, Field, Relationship
+from jsonapi.fields import Aggregate, BaseField, Field, Relationship
 from jsonapi.log import log_query, logger
 from jsonapi.registry import model_registry, schema_registry
 
@@ -116,9 +116,9 @@ class Model:
     A full-text index table.
     """
 
-    ############################################################################
+    ####################################################################################################################
     # initialization
-    ############################################################################
+    ####################################################################################################################
 
     def __init_subclass__(cls, **kwargs):
         super().__init_subclass__(**kwargs)
@@ -159,8 +159,7 @@ class Model:
             return FromClause(*self.from_)
         except TypeError:
             if not is_from_item(self.from_):
-                raise ModelError('invalid from item: {!r}'.format(self.from_),
-                                 self)
+                raise ModelError('invalid from item: {!r}'.format(self.from_), self)
             return FromClause(self.from_)
 
     def get_fields(self):
@@ -183,7 +182,7 @@ class Model:
         elif 'type' in fields.keys():
             raise ModelError('illegal field name: "type"', self)
 
-        id_field = Field('id', String)
+        id_field = Field('id', data_type=String)
         id_field.load(self)
         fields['id'] = id_field
         return fields
@@ -204,8 +203,7 @@ class Model:
 
     @classmethod
     def get_from_aliases(cls, name, index=None):
-        from_ = list(cls.from_) if isinstance(cls.from_, Sequence) \
-            else [cls.from_]
+        from_ = list(cls.from_) if isinstance(cls.from_, Sequence) else [cls.from_]
         for i, from_item in enumerate(from_):
             alias_name = '_{}__{}_t'.format(name, from_item.name)
             if isinstance(from_item, FromItem):
@@ -221,21 +219,19 @@ class Model:
             raise APIError('request args | {}'.format(e), self)
 
     def attribute(self, name):
-        if name in self.fields.keys() \
-                and not isinstance(self.fields[name], Relationship):
+        if name in self.fields.keys() and not isinstance(self.fields[name], Relationship):
             return self.fields[name]
         raise ModelError('attribute does not exist: "{}"'.format(name), self)
 
     def relationship(self, name):
-        if name in self.fields.keys() \
-                and isinstance(self.fields[name], Relationship):
+        if name in self.fields.keys() and isinstance(self.fields[name], Relationship):
             return self.fields[name]
         return ModelError('relationship does not exist: "{}"'.format(name),
                           self)
 
-    ############################################################################
+    ####################################################################################################################
     # properties
-    ############################################################################
+    ####################################################################################################################
 
     @property
     def name(self):
@@ -273,9 +269,9 @@ class Model:
     def rec(self):
         return ColumnCollection(*self.from_clause().c.values()).as_immutable()
 
-    ############################################################################
+    ####################################################################################################################
     # core functionality
-    ############################################################################
+    ####################################################################################################################
 
     def init_schema(self, args, parents=tuple()):
         for name, field in self.fields.items():
@@ -287,39 +283,32 @@ class Model:
             in_sort = args.in_sort(name)
             field.sort_by = in_sort
 
-            if isinstance(field, (Field, Derived)):
-                field.exclude = name != 'id' \
-                                and fieldset_defined and not in_fieldset
+            if isinstance(field, Field):
+                field.exclude = name != 'id' and fieldset_defined and not in_fieldset
                 if not field.exclude or in_sort or in_filter:
-                    logger.info(
-                        'load field: {}.{}'.format(self.name, field.name))
+                    logger.info('load field: {}.{}'.format(self.name, field.name))
                     field.load(self)
 
             elif isinstance(field, Aggregate):
                 field.exclude = not in_fieldset
                 field.expr = None
                 if in_fieldset or in_sort or in_filter:
-                    logger.info(
-                        'load field: {}.{}'.format(self.name, field.name))
+                    logger.info('load field: {}.{}'.format(self.name, field.name))
                     field.load(self)
 
             elif isinstance(field, Relationship):
                 field.exclude = not in_include
                 if in_include or in_sort or in_filter:
-                    logger.info(
-                        'load field: {}.{}'.format(self.name, field.name))
+                    logger.info('load field: {}.{}'.format(self.name, field.name))
                     field.load(self)
-                    field.model.init_schema(args,
-                                            parents=(field.name, *parents))
+                    field.model.init_schema(args, parents=(field.name, *parents))
 
             else:
                 raise ModelError('unsupported field: {!r}'.format(field), self)
 
         schema = type('{}Schema'.format(self.name),
                       (JSONSchema,),
-                      {name: field.get_ma_field() for name, field in
-                       self.fields.items()
-                       if not field.exclude})
+                      {name: field.get_ma_field() for name, field in self.fields.items() if not field.exclude})
         schema_registry[schema.__name__] = schema
         self.schema = schema()
         self.schema.context['root'] = self
@@ -416,13 +405,10 @@ class Model:
 
             for parent in data:
                 parent_id = parent['id']
-                if rel.cardinality in (
-                        Cardinality.ONE_TO_ONE, Cardinality.MANY_TO_ONE):
-                    parent[rel.name] = recs_by_parent_id[parent_id][0] \
-                        if parent_id in recs_by_parent_id else None
+                if rel.cardinality in (Cardinality.ONE_TO_ONE, Cardinality.MANY_TO_ONE):
+                    parent[rel.name] = recs_by_parent_id[parent_id][0] if parent_id in recs_by_parent_id else None
                 else:
-                    parent[rel.name] = recs_by_parent_id[parent_id] \
-                        if parent_id in recs_by_parent_id else list()
+                    parent[rel.name] = recs_by_parent_id[parent_id] if parent_id in recs_by_parent_id else list()
 
             await rel.model.fetch_included(
                 reduce(lambda a, b: a + b if isinstance(b, list) else a + [b],
@@ -430,9 +416,9 @@ class Model:
                         rec[rel.name] is not None],
                        list()), args)
 
-    ############################################################################
+    ####################################################################################################################
     # public interface
-    ############################################################################
+    ####################################################################################################################
 
     async def get_object(self, args, object_id):
         """
@@ -505,8 +491,7 @@ class Model:
         await self.fetch_included(recs, args)
         return self.response(recs)
 
-    async def get_related(self, args, object_id, relationship_name,
-                          search=None):
+    async def get_related(self, args, object_id, relationship_name, search=None):
         """
         Fetch a collection of related resources.
 
@@ -554,6 +539,10 @@ class Model:
 
     def __repr__(self):
         return '<Model({})>'.format(self.name)
+
+########################################################################################################################
+# Multi-Model Search
+########################################################################################################################
 
 
 class ModelSet(Set):

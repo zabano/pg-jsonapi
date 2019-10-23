@@ -2,7 +2,7 @@ from sqlalchemy.sql import func
 
 from jsonapi.datatypes import Integer
 from jsonapi.db.table import MANY_TO_MANY, MANY_TO_ONE, ONE_TO_MANY, ONE_TO_ONE
-from jsonapi.model import Aggregate, Derived, Model, Relationship
+from jsonapi.model import Aggregate, Field, Model, Relationship
 from jsonapi.tests.auth import current_user
 from jsonapi.tests.db import *
 
@@ -20,7 +20,7 @@ class TestModel(Model):
 class UserModel(Model):
     from_ = users_t, user_names_t
     fields = ('email', 'first', 'last', 'created_on', 'status',
-              Derived('name', lambda rec: rec.first + ' ' + rec.last),
+              Field('name', lambda rec: rec.first + ' ' + rec.last),
               Relationship('bio', 'UserBioModel', ONE_TO_ONE),
               Relationship('articles', 'ArticleModel', ONE_TO_MANY, articles_t.c.author_id),
               Relationship('followers', 'UserModel', MANY_TO_MANY,
@@ -32,7 +32,7 @@ class UserModel(Model):
 class UserBioModel(Model):
     from_ = user_bios_t
     fields = ('summary', 'birthday',
-              Derived('age', lambda rec: func.extract('year', func.age(rec['birthday'])), Integer))
+              Field('age', lambda rec: func.extract('year', func.age(rec['birthday'])), Integer))
 
 
 class ArticleModel(Model):
