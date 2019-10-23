@@ -19,7 +19,6 @@ class BaseField:
         self.name = name
         self.data_type = data_type
         self.expr = None
-        self.spec = None
         self.exclude = False
         self.sort_by = False
         self.filter_clause = None
@@ -91,16 +90,16 @@ class Aggregate(BaseField):
     along with one or more from items to add to the model's from clause.
     """
 
-    def __init__(self, name, rel_name, func, data_type=None):
+    def __init__(self, name, rel_name, func, col=None, data_type=None):
         """
         :param str name: field name
         :param rel_name: relationship name
         :param func: SQLAlchemy aggregate function (ex. func.count)
         :param DataType data_type: one of the supported data types (optional)
         """
-        data_type = data_type if data_type is not None else Integer
         super().__init__(name, data_type=data_type)
         self.func = func
+        self.col = col
         self.rel_name = rel_name
         self.rel = None
         self.from_items = dict()
@@ -108,7 +107,15 @@ class Aggregate(BaseField):
     def load(self, model):
         self.rel = model.relationship(self.rel_name)
         self.rel.load(model)
-        self.expr = self.func(text(str(self.rel.model.primary_key.distinct())))
+        if self.col is None:
+            col_expr = self.rel.model.primary_key.distinct()
+        elif isinstance(self.col, str):
+            col_expr = model.get_expr(self.col).distinct()
+        else:
+            col_expr = self.col(model.rec)
+        self.expr = self.func(text(str(col_expr)))
+        if self.data_type is None:
+            self.data_type = DataType.get(self.expr)
         self.filter_clause = self.get_filter_clause()
 
         if self.rel.cardinality == Cardinality.MANY_TO_MANY:

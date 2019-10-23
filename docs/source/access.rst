@@ -69,8 +69,8 @@ For this purpose you may want to use ``LocalProxy`` from the ``werkzeug`` librar
     current_user = LocalProxy(lambda: g.get('user'))
 
 .. note::
-    The authentication layer should be responsible for ensuring the value of this variable is set correctly (this is
-    outside the scope of this article).
+    The authentication layer should be responsible for ensuring the value of this variable is set correctly
+    (this is outside the scope of this article).
 
 As an example, to protect the ``article`` resource model, we redefine it as follows:
 
@@ -78,6 +78,7 @@ As an example, to protect the ``article`` resource model, we redefine it as foll
     :emphasize-lines: 4,5
 
     import sqlalchemy as sa
+    from auth import current_user
 
     class ArticleModel(Model):
         from_ = articles_t
