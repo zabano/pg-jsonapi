@@ -83,7 +83,7 @@ If you wish to map a field to a database column of a different name::
         fields = 'status', Field('email_address', lambda c: c.email)
 
 You can also pass an SQLAlchemy ``Column`` explicitly. This is useful when mapping to multiple tables that share the
-same column name (see :ref:`multiple_tables`)::
+same column names (see :ref:`multiple_tables`)::
 
     class UserModel(Model):
         from_ = users_t

@@ -198,11 +198,11 @@ class FromClause(MutableSequence):
 
     def get_column(self, col):
         if isinstance(col, str):
-            for c in self().columns:
+            for c in self().columns.values():
                 if c.name == col:
                     return c
         elif isinstance(col, Column):
-            for c in self().columns:
+            for c in self().columns.values():
                 if get_table_name(c) == get_table_name(col) and c.name == col.name:
                     return c
 
@@ -257,16 +257,6 @@ def get_primary_key(table):
         return table.primary_key[0]
 
 
-def get_foreign_key_pair(model, model_ref, rel_ref):
-    tb = get_table(model.primary_key.table)
-    for table in tb.metadata.tables.values():
-        ref_names = list(fk.parent.name for fk in table.foreign_keys)
-        if rel_ref in ref_names and model_ref in ref_names:
-            return table.c[rel_ref], table.c[model_ref]
-    raise Error('foreign key pair not found: {!r}'.format(
-        (rel_ref, model_ref)))
-
-
 def get_from_items(rel):
     if rel.cardinality == Cardinality.ONE_TO_ONE:
         onclause = rel.model.primary_key == rel.parent.primary_key
@@ -275,7 +265,7 @@ def get_from_items(rel):
     elif rel.cardinality == Cardinality.MANY_TO_ONE:
         onclause = rel.model.primary_key == rel.ref
     else:
-        ref_col, parent_col = rel.ref
+        parent_col, ref_col = rel.ref
         return [FromItem(parent_col.table,
                          onclause=parent_col == rel.parent.primary_key,
                          left=True),

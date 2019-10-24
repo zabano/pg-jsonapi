@@ -13,13 +13,13 @@ SEARCH_LABEL = '_ts_rank'
 ########################################################################################################################
 
 def exists(model, obj_id):
-    return sql.select([sql.exists(sql.select([model.primary_key]).where(model.primary_key == obj_id))])
+    return sql.select([sql.exists(sql.select([model.primary_key]).where(_where_one(model, obj_id)))])
 
 
 def select_one(model, obj_id):
     query = sql.select(from_obj=_from_obj(model),
                        columns=_col_list(model),
-                       whereclause=model.primary_key == obj_id)
+                       whereclause=_where_one(model, obj_id))
     query = _group_query(model, query)
     query = _protect_query(model, query)
     return query
@@ -87,7 +87,7 @@ def select_related(rel, obj_id, **kwargs):
             left=True))
 
     else:
-        ref_col, parent_col = rel.ref
+        parent_col, ref_col = rel.ref
         from_items.append(FromItem(
             ref_col.table,
             onclause=rel.model.primary_key == ref_col,
@@ -137,6 +137,11 @@ def search_query(model, term):
 ########################################################################################################################
 # helpers
 ########################################################################################################################
+
+def _where_one(model, obj_id):
+    return sql.and_(model.get_expr(name) == val for name, val in obj_id.items()) \
+        if isinstance(obj_id, dict) else model.primary_key == obj_id
+
 
 def _col_list(model, *extra_columns, **kwargs):
     group_by = bool(kwargs.get('group_by', False))

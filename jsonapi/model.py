@@ -1,7 +1,7 @@
 import operator
 from collections import defaultdict
 from collections.abc import Sequence, Set
-from copy import copy
+from copy import copy, deepcopy
 from functools import reduce
 from itertools import islice
 
@@ -203,7 +203,7 @@ class Model:
 
     @classmethod
     def get_from_aliases(cls, name, index=None):
-        from_ = list(cls.from_) if isinstance(cls.from_, Sequence) else [cls.from_]
+        from_ = deepcopy(list(cls.from_)) if isinstance(cls.from_, Sequence) else [copy(cls.from_)]
         for i, from_item in enumerate(from_):
             alias_name = '_{}__{}_t'.format(name, from_item.name)
             if isinstance(from_item, FromItem):
@@ -430,9 +430,15 @@ class Model:
             'data': {
                 'id': '1',
                 'type': 'user',
-                'attributes': {...}
+                'attributes': {
+                    'email': 'dianagraham@fisher.com',
+                    'first': 'Robert',
+                    'last': 'Camacho'
+                }
             }
         }
+        >>> await UserModel().get_object({}, email='dianagraham@fisher.com')
+        >>> await UserModel().get_object({}, first='Robert', last: 'Camacho'})
 
         :param dict args: a dictionary representing the request query string
         :param int|str object_id: the resource object id
@@ -512,8 +518,8 @@ class Model:
         if not await pg.fetchval(exists(self, object_id)):
             raise NotFound(object_id, self)
 
-        result = await pg.fetchrow(select_one(self, object_id))
-        if result is None:
+        obj = await pg.fetchrow(select_one(self, object_id))
+        if obj is None:
             raise Forbidden(object_id, self)
 
         rel = self.relationship(relationship_name)
@@ -522,7 +528,7 @@ class Model:
         rel.model.init_schema(args)
         filter_by, order_by = rel.model.get_filter_by(
             args), rel.model.get_order_by(args)
-        query = select_related(rel, object_id, filter_by=filter_by,
+        query = select_related(rel, obj[self.primary_key.name], filter_by=filter_by,
                                order_by=order_by,
                                offset=args.offset, limit=args.limit,
                                search_term=search)
@@ -532,13 +538,14 @@ class Model:
             data = dict(result) if result is not None else None
         else:
             data = [dict(rec) for rec in await pg.fetch(query)]
-            await rel.model.set_meta(args.limit, object_id, rel,
+            await rel.model.set_meta(args.limit, obj[self.primary_key.name], rel,
                                      filter_by=filter_by, search_term=search)
         await rel.model.fetch_included(data, args)
         return rel.model.response(data)
 
     def __repr__(self):
         return '<Model({})>'.format(self.name)
+
 
 ########################################################################################################################
 # Multi-Model Search
