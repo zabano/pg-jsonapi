@@ -43,7 +43,6 @@ def assert_user(json, user):
     assert_bio(json, user)
 
 
-@pytest.mark.dev
 @pytest.mark.asyncio
 async def test_4(users, articles, superuser_id):
     async with search('John',

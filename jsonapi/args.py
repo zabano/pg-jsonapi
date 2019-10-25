@@ -1,5 +1,4 @@
 import re
-from collections import OrderedDict
 from collections import namedtuple
 
 from inflection import underscore
@@ -7,7 +6,17 @@ from inflection import underscore
 from jsonapi.exc import Error
 
 FilterArgument = namedtuple('FilterArgument', 'attr_name operator value')
-OrderArgument = namedtuple('OrderArgument', 'attr_name desc')
+
+
+class SortArgument:
+
+    def __init__(self, spec):
+        order, path = re.search(r'([-+]?)(.+)', spec).groups()
+        self.desc = order == '-'
+        self.tree = dict()
+        self.path = tuple(underscore(name).strip() for name in path.split('.'))
+        for name in reversed(self.path):
+            self.tree = {name: self.tree}
 
 
 class RequestArguments:
@@ -19,7 +28,7 @@ class RequestArguments:
 
         self.include = dict()
         self.fields = dict()
-        self.sort = OrderedDict()
+        self.sort = list()
 
         self.offset = 0
         self.limit = None
@@ -56,12 +65,8 @@ class RequestArguments:
 
         if 'sort' in args:
             for sort_spec in args['sort'].split(','):
-                order, name = re.search(r'([-+]?)(.+)', sort_spec).groups()
-                attr_name = 'id'
-                if '.' in name:
-                    name, attr_name = name.split('.', 1)
-                self.sort[underscore(name).strip()] = OrderArgument(
-                    attr_name, order == '-')
+                self.sort.append(SortArgument(sort_spec))
+        self.sort = tuple(self.sort)
 
         #
         # page
@@ -112,7 +117,7 @@ class RequestArguments:
         include = dict(self.include)
         for parent in reversed(parents):
             include = include[parent] if parent in include else dict()
-        return name in include.keys()
+        return underscore(name) in include.keys()
 
     def in_fieldset(self, resource_type, name):
         return self.fieldset_defined(resource_type) and name in self.fields[
@@ -121,8 +126,11 @@ class RequestArguments:
     def fieldset_defined(self, resource_type):
         return resource_type in self.fields.keys()
 
-    def in_sort(self, name):
-        return name in self.sort.keys()
+    def in_sort(self, name, parents):
+        sort = [s.tree for s in self.sort]
+        for parent in reversed(parents):
+            sort = [s[parent] for s in sort if parent in s.keys() if isinstance(s[parent], dict)]
+        return underscore(name) in set().union(*(set(list(s.keys())) for s in sort))
 
     def in_filter(self, name):
         return name in self.filter

@@ -280,7 +280,7 @@ class Model:
             fieldset_defined = args.fieldset_defined(self.type_)
             in_fieldset = args.in_fieldset(self.type_, name)
             in_filter = args.in_filter(name)
-            in_sort = args.in_sort(name)
+            in_sort = args.in_sort(name, parents)
             field.sort_by = in_sort
 
             if isinstance(field, Field):
@@ -375,12 +375,17 @@ class Model:
 
     def get_order_by(self, args):
         order_by = OrderBy()
-        for field_name, arg in args.sort.items():
-            try:
-                order_by.add(self.fields[field_name], arg)
-            except AttributeError:
-                raise APIError('sort:{} | does not exist'.format(field_name),
-                               self)
+        for sort in args.sort:
+            fields = list()
+            model = self
+            for name in sort.path:
+                if name not in model.fields.keys():
+                    raise APIError('sort: {}.{} | does not exist'.format(model.name, name), self)
+                field = model.fields[name]
+                fields.append(field)
+                if isinstance(field, Relationship):
+                    model = field.model
+            order_by.add(fields, sort.desc)
         return order_by
 
     async def fetch_included(self, data, args):

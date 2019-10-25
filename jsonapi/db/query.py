@@ -2,7 +2,7 @@ import sqlalchemy.sql as sql
 
 from jsonapi.exc import ModelError, APIError
 from jsonapi.fields import Aggregate, Field
-from .table import Cardinality, FromClause, FromItem
+from .table import Cardinality, FromClause, FromItem, get_primary_key
 
 SQL_PARAM_LIMIT = 10000
 SEARCH_LABEL = '_ts_rank'
@@ -139,7 +139,7 @@ def search_query(model, term):
 ########################################################################################################################
 
 def _where_one(model, obj_id):
-    return sql.and_(model.get_expr(name) == val for name, val in obj_id.items()) \
+    return sql.and_(model.fields[name].expr == val for name, val in obj_id.items()) \
         if isinstance(obj_id, dict) else model.primary_key == obj_id
 
 
@@ -166,7 +166,7 @@ def _from_obj(model, *extra_items, **kwargs):
     if order_by:
         from_clause.extend(order_by.from_items)
     if model.search is not None and search_term is not None:
-        from_clause.append(model.search)
+        from_clause.append(FromItem(model.search, onclause=model.primary_key == get_primary_key(model.search)))
     for field in model.attributes.values():
         if isinstance(field, Aggregate) and field.expr is not None:
             for from_item in field.from_items[model.name]:

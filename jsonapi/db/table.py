@@ -42,28 +42,31 @@ class OrderBy:
     def __bool__(self):
         return bool(self.exprs)
 
-    def add(self, field, arg):
+    def add(self, fields, desc):
+        for field in fields:
+            if field.is_relationship():
+                self.from_items.extend(get_from_items(field))
+                if field.cardinality in (Cardinality.ONE_TO_MANY, Cardinality.MANY_TO_MANY):
+                    self.distinct = True
+
+        field = fields[-1]
         if field.is_relationship():
-            attr_name = arg.attr_name if arg.attr_name else 'id'
-            if attr_name not in field.model.fields.keys():
-                raise APIError('sort: {}.{} | does not exist'.format(
-                    field.name, attr_name), field.model)
+            attr_name = 'id'
+
             attr = field.model.fields[attr_name]
-            self.from_items.extend(get_from_items(field))
-            expr = getattr(attr.expr, 'desc' if arg.desc else 'asc')
+            expr = getattr(attr.expr, 'desc' if desc else 'asc')
             self.exprs.append(expr().nullslast())
             if not attr.is_aggregate():
+                self.from_items.extend(get_from_items(attr.rel))
                 self.group_by.append(attr.expr)
-            if field.cardinality in (Cardinality.ONE_TO_MANY,
-                                     Cardinality.MANY_TO_MANY):
+            if field.cardinality in (Cardinality.ONE_TO_MANY, Cardinality.MANY_TO_MANY):
                 self.distinct = True
         else:
-            expr = getattr(field.expr, 'desc' if arg.desc else 'asc')
+            expr = getattr(field.expr, 'desc' if desc else 'asc')
             self.exprs.append(expr().nullslast())
             if field.is_aggregate():
                 self.from_items.extend(get_from_items(field.rel))
-                if field.rel.cardinality in (Cardinality.ONE_TO_MANY,
-                                             Cardinality.MANY_TO_MANY):
+                if field.rel.cardinality in (Cardinality.ONE_TO_MANY, Cardinality.MANY_TO_MANY):
                     self.distinct = True
             else:
                 self.group_by.append(field.expr)
