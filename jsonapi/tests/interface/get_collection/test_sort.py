@@ -131,3 +131,11 @@ async def test_multiple_2(users, user_count, superuser_id):
         assert article_counts == sorted(article_counts, reverse=True)
         for birthdays in birthdays_by_count.values():
             assert birthdays == sorted(birthdays)
+
+
+@pytest.mark.asyncio
+async def test_nested(articles, article_count, superuser_id):
+    async with get_collection(articles,
+                              {'sort': 'author.bio.birthday'},
+                              login=superuser_id) as json:
+        assert_collection(json, 'article', lambda size: size == article_count)

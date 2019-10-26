@@ -5,18 +5,31 @@ from inflection import underscore
 
 from jsonapi.exc import Error
 
-FilterArgument = namedtuple('FilterArgument', 'attr_name operator value')
+
+class AttributePath:
+
+    def __init__(self, dot_path):
+        self.names = tuple(underscore(name) for name in dot_path.split('.'))
+
+    def __len__(self):
+        return len(self.names)
+
+    def __iter__(self):
+        return iter(self.names)
+
+    def exists(self, name, parents=tuple()):
+        return tuple((*parents, name)) == self.names[:1+len(parents)]
 
 
 class SortArgument:
 
     def __init__(self, spec):
-        order, path = re.search(r'([-+]?)(.+)', spec).groups()
+        order, dot_path = re.search(r'([-+]?)(.+)', spec).groups()
         self.desc = order == '-'
-        self.tree = dict()
-        self.path = tuple(underscore(name).strip() for name in path.split('.'))
-        for name in reversed(self.path):
-            self.tree = {name: self.tree}
+        self.path = AttributePath(dot_path)
+
+
+FilterArgument = namedtuple('FilterArgument', 'attr_name operator value')
 
 
 class RequestArguments:
@@ -28,7 +41,7 @@ class RequestArguments:
 
         self.include = dict()
         self.fields = dict()
-        self.sort = list()
+        self.sort = tuple()
 
         self.offset = 0
         self.limit = None
@@ -64,9 +77,7 @@ class RequestArguments:
         #
 
         if 'sort' in args:
-            for sort_spec in args['sort'].split(','):
-                self.sort.append(SortArgument(sort_spec))
-        self.sort = tuple(self.sort)
+            self.sort = tuple(SortArgument(spec) for spec in args['sort'].split(','))
 
         #
         # page
@@ -127,10 +138,7 @@ class RequestArguments:
         return resource_type in self.fields.keys()
 
     def in_sort(self, name, parents):
-        sort = [s.tree for s in self.sort]
-        for parent in reversed(parents):
-            sort = [s[parent] for s in sort if parent in s.keys() if isinstance(s[parent], dict)]
-        return underscore(name) in set().union(*(set(list(s.keys())) for s in sort))
+        return any(s.path.exists(name, parents) for s in self.sort)
 
     def in_filter(self, name):
         return name in self.filter
