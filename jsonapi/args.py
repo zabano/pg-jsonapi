@@ -1,5 +1,4 @@
 import re
-from collections import namedtuple
 
 from inflection import underscore
 
@@ -24,12 +23,37 @@ class AttributePath:
         return '{}({})'.format(self.__class__.__name__, '.'.join(self.names))
 
 
+class FieldArgument:
+
+    def __init__(self, spec, value):
+
+        try:
+            self.type = re.search(r'^fields\[([-_\w]+)\]$', spec).group(1)
+        except AttributeError:
+            raise Error('invalid fieldset spec: {!r}'.format(spec))
+        else:
+            self.names = tuple(set(underscore(x) for x in value.split(',') + ['id']))
+
+    def __len__(self):
+        return len(self.names)
+
+    def __iter__(self):
+        return iter(self.names)
+
+    def __repr__(self):
+        return '{}({}:{})'.format(self.__class__.__name__, self.type, '.'.join(self.names))
+
+
 class SortArgument:
 
-    def __init__(self, spec):
-        order, dot_path = re.search(r'([-+]?)(.+)', spec).groups()
-        self.desc = order == '-'
-        self.path = AttributePath(dot_path)
+    def __init__(self, value):
+        try:
+            order, dot_path = re.search(r'([-+]?)(.+)', value).groups()
+        except AttributeError:
+            raise Error('invalid sort argument: {!r}'.format(value))
+        else:
+            self.desc = order == '-'
+            self.path = AttributePath(dot_path)
 
     def __repr__(self):
         return '{}({!r}, desc={!r})'.format(self.__class__.__name__, self.path, self.desc)
@@ -57,83 +81,59 @@ class FilterArgument:
             self.value[:10] + '...' if len(self.value) > 10 else self.value)
 
 
+class PageArgument:
+
+    def __init__(self, size, number):
+
+        self.limit = None
+        self.offset = 0
+
+        if size is None and number is not None:
+            raise Error('please provide page[size]'.format(size))
+
+        if size is not None:
+            try:
+                self.limit = int(size)
+            except ValueError:
+                raise Error('invalid value for page[size]: {!r}'.format(size))
+            else:
+                if self.limit <= 0:
+                    raise Error('invalid value for page[size]: {!r}'.format(size))
+
+        if number is not None:
+            try:
+                self.offset = (int(number) - 1) * self.limit
+            except ValueError:
+                raise Error('invalid value for page[number]: {!r}'.format(number))
+            else:
+                if number <= 0:
+                    raise Error('invalid value for page[number]: {!r}'.format(number))
+
+    def __repr__(self):
+        return '{}(limit={}, offset={})'.format(self.__class__.__name__, self.limit, self.offset)
+
+
 class RequestArguments:
 
     def __init__(self, args):
         """
         :param args: a dictionary representing the request query string
         """
-
-        self.fields = dict()
-        self.include = tuple()
-        self.sort = tuple()
-        self.filter = tuple()
-
-        self.offset = 0
-        self.limit = None
-
-        if args is None:
-            return
-
-        #
-        # include
-        #
-
-        if 'include' in args:
-            self.include = tuple(AttributePath(dot_path) for dot_path in args['include'].split(','))
-
-        #
-        # fields
-        #
-
-        for key, value in args.items():
-            match = re.search(r'^fields\[([-_\w]+)\]$', key)
-            if match:
-                self.fields[match.group(1)] = set(
-                    underscore(x.lower()) for x in value.split(',') + ['id'])
-
-        #
-        # sort
-        #
-
-        if 'sort' in args:
-            self.sort = tuple(SortArgument(spec) for spec in args['sort'].split(','))
-
-        #
-        # filter
-        #
-        self.filter = tuple(FilterArgument(key, args[key])
-                            for key in args.keys() if key.startswith('filter'))
-
-        #
-        # page
-        #
-
-        if 'page[size]' in args:
-            try:
-                self.limit = int(args['page[size]'])
-            except ValueError:
-                raise Error('page[size] option must be an integer')
-            if self.limit <= 0:
-                raise Error('page[size] option must be positive')
-            if 'page[number]' in args and self.limit > 0:
-                try:
-                    number = int(args['page[number]'])
-                except ValueError:
-                    raise Error('page[number] option must be an integer')
-                else:
-                    if number <= 0:
-                        raise Error('page[number] option must be positive')
-                    self.offset = (number - 1) * self.limit
-        elif 'page[number]' in args:
-            raise Error('page[size] option not provided')
+        args = args if args else dict()
+        try:
+            self.include = tuple(AttributePath(path) for path in args['include'].split(',')) if 'include' in args else ()
+            self.fields = {f.type: f for f in (FieldArgument(k, args[k]) for k in args.keys() if k.startswith('fields'))}
+            self.sort = tuple(SortArgument(spec) for spec in args['sort'].split(',')) if 'sort' in args else ()
+            self.filter = tuple(FilterArgument(k, args[k]) for k in args.keys() if k.startswith('filter'))
+            self.page = PageArgument(args.get('page[size]', None), args.get('page[number]', None))
+        except (AttributeError, TypeError):
+            raise Error('argument parser | invalid dictionary: {!r}'.format(args))
 
     def fieldset_defined(self, resource_type):
         return resource_type in self.fields.keys()
 
     def in_fieldset(self, resource_type, name):
-        return self.fieldset_defined(resource_type) and name in self.fields[
-            resource_type]
+        return self.fieldset_defined(resource_type) and name in self.fields[resource_type]
 
     def in_include(self, name, parents):
         return any(i.exists(name, parents) for i in self.include)

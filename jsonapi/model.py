@@ -502,11 +502,11 @@ class Model:
         self.init_schema(args)
         filter_by, order_by = self.get_filter_by(args), self.get_order_by(args)
         query = select_many(self, filter_by=filter_by, order_by=order_by,
-                            offset=args.offset, limit=args.limit,
+                            offset=args.page.offset, limit=args.page.limit,
                             search_term=search)
         log_query(query)
         recs = [dict(rec) for rec in await pg.fetch(query)]
-        await self.set_meta(args.limit, filter_by=filter_by, search_term=search)
+        await self.set_meta(args.page.limit, filter_by=filter_by, search_term=search)
         await self.fetch_included(recs, args)
         return self.response(recs)
 
@@ -541,9 +541,11 @@ class Model:
         rel.model.init_schema(args)
         filter_by, order_by = rel.model.get_filter_by(
             args), rel.model.get_order_by(args)
-        query = select_related(rel, obj[self.primary_key.name], filter_by=filter_by,
+        query = select_related(rel, obj[self.primary_key.name],
+                               filter_by=filter_by,
                                order_by=order_by,
-                               offset=args.offset, limit=args.limit,
+                               offset=args.page.offset,
+                               limit=args.page.limit,
                                search_term=search)
         log_query(query)
         if rel.cardinality in (Cardinality.ONE_TO_ONE, Cardinality.MANY_TO_ONE):
@@ -551,7 +553,7 @@ class Model:
             data = dict(result) if result is not None else None
         else:
             data = [dict(rec) for rec in await pg.fetch(query)]
-            await rel.model.set_meta(args.limit, obj[self.primary_key.name], rel,
+            await rel.model.set_meta(args.page.limit, obj[self.primary_key.name], rel,
                                      filter_by=filter_by, search_term=search)
         await rel.model.fetch_included(data, args)
         return rel.model.response(data)
@@ -655,8 +657,7 @@ async def search(args, term, *models):
     data = sorted(data, key=lambda x: x['rank'], reverse=True)
 
     sliced_data = defaultdict(dict)
-    for rec in islice(data, search_args.offset,
-                      search_args.offset + search_args.limit):
+    for rec in islice(data, search_args.page.offset, search_args.page.offset + search_args.page.limit):
         sliced_data[rec['type']][rec['id']] = rec['rank']
 
     data = list()
