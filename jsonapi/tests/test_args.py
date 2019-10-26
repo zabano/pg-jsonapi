@@ -29,29 +29,23 @@ def test_fields_2():
 
 def test_include_1():
     args = RequestArguments({'include': 'author'})
-    assert 'author' in args.include.keys()
-    assert args.include['author'] == dict()
+    assert args.in_include('author', parents=())
 
 
 def test_include_2():
     args = RequestArguments({'include': 'author.articles'})
-    assert 'author' in args.include.keys()
-    assert 'articles' in args.include['author'].keys()
+    assert args.in_include('author', parents=())
+    assert args.in_include('articles', parents=('author',))
 
 
 def test_include_3():
     args = RequestArguments(
         {'include': 'author.articles.comments.replies,author.articles.publisher'})
-    assert 'author' in args.include.keys()
-    author = args.include['author']
-    assert 'articles' in author.keys()
-    articles = author['articles']
-    assert 'publisher' in articles.keys()
-    assert 'comments' in articles.keys()
-    comments = articles['comments']
-    assert 'replies' in comments.keys()
-    assert articles['publisher'] == dict()
-    assert comments['replies'] == dict()
+    assert args.in_include('author', parents=())
+    assert args.in_include('articles', parents=('author',))
+    assert args.in_include('comments', parents=('author', 'articles'))
+    assert args.in_include('publisher', parents=('author', 'articles'))
+    assert args.in_include('replies', parents=('author', 'articles', 'comments'))
 
 
 def test_filter_1():

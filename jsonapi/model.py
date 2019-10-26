@@ -301,7 +301,7 @@ class Model:
                 if in_include or in_sort or in_filter:
                     logger.info('load field: {}.{}'.format(self.name, field.name))
                     field.load(self)
-                    field.model.init_schema(args, parents=(field.name, *parents))
+                    field.model.init_schema(args, tuple([*parents, field.name]))
 
             else:
                 raise ModelError('unsupported field: {!r}'.format(field), self)

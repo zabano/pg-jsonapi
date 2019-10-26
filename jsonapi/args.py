@@ -39,7 +39,7 @@ class RequestArguments:
         :param args: a dictionary representing the request query string
         """
 
-        self.include = dict()
+        self.include = tuple()
         self.fields = dict()
         self.sort = tuple()
 
@@ -55,12 +55,7 @@ class RequestArguments:
         #
 
         if 'include' in args:
-            for dot_path in args['include'].split(','):
-                include = self.include
-                for attr in dot_path.split('.'):
-                    if attr not in include:
-                        include[attr] = dict()
-                    include = include[attr]
+            self.include = tuple(AttributePath(dot_path) for dot_path in args['include'].split(','))
 
         #
         # fields
@@ -124,18 +119,15 @@ class RequestArguments:
         if match:
             return match.groups()
 
-    def in_include(self, name, parents):
-        include = dict(self.include)
-        for parent in reversed(parents):
-            include = include[parent] if parent in include else dict()
-        return underscore(name) in include.keys()
+    def fieldset_defined(self, resource_type):
+        return resource_type in self.fields.keys()
 
     def in_fieldset(self, resource_type, name):
         return self.fieldset_defined(resource_type) and name in self.fields[
             resource_type]
 
-    def fieldset_defined(self, resource_type):
-        return resource_type in self.fields.keys()
+    def in_include(self, name, parents):
+        return any(inc.exists(name, parents) for inc in self.include)
 
     def in_sort(self, name, parents):
         return any(s.path.exists(name, parents) for s in self.sort)
