@@ -64,11 +64,8 @@ class FilterArgument:
     def __init__(self, spec, value):
 
         try:
-            match = re.match(r'filter\[([-_.\w]+)(:[-_\w]+)?\]', spec)
-            if not match:
-                raise Error('invalid filter parameter: {!r}'.format(spec))
-            dot_path, op = match.groups()
-        except (ValueError, TypeError):
+            dot_path, op = re.match(r'filter\[([-_.\w]+)(:[-_\w]+)?\]', spec).groups()
+        except AttributeError:
             raise Error('invalid filter parameter: {!r}'.format(spec))
         else:
             self.path = AttributePath(dot_path)
