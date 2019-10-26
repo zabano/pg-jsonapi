@@ -33,16 +33,18 @@ class FilterBy:
     def __bool__(self):
         return any((self.where, self.having, self.from_items))
 
-    def add(self, field, arg):
+    def add(self, fields, arg):
+        for field in fields:
+            if field.is_relationship():
+                self.from_items.extend(get_from_items(field))
+                if field.cardinality in (Cardinality.ONE_TO_MANY, Cardinality.MANY_TO_MANY):
+                    self.distinct = True
+
+        field = fields[-1]
         if field.is_relationship():
-            attr_name = arg.attr_name if arg.attr_name else 'id'
-            if attr_name not in field.model.fields.keys():
-                raise APIError('field: {} does not exist'.format(attr_name),
-                               field.model)
-            attr = field.model.fields[attr_name]
+            attr = field.model.fields['id']
             filter_clause = attr.filter_clause.get(
                 attr.expr, arg.operator, arg.value)
-            self.from_items.extend(get_from_items(field))
             if attr.is_aggregate():
                 self.from_items_last.extend(attr.from_items.get(
                     field.model.name, list()))
@@ -171,10 +173,9 @@ class FilterClause:
         # single values
         #
         else:
+            op = 'eq' if not op else op
             if not self.has_operator(op):
                 raise Error('invalid operator: {}'.format(op))
-            if op == '':
-                op = 'eq'
 
             v = self.data_type.parse(val)
             if v is False or v is True or v is None:

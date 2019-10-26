@@ -49,9 +49,7 @@ def test_include_3():
 
 
 def test_filter_1():
-    assert RequestArguments.filter_parts('filter[author]') == ('author', None, None)
-    assert RequestArguments.filter_parts('filter[author:eq]') == ('author', None, ':eq')
-    assert RequestArguments.filter_parts('filter[author.id]') == ('author', '.id', None)
-    assert RequestArguments.filter_parts('filter[author.id:eq]') == ('author', '.id', ':eq')
-    assert RequestArguments.filter_parts('filter[author.:eq]') is None
-    assert RequestArguments.filter_parts('filter[is-published]') == ('is-published', None, None)
+    args = RequestArguments({'filter[author.first.eq]': 'John', 'filter[is-published]': 't'})
+    assert args.in_filter('author', ())
+    assert args.in_filter('first', ('author',))
+    assert args.in_filter('is_published', ())

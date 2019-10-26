@@ -18,7 +18,10 @@ class AttributePath:
         return iter(self.names)
 
     def exists(self, name, parents=tuple()):
-        return tuple((*parents, name)) == self.names[:1+len(parents)]
+        return tuple((*parents, name)) == self.names[:1 + len(parents)]
+
+    def __repr__(self):
+        return '{}({})'.format(self.__class__.__name__, '.'.join(self.names))
 
 
 class SortArgument:
@@ -28,8 +31,30 @@ class SortArgument:
         self.desc = order == '-'
         self.path = AttributePath(dot_path)
 
+    def __repr__(self):
+        return '{}({!r}, desc={!r})'.format(self.__class__.__name__, self.path, self.desc)
 
-FilterArgument = namedtuple('FilterArgument', 'attr_name operator value')
+
+class FilterArgument:
+
+    def __init__(self, spec, value):
+
+        try:
+            match = re.match(r'filter\[([-_.\w]+)(:[-_\w]+)?\]', spec)
+            if not match:
+                raise Error('invalid filter parameter: {!r}'.format(spec))
+            dot_path, op = match.groups()
+        except (ValueError, TypeError):
+            raise Error('invalid filter parameter: {!r}'.format(spec))
+        else:
+            self.path = AttributePath(dot_path)
+            self.operator = op.strip(':') if op else 'eq'
+            self.value = value
+
+    def __repr__(self):
+        return '{}({!r}, op={!r}, val={!r})'.format(
+            self.__class__.__name__, self.path, self.operator,
+            self.value[:10] + '...' if len(self.value) > 10 else self.value)
 
 
 class RequestArguments:
@@ -39,13 +64,13 @@ class RequestArguments:
         :param args: a dictionary representing the request query string
         """
 
-        self.include = tuple()
         self.fields = dict()
+        self.include = tuple()
         self.sort = tuple()
+        self.filter = tuple()
 
         self.offset = 0
         self.limit = None
-        self.filter = dict()
 
         if args is None:
             return
@@ -75,6 +100,12 @@ class RequestArguments:
             self.sort = tuple(SortArgument(spec) for spec in args['sort'].split(','))
 
         #
+        # filter
+        #
+        self.filter = tuple(FilterArgument(key, args[key])
+                            for key in args.keys() if key.startswith('filter'))
+
+        #
         # page
         #
 
@@ -97,28 +128,6 @@ class RequestArguments:
         elif 'page[number]' in args:
             raise Error('page[size] option not provided')
 
-        #
-        # filter
-        #
-
-        for key in args.keys():
-            if key.startswith('filter['):
-                try:
-                    field_name, attr_name, operator = self.filter_parts(key)
-                except (ValueError, TypeError):
-                    raise Error('invalid filter parameter: "{}"'.format(key))
-                else:
-                    self.filter[underscore(field_name)] = FilterArgument(
-                        underscore(attr_name.lstrip('.')) if attr_name else '',
-                        operator.lstrip(':') if operator else '',
-                        args[key])
-
-    @classmethod
-    def filter_parts(cls, key):
-        match = re.match(r'filter\[([-_\w]+)(\.[-_\w]+)?(:[-_\w]+)?\]', key)
-        if match:
-            return match.groups()
-
     def fieldset_defined(self, resource_type):
         return resource_type in self.fields.keys()
 
@@ -127,13 +136,13 @@ class RequestArguments:
             resource_type]
 
     def in_include(self, name, parents):
-        return any(inc.exists(name, parents) for inc in self.include)
+        return any(i.exists(name, parents) for i in self.include)
 
     def in_sort(self, name, parents):
         return any(s.path.exists(name, parents) for s in self.sort)
 
-    def in_filter(self, name):
-        return name in self.filter
+    def in_filter(self, name, parents):
+        return any(f.path.exists(name, parents) for f in self.filter)
 
 
 def parse_arguments(args):

@@ -276,11 +276,11 @@ class Model:
     def init_schema(self, args, parents=tuple()):
         for name, field in self.fields.items():
 
-            in_include = args.in_include(name, parents)
             fieldset_defined = args.fieldset_defined(self.type_)
             in_fieldset = args.in_fieldset(self.type_, name)
-            in_filter = args.in_filter(name)
+            in_include = args.in_include(name, parents)
             in_sort = args.in_sort(name, parents)
+            in_filter = args.in_filter(name, parents)
             field.sort_by = in_sort
 
             if isinstance(field, Field):
@@ -358,19 +358,27 @@ class Model:
 
     def get_filter_by(self, args):
         filter_by = FilterBy()
-        for field_name, arg in args.filter.items():
-            custom_name = 'filter_{}'.format(field_name)
+        for arg in args.filter:
+            custom_name = 'filter_{}'.format('_'.join(arg.path))
             if hasattr(self, custom_name):
-                custom_filter = getattr(self, 'filter_{}'.format(field_name))
+                custom_filter = getattr(self, custom_name)
                 op = arg.operator if arg.operator else 'eq'
-                filter_by.add_custom(field_name, custom_filter(
+                filter_by.add_custom('.'.join(arg.path), custom_filter(
                     self.rec, arg.value, getattr(operator, op)))
-            elif field_name in self.fields:
-                field = self.fields[field_name]
+            else:
+                fields = list()
+                model = self
+                for name in arg.path:
+                    if name not in model.fields.keys():
+                        raise APIError('filter: {}.{} | does not exist'.format(model.name, name), self)
+                    field = model.fields[name]
+                    fields.append(field)
+                    if isinstance(field, Relationship):
+                        model = field.model
                 try:
-                    filter_by.add(field, arg)
+                    filter_by.add(fields, arg)
                 except Error as e:
-                    raise APIError('filter:{} | {}'.format(field_name, e), self)
+                    raise APIError('filter:{} | {}'.format('.'.join(arg.path), e), self)
         return filter_by
 
     def get_order_by(self, args):

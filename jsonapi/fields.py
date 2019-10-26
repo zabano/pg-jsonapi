@@ -190,15 +190,16 @@ class Relationship(BaseField):
                         return ref
 
     def load(self, parent):
-        self.parent = parent
-        name = '_{}_{}'.format(parent.name, self.name)
-        if name in model_registry:
-            cls = model_registry[name]
-        else:
-            base = model_registry[self.model_name]
-            cls = type(name,
-                       (base,),
-                       {'type_': base.get_type(),
-                        'from_': base.get_from_aliases(self.name)})
-        self.model = cls()
-        self.filter_clause = self.get_filter_clause()
+        if not self.model:
+            self.parent = parent
+            name = '_{}_{}'.format(parent.name, self.name)
+            if name in model_registry:
+                cls = model_registry[name]
+            else:
+                base = model_registry[self.model_name]
+                cls = type(name,
+                           (base,),
+                           {'type_': base.get_type(),
+                            'from_': base.get_from_aliases(self.name)})
+            self.model = cls()
+            self.filter_clause = self.get_filter_clause()

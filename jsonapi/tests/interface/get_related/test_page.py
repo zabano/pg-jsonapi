@@ -8,7 +8,7 @@ from jsonapi.tests.util import *
 async def users_with_5_articles(users, superuser_id):
     async with get_collection(users,
                               {'filter[article-count]': '5',
-                               'filter[article.is-published]': 't',  # at least one is published
+                               'filter[articles.is-published]': 't',  # at least one is published
                                'page[size]': 3},
                               login=superuser_id) as json:
         return [int(user['id']) for user in json['data']]
