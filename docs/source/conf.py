@@ -48,6 +48,7 @@ exclude_patterns = []
 # a list of builtin themes.
 #
 html_theme = 'alabaster'
+html_logo = '_static/jsonapi.png'
 html_short_title = 'Home'
 html_theme_options = {
     'description': 'Build JSON API v1.0 compliant RESTFul api for PostgreSQL backends. '
