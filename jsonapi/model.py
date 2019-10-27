@@ -359,10 +359,7 @@ class Model:
         return filter_by
 
     def get_order_by(self, args):
-        order_by = OrderBy()
-        for sort in args.sort:
-            order_by.add(self, sort)
-        return order_by
+        return OrderBy(self, *args.sort)
 
     async def fetch_included(self, data, args):
 

@@ -54,10 +54,14 @@ class PathJoin:
 
 class OrderBy(PathJoin):
 
-    def __init__(self):
+    def __init__(self, model=None, *args):
         super().__init__()
         self.order_by = list()
         self.group_by = list()
+
+        if model:
+            for arg in args:
+                self.add(model, arg)
 
     def __bool__(self):
         return bool(self.order_by)
