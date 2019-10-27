@@ -266,8 +266,6 @@ You can use dot notation to specify a different attribute. To sort articles by t
 
     >>> await ArticleModel().get_collection({'sort': 'author.name'})
 
-Currently, dot notation can only be used to reference attribute fields of a relationship (one level of descent).
-
 **********
 Pagination
 **********
@@ -370,5 +368,3 @@ case-insensitive. The following calls return articles with and without a publish
 
     >>> await ArticleModel().get_collection({'filter[publisher:ne]': 'none'})
     >>> await ArticleModel().get_collection({'filter[publisher:eq]': 'none'})
-
-Currently, dot notation can only be used to reference attribute fields of a relationship (one level of descent).

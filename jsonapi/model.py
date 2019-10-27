@@ -317,7 +317,6 @@ class Model:
         response = dict(data=self.schema.dump(data, many=isinstance(data, list)))
         if len(self.included) > 0:
             response['included'] = reduce(lambda a, b: a + [rec for rec in b.values()], self.included.values(), list())
-
         if len(self.meta) > 0:
             response['meta'] = dict(self.meta)
         self.reset()
@@ -502,8 +501,7 @@ class Model:
         args = self.parse_arguments(args)
         rel.load(self)
         rel.model.init_schema(args)
-        filter_by, order_by = rel.model.get_filter_by(
-            args), rel.model.get_order_by(args)
+        filter_by, order_by = rel.model.get_filter_by(args), rel.model.get_order_by(args)
         query = select_related(rel, obj[self.primary_key.name],
                                filter_by=filter_by,
                                order_by=order_by,
@@ -650,12 +648,7 @@ async def search(args, term, *models):
         n = await pg.fetchval(select_many(model, count=True))
         meta['searchType'][model.type_] = dict(total=n)
         meta['total'] += n
-
-    response = dict(
-        data=sorted(data, key=lambda x: sliced_data[x['type']][x['id']],
-                    reverse=True),
-        meta=meta)
+    response = dict(data=sorted(data, key=lambda x: sliced_data[x['type']][x['id']], reverse=True), meta=meta)
     if included:
-        response['included'] = reduce(lambda a, b: a + [r for r in b.values()],
-                                      included.values(), list())
+        response['included'] = reduce(lambda a, b: a + [r for r in b.values()], included.values(), list())
     return response
