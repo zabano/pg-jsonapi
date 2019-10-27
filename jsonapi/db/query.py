@@ -162,7 +162,6 @@ def _from_obj(model, *extra_items, **kwargs):
     from_clause.extend(extra_items)
     if filter_by:
         from_clause.extend(filter_by.from_items)
-        from_clause.extend(filter_by.from_items_last)
     if order_by:
         from_clause.extend(order_by.from_items)
     if model.search is not None and search_term is not None:
@@ -203,7 +202,7 @@ def _sort_query(model, query, order_by, search_term):
     if search_term is not None:
         return query.order_by(_rank_column(model, search_term).desc())
     if order_by:
-        return query.order_by(*order_by.exprs)
+        return query.order_by(*order_by)
     return query
 
 

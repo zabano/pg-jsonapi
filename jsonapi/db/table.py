@@ -31,39 +31,52 @@ ONE_TO_MANY = Cardinality.ONE_TO_MANY
 MANY_TO_MANY = Cardinality.MANY_TO_MANY
 
 
-class OrderBy:
+class PathJoin:
 
     def __init__(self):
-        self.exprs = list()
         self.from_items = list()
-        self.group_by = list()
         self.distinct = False
 
-    def __bool__(self):
-        return bool(self.exprs)
-
-    def add(self, fields, desc):
-        for field in fields:
+    def load(self, model, path):
+        field = None
+        for name in path:
+            if name not in model.fields.keys():
+                raise APIError('{}.{} | does not exist'.format(model.name, name), model)
+            field = model.fields[name]
             if field.is_relationship():
                 self.from_items.extend(get_from_items(field))
                 if field.cardinality in (Cardinality.ONE_TO_MANY, Cardinality.MANY_TO_MANY):
                     self.distinct = True
+                model = field.model
+        assert field is not None
+        return field
 
-        field = fields[-1]
+
+class OrderBy(PathJoin):
+
+    def __init__(self):
+        super().__init__()
+        self.order_by = list()
+        self.group_by = list()
+
+    def __bool__(self):
+        return bool(self.order_by)
+
+    def __len__(self):
+        return len(self.order_by)
+
+    def __iter__(self):
+        return iter(self.order_by)
+
+    def add(self, model, arg):
+        field = self.load(model, arg.path)
         if field.is_relationship():
-            attr_name = 'id'
-
-            attr = field.model.fields[attr_name]
-            expr = getattr(attr.expr, 'desc' if desc else 'asc')
-            self.exprs.append(expr().nullslast())
-            if not attr.is_aggregate():
-                self.from_items.extend(get_from_items(attr.rel))
-                self.group_by.append(attr.expr)
-            if field.cardinality in (Cardinality.ONE_TO_MANY, Cardinality.MANY_TO_MANY):
-                self.distinct = True
+            attr = field.model.fields['id']
+            expr = getattr(attr.expr, 'desc' if arg.desc else 'asc')
+            self.order_by.append(expr().nullslast())
         else:
-            expr = getattr(field.expr, 'desc' if desc else 'asc')
-            self.exprs.append(expr().nullslast())
+            expr = getattr(field.expr, 'desc' if arg.desc else 'asc')
+            self.order_by.append(expr().nullslast())
             if field.is_aggregate():
                 self.from_items.extend(get_from_items(field.rel))
                 if field.rel.cardinality in (Cardinality.ONE_TO_MANY, Cardinality.MANY_TO_MANY):

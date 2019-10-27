@@ -3,8 +3,8 @@ import re
 
 from sqlalchemy.sql import and_, operators, or_
 
-from jsonapi.exc import APIError, Error
-from .table import Cardinality, get_from_items, is_clause, is_from_item
+from jsonapi.exc import Error
+from .table import Cardinality, PathJoin, get_from_items, is_clause, is_from_item
 
 MODIFIERS = {'=': operators.eq, '<>': operators.ne, '!=': operators.ne,
              '>=': operators.ge, '<=': operators.le,
@@ -21,45 +21,26 @@ class Operator(enum.Enum):
     LE = 'le'
 
 
-class FilterBy:
+class FilterBy(PathJoin):
 
     def __init__(self, where=None, *from_items):
+        super().__init__()
+        self.from_items.extend(from_items)
         self.where = [where] if where is not None else list()
         self.having = list()
-        self.from_items = list(from_items)
-        self.from_items_last = list()
-        self.distinct = False
 
     def __bool__(self):
         return any((self.where, self.having, self.from_items))
 
-    def add(self, fields, arg):
-        for field in fields:
-            if field.is_relationship():
-                self.from_items.extend(get_from_items(field))
-                if field.cardinality in (Cardinality.ONE_TO_MANY, Cardinality.MANY_TO_MANY):
-                    self.distinct = True
-
-        field = fields[-1]
+    def add(self, model, arg):
+        field = self.load(model, arg.path)
         if field.is_relationship():
             attr = field.model.fields['id']
-            filter_clause = attr.filter_clause.get(
-                attr.expr, arg.operator, arg.value)
-            if attr.is_aggregate():
-                self.from_items_last.extend(attr.from_items.get(
-                    field.model.name, list()))
-                self.having.append(filter_clause)
-            else:
-                self.where.append(filter_clause)
-            if field.is_relationship() and field.cardinality in (
-                    Cardinality.ONE_TO_MANY, Cardinality.MANY_TO_MANY):
-                self.distinct = True
+            self.where.append(attr.filter_clause.get(attr.expr, arg.operator, arg.value))
         else:
-            clause = field.filter_clause.get(
-                field.expr, arg.operator, arg.value)
+            clause = field.filter_clause.get(field.expr, arg.operator, arg.value)
             if field.is_aggregate():
-                if field.rel.cardinality in (Cardinality.ONE_TO_MANY,
-                                             Cardinality.MANY_TO_MANY):
+                if field.rel.cardinality in (Cardinality.ONE_TO_MANY, Cardinality.MANY_TO_MANY):
                     self.distinct = True
                 self.from_items.extend(get_from_items(field.rel))
                 self.having.append(clause)
@@ -78,8 +59,7 @@ class FilterBy:
                 else:
                     raise TypeError
             except TypeError:
-                raise Error('filter:{} | expected a where clause '
-                            'and a sequence of from items'.format(name))
+                raise Error('filter:{} | expected a where clause and a sequence of from items'.format(name))
 
 
 class FilterClause:

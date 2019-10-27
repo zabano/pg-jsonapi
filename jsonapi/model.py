@@ -314,12 +314,9 @@ class Model:
         self.schema.context['root'] = self
 
     def response(self, data):
-        response = dict(
-            data=self.schema.dump(data, many=isinstance(data, list)))
+        response = dict(data=self.schema.dump(data, many=isinstance(data, list)))
         if len(self.included) > 0:
-            response['included'] = reduce(
-                lambda a, b: a + [rec for rec in b.values()],
-                self.included.values(), list())
+            response['included'] = reduce(lambda a, b: a + [rec for rec in b.values()], self.included.values(), list())
 
         if len(self.meta) > 0:
             response['meta'] = dict(self.meta)
@@ -335,26 +332,19 @@ class Model:
         search_term = kwargs.get('search_term', None)
         is_related = object_id is not None and rel is not None
         if limit is not None or search_term is not None or filter_by:
-            query = select_related(rel, object_id, count=True) \
-                if is_related else select_many(self, count=True)
+            query = select_related(rel, object_id, count=True) if is_related else select_many(self, count=True)
             log_query(query)
             self.meta['total'] = await pg.fetchval(query)
             if limit is not None and filter_by:
                 self.meta['filterTotal'] = await pg.fetchval(
-                    select_related(rel, object_id,
-                                   filter_by=filter_by,
-                                   count=True)
-                    if is_related else select_many(
-                        self, filter_by=filter_by, count=True))
+                    select_related(rel, object_id, filter_by=filter_by, count=True)
+                    if is_related else select_many(self, filter_by=filter_by, count=True))
             if search_term is not None:
                 self.meta['searchTerm'] = search_term
                 if limit is not None:
                     self.meta['searchTotal'] = await pg.fetchval(
-                        select_related(rel, object_id,
-                                       search_term=search_term,
-                                       count=True)
-                        if is_related else select_many(
-                            self, search_term=search_term, count=True))
+                        select_related(rel, object_id, search_term=search_term, count=True)
+                        if is_related else select_many(self, search_term=search_term, count=True))
 
     def get_filter_by(self, args):
         filter_by = FilterBy()
@@ -363,37 +353,15 @@ class Model:
             if hasattr(self, custom_name):
                 custom_filter = getattr(self, custom_name)
                 op = arg.operator if arg.operator else 'eq'
-                filter_by.add_custom('.'.join(arg.path), custom_filter(
-                    self.rec, arg.value, getattr(operator, op)))
+                filter_by.add_custom('.'.join(arg.path), custom_filter(self.rec, arg.value, getattr(operator, op)))
             else:
-                fields = list()
-                model = self
-                for name in arg.path:
-                    if name not in model.fields.keys():
-                        raise APIError('filter: {}.{} | does not exist'.format(model.name, name), self)
-                    field = model.fields[name]
-                    fields.append(field)
-                    if isinstance(field, Relationship):
-                        model = field.model
-                try:
-                    filter_by.add(fields, arg)
-                except Error as e:
-                    raise APIError('filter:{} | {}'.format('.'.join(arg.path), e), self)
+                filter_by.add(self, arg)
         return filter_by
 
     def get_order_by(self, args):
         order_by = OrderBy()
         for sort in args.sort:
-            fields = list()
-            model = self
-            for name in sort.path:
-                if name not in model.fields.keys():
-                    raise APIError('sort: {}.{} | does not exist'.format(model.name, name), self)
-                field = model.fields[name]
-                fields.append(field)
-                if isinstance(field, Relationship):
-                    model = field.model
-            order_by.add(fields, sort.desc)
+            order_by.add(self, sort)
         return order_by
 
     async def fetch_included(self, data, args):
@@ -425,9 +393,7 @@ class Model:
 
             await rel.model.fetch_included(
                 reduce(lambda a, b: a + b if isinstance(b, list) else a + [b],
-                       [rec[rel.name] for rec in data if
-                        rec[rel.name] is not None],
-                       list()), args)
+                       [rec[rel.name] for rec in data if rec[rel.name] is not None], list()), args)
 
     ####################################################################################################################
     # public interface
