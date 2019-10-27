@@ -28,7 +28,7 @@ The mime type to be used as the value of the Content-Type header
 
 SEARCH_PAGE_SIZE = 50
 """
-The default value for the "page[number]" option when searching
+The default value for the "page[size]" option when searching
 """
 
 ONE_TO_ONE = Cardinality.ONE_TO_ONE
@@ -612,8 +612,7 @@ async def search(args, term, *models):
         log_query(query)
         async with pg.query(query) as cursor:
             async for row in cursor:
-                data.append(dict(type=model.type_, id=str(row['id']),
-                                 rank=row[SEARCH_LABEL]))
+                data.append(dict(type=model.type_, id=str(row['id']), rank=row[SEARCH_LABEL]))
                 total += 1
     data = sorted(data, key=lambda x: x['rank'], reverse=True)
 
@@ -624,19 +623,15 @@ async def search(args, term, *models):
     data = list()
     included = defaultdict(dict)
     for model in models:
-        id_list = list(
-            object_id for object_id in sliced_data[model.type_].keys())
+        id_list = list(object_id for object_id in sliced_data[model.type_].keys())
         if len(id_list) > 0:
             model_args = model.parse_arguments(_extract_model_args(model, args))
             model.init_schema(model_args)
             query = select_many(model, filter_by=FilterBy(
-                model.primary_key.in_(
-                    [int(object_id) if isinstance(model.primary_key.type,
-                                                  Integer.sa_types)
+                model.primary_key.in_([int(object_id) if isinstance(model.primary_key.type, Integer.sa_types)
                      else object_id for object_id in id_list])))
             log_query(query)
-            recs = [{'type': model.type_, **rec} for rec in
-                    await pg.fetch(query)]
+            recs = [{'type': model.type_, **rec} for rec in await pg.fetch(query)]
             await model.fetch_included(recs, model_args)
             data.extend(model.schema.dump(recs, many=True))
             if len(model.included) > 0:
