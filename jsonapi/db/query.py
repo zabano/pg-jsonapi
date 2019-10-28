@@ -69,15 +69,14 @@ def select_related(rel, obj_id, **kwargs):
 
     if rel.cardinality == Cardinality.ONE_TO_ONE:
         parent_col = rel.model.primary_key
-        if isinstance(obj_id, list):
-            from_items.append(FromItem(
-                rel.model.primary_key.table,
-                onclause=rel.model.primary_key == rel.parent.primary_key,
-                left=True))
+        from_items.append(FromItem(
+            rel.model.primary_key.table,
+            onclause=rel.model.primary_key == rel.parent.primary_key,
+            left=True))
 
     elif rel.cardinality == Cardinality.ONE_TO_MANY:
-        from_items.append(rel.ref.table)
         parent_col = rel.ref
+        from_items.append(rel.ref.table)
 
     elif rel.cardinality == Cardinality.MANY_TO_ONE:
         parent_col = rel.parent.primary_key
