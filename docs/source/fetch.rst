@@ -132,7 +132,7 @@ The generated SQL query may look like this:
 
     When fetching related (or included) objects, table aliases are used to allow the referencing of relationships
     involving the same model definitions (for example: self-reference relationships). This is an implementation
-    detail and users of the library need not to worry about it.
+    detail and users of the library do not need to worry about it.
 
 ****************
 Sparse Fieldsets
