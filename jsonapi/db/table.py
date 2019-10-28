@@ -198,8 +198,7 @@ class FromClause(MutableSequence):
     def __call__(self):
         tables = [self._from_items[0].table] + self._from_items[1:]
         try:
-            return reduce(lambda l, r: l.join(r.table, onclause=r.onclause,
-                                              isouter=r.left), tables)
+            return reduce(lambda l, r: l.join(r.table, onclause=r.onclause, isouter=r.left), tables)
         except NoForeignKeysError:
             left = tables.pop(0)
             n = len(tables)
@@ -207,8 +206,7 @@ class FromClause(MutableSequence):
                 for j in range(len(tables)):
                     right = tables[j]
                     try:
-                        left = left.join(right.table, onclause=right.onclause,
-                                         isouter=right.left)
+                        left = left.join(right.table, onclause=right.onclause, isouter=right.left)
                     except NoForeignKeysError:
                         pass
                     else:
@@ -223,7 +221,7 @@ class FromClause(MutableSequence):
                     return c
         elif isinstance(col, Column):
             for c in self().columns.values():
-                if get_table_name(c) == get_table_name(col) and c.name == col.name:
+                if get_table_name(c.table) == get_table_name(col.table) and c.name == col.name:
                     return c
 
     @staticmethod
@@ -234,17 +232,14 @@ class FromClause(MutableSequence):
         return (from_item.name for from_item in self._from_items)
 
     def is_valid(self, item):
-        return isinstance(item, (
-            Table, Alias, FromItem)) and item.name not in self.keys()
+        return isinstance(item, (Table, Alias, FromItem)) and item.name not in self.keys()
 
     def __repr__(self):
-        return "<{}({})>".format(self.__class__.__name__, ', '.join(
-            from_item.name for from_item in self._from_items))
+        return "<{}({})>".format(self.__class__.__name__, ', '.join(from_item.name for from_item in self._from_items))
 
     def __str__(self):
         if len(self) > 0:
-            return self._from_items[0].table.name \
-                if len(self) == 1 else str(self().compile())
+            return self._from_items[0].table.name if len(self) == 1 else str(self().compile())
         return ''
 
 
@@ -286,15 +281,9 @@ def get_from_items(rel):
         onclause = rel.model.primary_key == rel.ref
     else:
         parent_col, ref_col = rel.ref
-        return [FromItem(parent_col.table,
-                         onclause=parent_col == rel.parent.primary_key,
-                         left=True),
-                FromItem(rel.model.primary_key.table,
-                         onclause=rel.model.primary_key == ref_col,
-                         left=True)]
-    return [FromItem(rel.model.primary_key.table,
-                     onclause=onclause,
-                     left=True)]
+        return [FromItem(parent_col.table, onclause=parent_col == rel.parent.primary_key, left=True),
+                FromItem(rel.model.primary_key.table, onclause=rel.model.primary_key == ref_col, left=True)]
+    return [FromItem(rel.model.primary_key.table, onclause=onclause, left=True)]
 
 
 def is_from_item(from_item):
