@@ -103,7 +103,7 @@ class PageArgument:
             except ValueError:
                 raise Error('invalid value for page[number]: {!r}'.format(number))
             else:
-                if number <= 0:
+                if int(number) <= 0:
                     raise Error('invalid value for page[number]: {!r}'.format(number))
 
     def __repr__(self):

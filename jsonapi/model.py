@@ -253,14 +253,14 @@ class Model:
     # core functionality
     ####################################################################################################################
 
-    def init_schema(self, args, parents=tuple()):
+    def init_schema(self, args=None, parents=tuple()):
         for name, field in self.fields.items():
 
-            fieldset_defined = args.fieldset_defined(self.type_)
-            in_fieldset = args.in_fieldset(self.type_, name)
-            in_include = args.in_include(name, parents)
-            in_sort = args.in_sort(name, parents)
-            in_filter = args.in_filter(name, parents)
+            fieldset_defined = args and args.fieldset_defined(self.type_)
+            in_fieldset = args and args.in_fieldset(self.type_, name)
+            in_include = args and args.in_include(name, parents)
+            in_sort = args and args.in_sort(name, parents)
+            in_filter = args and args.in_filter(name, parents)
             field.sort_by = in_sort
 
             if isinstance(field, Field):
@@ -470,6 +470,7 @@ class Model:
         :return: JSON API response document
         """
 
+        self.init_schema()
         if not await pg.fetchval(exists(self, object_id)):
             raise NotFound(object_id, self)
 
