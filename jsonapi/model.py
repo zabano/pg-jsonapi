@@ -10,16 +10,16 @@ from asyncpgsa import pg
 from inflection import camelize, dasherize, underscore
 from sqlalchemy.sql.expression import ColumnCollection
 
-from jsonapi.db.table import get_primary_key
 from jsonapi.args import parse_arguments
 from jsonapi.datatypes import Integer, String
 from jsonapi.db.filter import FilterBy
 from jsonapi.db.query import SEARCH_LABEL, exists, search_query, select_many, select_one, select_related
-from jsonapi.db.table import Cardinality, FromClause, FromItem, OrderBy, is_from_item
+from jsonapi.db.table import Cardinality, FromClause, FromItem, OrderBy, get_primary_key, is_from_item
 from jsonapi.exc import APIError, Error, Forbidden, ModelError, NotFound
 from jsonapi.fields import Aggregate, BaseField, Field, Relationship
 from jsonapi.log import log_query, logger
 from jsonapi.registry import model_registry, schema_registry
+from jsonapi.util import v
 
 MIME_TYPE = 'application/vnd.api+json'
 """
@@ -66,9 +66,7 @@ class JSONSchema(ma.Schema):
                     resource['relationships'] = dict()
                 included = self.context['root'].included
                 if isinstance(data[name], list):
-                    resource['relationships'][name] = [dict(
-                        id=rec['id'],
-                        type=rec['type']) for rec in data[name]]
+                    resource['relationships'][name] = [dict(id=rec['id'], type=rec['type']) for rec in data[name]]
                     if len(data[name]) > 0:
                         for rec in data[name]:
                             included[rec['type']][rec['id']] = rec
@@ -165,17 +163,13 @@ class Model:
     def get_fields(self):
         fields = dict()
         if hasattr(self, 'fields') and self.fields is not None:
-            if isinstance(self.fields, str):
-                field = self.get_field(self.fields)
-                fields[field.name] = field
-            else:
-                if isinstance(self.fields, Sequence):
-                    for field_spec in self.fields:
-                        field = self.get_field(field_spec)
-                        fields[field.name] = field
+            for field in v(self.fields):
+                if isinstance(field, str):
+                    fields[field] = Field(field)
+                elif isinstance(field, BaseField):
+                    fields[field.name] = copy(field)
                 else:
-                    field = self.get_field(self.fields)
-                    fields[field.name] = field
+                    raise ModelError('invalid field: {!r}'.format(field), self)
 
         if 'id' in fields.keys():
             raise ModelError('illegal field name: "id"', self)
@@ -186,14 +180,6 @@ class Model:
         id_field.load(self)
         fields['id'] = id_field
         return fields
-
-    def get_field(self, field_spec):
-        if isinstance(field_spec, str):
-            return Field(field_spec)
-        elif isinstance(field_spec, BaseField):
-            return copy(field_spec)
-        else:
-            raise ModelError('invalid field: {!r}'.format(field_spec), self)
 
     def get_expr(self, col):
         expr = self.from_clause.get_column(col)
@@ -629,7 +615,7 @@ async def search(args, term, *models):
             model.init_schema(model_args)
             query = select_many(model, filter_by=FilterBy(
                 model.primary_key.in_([int(object_id) if isinstance(model.primary_key.type, Integer.sa_types)
-                     else object_id for object_id in id_list])))
+                                       else object_id for object_id in id_list])))
             log_query(query)
             recs = [{'type': model.type_, **rec} for rec in await pg.fetch(query)]
             await model.fetch_included(recs, model_args)
