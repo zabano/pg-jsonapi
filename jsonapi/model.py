@@ -127,7 +127,7 @@ class Model:
 
         try:
             self.type_ = self.get_type()
-            self.from_clause = self.get_from_items()
+            self.from_clause = self.get_from_clause()
             self.fields = self.get_fields()
         except Error as e:
             raise ModelError(e, self)
@@ -146,19 +146,13 @@ class Model:
             raise Error('"type_" must be a string')
         return cls.type_
 
-    def get_from_items(self):
+    def get_from_clause(self):
         if self.from_ is None:
             raise ModelError('attribute: "from_" is not set', self)
-        try:
-            for from_item in self.from_:
-                if not is_from_item(from_item):
-                    raise ModelError(
-                        'invalid from item: {!r}'.format(from_item), self)
-            return FromClause(*self.from_)
-        except TypeError:
-            if not is_from_item(self.from_):
-                raise ModelError('invalid from item: {!r}'.format(self.from_), self)
-            return FromClause(self.from_)
+        for from_item in v(self.from_):
+            if not is_from_item(from_item):
+                raise ModelError('invalid from item: {!r}'.format(from_item), self)
+        return FromClause(*v(self.from_))
 
     def get_fields(self):
         fields = dict()
