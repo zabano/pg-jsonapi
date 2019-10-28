@@ -2,7 +2,7 @@
 Defining Models
 ###############
 
-.. warning:: Under Development
+.. include:: warning.rst
 
 .. currentmodule:: jsonapi.model
 
