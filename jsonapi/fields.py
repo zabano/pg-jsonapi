@@ -186,7 +186,7 @@ class Relationship(BaseField):
                 return self.refs
             if self.cardinality != Cardinality.ONE_TO_ONE:
                 for from_clause in (self.model.from_clause, self.parent.from_clause):
-                    ref = from_clause.get_column(self.refs[0].name)
+                    ref = from_clause.get_column(self.refs[0])
                     if ref is not None:
                         return ref
 

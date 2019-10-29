@@ -483,12 +483,8 @@ class Model:
         rel.load(self)
         rel.model.init_schema(args)
         filter_by, order_by = rel.model.get_filter_by(args), rel.model.get_order_by(args)
-        query = select_related(rel, obj[self.primary_key.name],
-                               filter_by=filter_by,
-                               order_by=order_by,
-                               offset=args.page.offset,
-                               limit=args.page.limit,
-                               search_term=search)
+        query = select_related(rel, obj[self.primary_key.name], filter_by=filter_by, order_by=order_by,
+                               offset=args.page.offset, limit=args.page.limit, search_term=search)
         log_query(query)
         if rel.cardinality in (Cardinality.ONE_TO_ONE, Cardinality.MANY_TO_ONE):
             result = await pg.fetchrow(query)
