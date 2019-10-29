@@ -62,6 +62,7 @@ class Field(BaseField):
     >>> Field('name', lambda c: c.first + ' ' + c.last)
     >>> Field('created-on', data_type=Date)
     """
+
     def __init__(self, name, col=None, data_type=None):
         """
         :param str name: a unique field name

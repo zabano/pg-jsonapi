@@ -80,10 +80,20 @@ def select_related(rel, obj_id, **kwargs):
 
     elif rel.cardinality == Cardinality.MANY_TO_ONE:
         parent_col = rel.parent.primary_key
-        from_items.append(FromItem(
-            rel.parent.primary_key.table,
-            onclause=rel.model.primary_key == rel.ref,
-            left=True))
+        if rel.ref is None:
+            from_items.append(FromItem(
+                rel.refs[0].table,
+                onclause=rel.model.primary_key == rel.refs[0],
+                left=True))
+            from_items.append(FromItem(
+                rel.parent.primary_key.table,
+                onclause=get_primary_key(rel.refs[0].table) == parent_col,
+                left=True))
+        else:
+            from_items.append(FromItem(
+                rel.parent.primary_key.table,
+                onclause=rel.model.primary_key == rel.ref,
+                left=True))
 
     else:
         parent_col, ref_col = rel.ref
