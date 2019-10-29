@@ -530,7 +530,7 @@ class ModelSet(Set):
             if model.search is None:
                 raise Error('model must be searchable: {!r}'.format(model))
 
-        self._models = set(models)
+        self._models = set(models_uniq)
 
     def __iter__(self):
         return iter(self._models)
