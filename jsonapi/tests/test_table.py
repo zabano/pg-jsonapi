@@ -33,7 +33,7 @@ def test_from_item_1():
     assert from_item.table == users_t
     assert from_item.left is False
     assert from_item.onclause is None
-    assert from_item.name == users_t.name
+    assert from_item.name == 'public.users'
 
 
 def test_from_item_2():

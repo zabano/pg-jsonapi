@@ -4,6 +4,7 @@ from jsonapi.tests.interface.util import check_include_multiple
 from jsonapi.tests.util import *
 
 
+@pytest.mark.dev
 @pytest.mark.asyncio
 async def test_one_to_one(users, user_count, superuser_id):
     user_id_list = sample_integers(1, user_count)

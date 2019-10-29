@@ -140,7 +140,7 @@ class FromItem:
         """
         A unique string identifier (the name of the table, or the table alias).
         """
-        return '{}.{}'.format(self.table.name, self.table.schema)
+        return '{}.{}'.format(self.table.schema, self.table.name) if self.table.schema else self.table.name
 
     def __repr__(self):
         return "<{}({})>".format(self.__class__.__name__, self.name)
@@ -232,7 +232,7 @@ class FromClause(MutableSequence):
         return (from_item.name for from_item in self._from_items)
 
     def is_valid(self, item):
-        return isinstance(item, (Table, Alias, FromItem)) and item not in self.keys()
+        return isinstance(item, (Table, Alias, FromItem)) and item.name not in self.keys()
 
     def __repr__(self):
         return "<{}({})>".format(self.__class__.__name__, ', '.join(from_item.name for from_item in self._from_items))
