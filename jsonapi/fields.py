@@ -1,10 +1,10 @@
 import marshmallow as ma
-from sqlalchemy.sql import text
+from sqlalchemy.sql import text, and_
 from sqlalchemy.sql.schema import Column
 
 from jsonapi.datatypes import DataType, Date, Integer
-from jsonapi.db.table import Cardinality, FromItem, get_primary_key
-from jsonapi.exc import Error
+from jsonapi.db.table import Cardinality, FromItem, get_primary_key, is_clause
+from jsonapi.exc import Error, ModelError
 from jsonapi.registry import model_registry, schema_registry
 
 
@@ -171,6 +171,9 @@ class Relationship(BaseField):
         if self.model is None and self.parent is None:
             raise Error('relationship: {!r} not loaded')
 
+        if self.where is not None and not is_clause(self.where):
+            raise ModelError('{!r} | invalid "where" clause'.format(self), self.model)
+
         from_items = list()
 
         if self.cardinality == Cardinality.ONE_TO_ONE:
@@ -220,19 +223,19 @@ class Relationship(BaseField):
 
         else:
             if related:
-                from_items.append(FromItem(
-                    self.refs[1].table,
-                    onclause=self.model.primary_key == self.refs[1],
-                    left=True))
+                onclause = self.model.primary_key == self.refs[1]
+                if self.where is not None:
+                    onclause = and_(onclause, self.where)
+                from_items.append(FromItem(self.refs[1].table, onclause=onclause, left=True))
                 from_items.append(FromItem(
                     self.parent.primary_key.table,
                     onclause=self.parent.primary_key == self.refs[0],
                     left=True))
             else:
-                from_items.append(FromItem(
-                    self.refs[0].table,
-                    onclause=self.refs[0] == self.parent.primary_key,
-                    left=True))
+                onclause = self.refs[0] == self.parent.primary_key
+                if self.where is not None:
+                    onclause = and_(onclause, self.where)
+                from_items.append(FromItem(self.refs[0].table, onclause=onclause, left=True))
                 from_items.append(FromItem(
                     self.model.primary_key.table,
                     onclause=self.model.primary_key == self.refs[1],

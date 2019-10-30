@@ -396,7 +396,7 @@ class Model:
         >>> await UserModel().get_object({}, first='Robert', last: 'Camacho'})
 
         :param dict args: a dictionary representing the request query string
-        :param int|str object_id: the resource object id
+        :param int|str|dict object_id: the resource object id
         :return: JSON API response document
         """
         args = self.parse_arguments(args)
@@ -464,7 +464,7 @@ class Model:
         >>> }, 1, 'author')
 
         :param dict args: a dictionary representing the request query string
-        :param int|str object_id: the resource object id
+        :param int|str|dict object_id: the resource object id
         :param str relationship_name: relationship name
         :param str search: an optional search term
         :return: JSON API response document
