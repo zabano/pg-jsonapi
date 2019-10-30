@@ -4,7 +4,7 @@ from functools import reduce
 
 from sqlalchemy.exc import NoForeignKeysError
 from sqlalchemy.sql.elements import BinaryExpression, BooleanClauseList
-from sqlalchemy.sql.schema import Table, Column
+from sqlalchemy.sql.schema import Column, Table
 from sqlalchemy.sql.selectable import Alias
 
 from jsonapi.exc import APIError, Error
@@ -44,7 +44,7 @@ class PathJoin:
                 raise APIError('{}.{} | does not exist'.format(model.name, name), model)
             field = model.fields[name]
             if field.is_relationship():
-                self.from_items.extend(get_from_items(field))
+                self.from_items.extend(field.get_from_items())
                 if field.cardinality in (Cardinality.ONE_TO_MANY, Cardinality.MANY_TO_MANY):
                     self.distinct = True
                 model = field.model
@@ -82,7 +82,7 @@ class OrderBy(PathJoin):
             expr = getattr(field.expr, 'desc' if arg.desc else 'asc')
             self.order_by.append(expr().nullslast())
             if field.is_aggregate():
-                self.from_items.extend(get_from_items(field.rel))
+                self.from_items.extend(field.rel.get_from_items())
                 if field.rel.cardinality in (Cardinality.ONE_TO_MANY, Cardinality.MANY_TO_MANY):
                     self.distinct = True
             else:
@@ -270,20 +270,6 @@ def get_primary_key(table):
         return table.primary_key.columns.values()[0]
     except AttributeError:
         return table.primary_key[0]
-
-
-def get_from_items(rel):
-    if rel.cardinality == Cardinality.ONE_TO_ONE:
-        onclause = rel.model.primary_key == rel.parent.primary_key
-    elif rel.cardinality == Cardinality.ONE_TO_MANY:
-        onclause = rel.ref == rel.parent.primary_key
-    elif rel.cardinality == Cardinality.MANY_TO_ONE:
-        onclause = rel.model.primary_key == rel.ref
-    else:
-        parent_col, ref_col = rel.ref
-        return [FromItem(parent_col.table, onclause=parent_col == rel.parent.primary_key, left=True),
-                FromItem(rel.model.primary_key.table, onclause=rel.model.primary_key == ref_col, left=True)]
-    return [FromItem(rel.model.primary_key.table, onclause=onclause, left=True)]
 
 
 def is_from_item(from_item):

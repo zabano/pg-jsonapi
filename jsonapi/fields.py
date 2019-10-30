@@ -2,9 +2,9 @@ import marshmallow as ma
 from sqlalchemy.sql import text
 from sqlalchemy.sql.schema import Column
 
-from jsonapi.datatypes import DataType, Date, Integer, String
-from jsonapi.db.table import Cardinality, FromItem, get_table_name
-from jsonapi.exc import APIError, Error
+from jsonapi.datatypes import DataType, Date, Integer
+from jsonapi.db.table import Cardinality, FromItem, get_primary_key
+from jsonapi.exc import Error
 from jsonapi.registry import model_registry, schema_registry
 
 
@@ -121,20 +121,7 @@ class Aggregate(BaseField):
         if self.data_type is None:
             self.data_type = DataType.get(self.expr)
         self.filter_clause = self.get_filter_clause()
-
-        if self.rel.cardinality == Cardinality.MANY_TO_MANY:
-            ref_model, _ = self.rel.ref
-            self.from_items[model.name] = (
-                FromItem(ref_model.table, left=True),
-                FromItem(self.rel.model.primary_key.table, left=True))
-        elif self.rel.cardinality == Cardinality.ONE_TO_MANY:
-            from_item = FromItem(
-                self.rel.model.primary_key.table,
-                onclause=self.rel.parent.primary_key == self.rel.ref,
-                left=True)
-            self.from_items[model.name] = (from_item,)
-        else:
-            raise APIError('error: "{}"'.format(self.name), model)
+        self.from_items[model.name] = self.rel.get_from_items()
 
 
 class Relationship(BaseField):
@@ -179,16 +166,77 @@ class Relationship(BaseField):
         if self.cardinality == Cardinality.ONE_TO_ONE and len(refs) > 1:
             raise Error('too many "ref" columns: {}'.format(', '.join(r.name) for r in refs))
 
+    def get_from_items(self, related=False):
+
+        if self.model is None and self.parent is None:
+            raise Error('relationship: {!r} not loaded')
+
+        from_items = list()
+
+        if self.cardinality == Cardinality.ONE_TO_ONE:
+            if self.refs:
+                from_items.append(FromItem(
+                    self.refs[0].table,
+                    onclause=get_primary_key(self.refs[0].table) == self.parent.primary_key,
+                    left=True))
+            from_items.append(FromItem(
+                self.model.primary_key.table,
+                onclause=self.model.primary_key == (self.refs[0] if self.refs else self.parent.primary_key),
+                left=True))
+
+        elif self.cardinality == Cardinality.MANY_TO_ONE:
+            ref = self.parent.from_clause.get_column(self.refs[0])
+            if ref is not None:
+                from_items.append(FromItem(
+                    self.parent.primary_key.table if related else self.model.primary_key.table,
+                    onclause=self.model.primary_key == ref,
+                    left=True))
+            else:
+                from_items.append(FromItem(
+                    self.refs[0].table,
+                    onclause=self.model.primary_key == self.refs[0],
+                    left=True))
+                from_items.append(FromItem(
+                    self.parent.primary_key.table,
+                    onclause=get_primary_key(self.refs[0].table) == self.parent.primary_key,
+                    left=True))
+
+        elif self.cardinality == Cardinality.ONE_TO_MANY:
+            ref = self.model.from_clause.get_column(self.refs[0])
+            if ref is not None:
+                from_items.append(FromItem(
+                    self.model.primary_key.table,
+                    onclause=self.parent.primary_key == ref,
+                    left=True))
+            else:
+                from_items.append(FromItem(
+                    self.refs[0].table,
+                    onclause=self.model.primary_key == get_primary_key(self.refs[0]),
+                    left=True))
+                from_items.append(FromItem(
+                    self.parent.primary_key.table,
+                    onclause=self.refs[0] == self.parent.primary_key,
+                    left=True))
+
+        else:
+            from_items.append(FromItem(
+                self.refs[0].table,
+                onclause=self.refs[0] == (self.model.primary_key if related else self.parent.primary_key),
+                left=True))
+            from_items.append(FromItem(
+                self.parent.primary_key.table if related else self.model.primary_key.table,
+                onclause=self.model.primary_key == self.refs[1],
+                left=True))
+
+        return tuple(from_items)
+
     @property
-    def ref(self):
-        if self.model and self.parent:
-            if self.cardinality == Cardinality.MANY_TO_MANY:
-                return self.refs
-            if self.cardinality != Cardinality.ONE_TO_ONE:
-                for from_clause in (self.model.from_clause, self.parent.from_clause):
-                    ref = from_clause.get_column(self.refs[0])
-                    if ref is not None:
-                        return ref
+    def parent_col(self):
+        if self.cardinality == Cardinality.ONE_TO_ONE:
+            return self.model.primary_key
+        if self.cardinality == Cardinality.ONE_TO_MANY:
+            return self.model.from_clause.get_column(self.refs[0])
+        return self.parent.primary_key
 
     def load(self, parent):
         if not self.model:

@@ -4,7 +4,7 @@ import re
 from sqlalchemy.sql import and_, operators, or_
 
 from jsonapi.exc import Error
-from .table import Cardinality, PathJoin, get_from_items, is_clause, is_from_item
+from .table import Cardinality, PathJoin, is_clause, is_from_item
 
 MODIFIERS = {'=': operators.eq, '<>': operators.ne, '!=': operators.ne,
              '>=': operators.ge, '<=': operators.le,
@@ -42,7 +42,7 @@ class FilterBy(PathJoin):
             if field.is_aggregate():
                 if field.rel.cardinality in (Cardinality.ONE_TO_MANY, Cardinality.MANY_TO_MANY):
                     self.distinct = True
-                self.from_items.extend(get_from_items(field.rel))
+                self.from_items.extend(field.rel.get_from_items())
                 self.having.append(clause)
             else:
                 self.where.append(clause)

@@ -65,55 +65,18 @@ def select_related(rel, obj_id, **kwargs):
     if filter_by and search_term:
         raise APIError('cannot filter and search at the same time', rel.model)
 
-    from_items = []
-
-    if rel.cardinality == Cardinality.ONE_TO_ONE:
-        parent_col = rel.model.primary_key
-        from_items.append(FromItem(
-            rel.model.primary_key.table,
-            onclause=rel.model.primary_key == rel.parent.primary_key,
-            left=True))
-
-    elif rel.cardinality == Cardinality.ONE_TO_MANY:
-        parent_col = rel.ref
-        from_items.append(rel.ref.table)
-
-    elif rel.cardinality == Cardinality.MANY_TO_ONE:
-        parent_col = rel.parent.primary_key
-        if rel.ref is None:
-            from_items.append(FromItem(
-                rel.refs[0].table,
-                onclause=rel.model.primary_key == rel.refs[0],
-                left=True))
-            from_items.append(FromItem(
-                rel.parent.primary_key.table,
-                onclause=get_primary_key(rel.refs[0].table) == parent_col,
-                left=True))
-        else:
-            from_items.append(FromItem(
-                rel.parent.primary_key.table,
-                onclause=rel.model.primary_key == rel.ref,
-                left=True))
-
-    else:
-        parent_col, ref_col = rel.ref
-        from_items.append(FromItem(
-            ref_col.table,
-            onclause=rel.model.primary_key == ref_col,
-            left=True))
-
     query = sql.select(
         columns=_col_list(
             rel.model,
-            parent_col.label('parent_id') if isinstance(obj_id, list) else None,
+            rel.parent_col.label('parent_id') if isinstance(obj_id, list) else None,
             search_term=search_term),
-        from_obj=_from_obj(rel.model, *from_items,
+        from_obj=_from_obj(rel.model, *rel.get_from_items(True),
                            filter_by=filter_by,
                            order_by=order_by,
                            search_term=search_term))
 
     if not isinstance(obj_id, list):
-        query = query.where(parent_col == obj_id)
+        query = query.where(rel.parent_col == obj_id)
 
     if not count:
         query = _protect_query(rel.model, query)
@@ -124,13 +87,13 @@ def select_related(rel, obj_id, **kwargs):
             query = query.offset(offset).limit(limit)
 
     query = _group_query(rel.model, query,
-                         parent_col if isinstance(obj_id, list) else None,
+                         rel.parent_col if isinstance(obj_id, list) else None,
                          filter_by=filter_by, order_by=order_by)
     query = _filter_query(query, filter_by)
     query = _search_query(rel.model, query, search_term)
 
     if isinstance(obj_id, list):
-        return (query.where(parent_col.in_(x))
+        return (query.where(rel.parent_col.in_(x))
                 for x in (obj_id[i:i + SQL_PARAM_LIMIT]
                           for i in range(0, len(obj_id), SQL_PARAM_LIMIT)))
     return _count_query(query) if count else query
