@@ -219,14 +219,24 @@ class Relationship(BaseField):
                     left=True))
 
         else:
-            from_items.append(FromItem(
-                self.refs[0].table,
-                onclause=self.refs[0] == (self.model.primary_key if related else self.parent.primary_key),
-                left=True))
-            from_items.append(FromItem(
-                self.parent.primary_key.table if related else self.model.primary_key.table,
-                onclause=self.model.primary_key == self.refs[1],
-                left=True))
+            if related:
+                from_items.append(FromItem(
+                    self.refs[1].table,
+                    onclause=self.model.primary_key == self.refs[1],
+                    left=True))
+                from_items.append(FromItem(
+                    self.parent.primary_key.table,
+                    onclause=self.parent.primary_key == self.refs[0],
+                    left=True))
+            else:
+                from_items.append(FromItem(
+                    self.refs[0].table,
+                    onclause=self.refs[0] == self.parent.primary_key,
+                    left=True))
+                from_items.append(FromItem(
+                    self.model.primary_key.table,
+                    onclause=self.model.primary_key == self.refs[1],
+                    left=True))
 
         return tuple(from_items)
 
