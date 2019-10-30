@@ -315,7 +315,7 @@ class Model:
             log_query(query)
             self.meta['total'] = await pg.fetchval(query)
             if limit is not None and filter_by:
-                self.meta['filterTotal'] = await pg.fetchval(
+                self.meta['totalFiltered'] = await pg.fetchval(
                     select_related(rel, object_id, filter_by=filter_by, count=True)
                     if is_related else select_many(self, filter_by=filter_by, count=True))
             if search_term is not None:

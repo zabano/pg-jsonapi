@@ -26,7 +26,7 @@ async def test_size(users, users_with_5_articles, superuser_id):
                 for article in json['data']:
                     assert_object(article, 'article')
                 assert_meta(json, 'total', lambda v: v == 5)
-                assert 'filterTotal' not in json['meta']
+                assert 'totalFiltered' not in json['meta']
 
 
 @pytest.mark.asyncio
@@ -48,7 +48,7 @@ async def test_size_number(users, users_with_5_articles, superuser_id):
                         assert_object(article, 'article', lambda v: v not in article_id_list)
                         article_id_list.append(article['id'])
                     assert_meta(json, 'total', lambda v: v == 5)
-                    assert 'filterTotal' not in json['meta']
+                    assert 'totalFiltered' not in json['meta']
 
 
 @pytest.mark.asyncio
@@ -70,4 +70,4 @@ async def test_filter(users, users_with_5_articles, superuser_id):
                 assert_object(article, 'article')
                 assert_attribute(article, 'isPublished', lambda v: v is True)
             assert_meta(json, 'total', lambda v: v == 5)
-            assert_meta(json, 'filterTotal', lambda v: v <= 5)
+            assert_meta(json, 'totalFiltered', lambda v: v <= 5)

@@ -60,7 +60,7 @@ async def test_bool(articles, superuser_id, true_values, false_values):
                                    'filter[is-published]': val,
                                    'page[size]': 10},
                                   login=superuser_id) as json:
-            assert_meta(json, 'filterTotal', lambda v: v > 0)
+            assert_meta(json, 'totalFiltered', lambda v: v > 0)
             for article in assert_collection(json, 'article'):
                 assert_attribute(article, 'is-published', lambda v: v is True)
     for val in false_values:
@@ -69,7 +69,7 @@ async def test_bool(articles, superuser_id, true_values, false_values):
                                    'filter[is-published]': val,
                                    'page[size]': 10},
                                   login=superuser_id) as json:
-            assert_meta(json, 'filterTotal', lambda v: v > 0)
+            assert_meta(json, 'totalFiltered', lambda v: v > 0)
             for article in assert_collection(json, 'article'):
                 assert_attribute(article, 'is-published', lambda v: v is False)
 
