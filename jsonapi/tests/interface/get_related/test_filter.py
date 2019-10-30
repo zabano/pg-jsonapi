@@ -5,7 +5,6 @@ import pytest
 from jsonapi.tests.util import *
 
 
-@pytest.mark.dev
 @pytest.mark.asyncio
 async def test_int(users, authors, superuser_id):
     for user_id in authors[:5]:
@@ -23,7 +22,6 @@ async def test_int(users, authors, superuser_id):
                     assert_attribute(article, 'keyword-count', lambda v: compare(int(v), 3))
 
 
-@pytest.mark.dev
 @pytest.mark.asyncio
 async def test_int_multiple(users, authors, superuser_id):
     for user_id in authors[:5]:

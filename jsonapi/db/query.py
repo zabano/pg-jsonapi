@@ -8,6 +8,21 @@ SQL_PARAM_LIMIT = 10000
 SEARCH_LABEL = '_ts_rank'
 
 
+class QueryArguments:
+
+    def __init__(self, **kwargs):
+        self.filter_by = kwargs.get('filter_by', None)
+        self.order_by = kwargs.get('order_by', None)
+        self.search_term = kwargs.get('search_term', None)
+        self.count = bool(kwargs.get('count', False))
+        self.limit = kwargs.get('limit', None)
+        self.offset = kwargs.get('offset', 0)
+
+    def __repr__(self):
+        return '{}({})'.format(self.__class__.__name__,
+                               ','.join('{}={}'.format(k, v) for k, v in self.__dict__.items() if v))
+
+
 ########################################################################################################################
 # public interface
 ########################################################################################################################
@@ -17,86 +32,54 @@ def exists(model, obj_id):
 
 
 def select_one(model, obj_id):
-    query = sql.select(from_obj=_from_obj(model),
-                       columns=_col_list(model),
-                       whereclause=_where_one(model, obj_id))
+    query = sql.select(from_obj=_from_obj(model), columns=_col_list(model), whereclause=_where_one(model, obj_id))
     query = _group_query(model, query)
     query = _protect_query(model, query)
     return query
 
 
 def select_many(model, **kwargs):
-    filter_by = kwargs.get('filter_by', None)
-    order_by = kwargs.get('order_by', None)
-    search_term = kwargs.get('search_term', None)
-    count = bool(kwargs.get('count', False))
-    limit = kwargs.get('limit', None)
-    offset = kwargs.get('offset', 0)
-
-    if filter_by and search_term:
+    qa = QueryArguments(**kwargs)
+    if qa.filter_by and qa.search_term:
         raise APIError('cannot filter and search at the same time', model)
-
-    query = sql.select(columns=_col_list(model, search_term=search_term),
-                       from_obj=_from_obj(model,
-                                          filter_by=filter_by,
-                                          order_by=order_by,
-                                          search_term=search_term))
-
-    if not count:
+    query = sql.select(columns=_col_list(model, search_term=qa.search_term),
+                       from_obj=_from_obj(model, filter_by=qa.filter_by, order_by=qa.order_by,
+                                          search_term=qa.search_term))
+    if not qa.count:
         query = _protect_query(model, query)
-        query = _sort_query(model, query, order_by, search_term)
-        if limit is not None:
-            query = query.offset(offset).limit(limit)
-
-    query = _group_query(model, query, filter_by=filter_by, order_by=order_by)
-    query = _filter_query(query, filter_by)
-    query = _search_query(model, query, search_term)
-    return _count_query(query) if count else query
+        query = _sort_query(model, query, qa.order_by, qa.search_term)
+        if qa.limit is not None:
+            query = query.offset(qa.offset).limit(qa.limit)
+    query = _group_query(model, query, filter_by=qa.filter_by, order_by=qa.order_by)
+    query = _filter_query(query, qa.filter_by)
+    query = _search_query(model, query, qa.search_term)
+    return _count_query(query) if qa.count else query
 
 
 def select_related(rel, obj_id, **kwargs):
-    filter_by = kwargs.get('filter_by', None)
-    order_by = kwargs.get('order_by', None)
-    search_term = kwargs.get('search_term', None)
-    count = bool(kwargs.get('count', False))
-    limit = kwargs.get('limit', None)
-    offset = kwargs.get('offset', 0)
-
-    if filter_by and search_term:
+    qa = QueryArguments(**kwargs)
+    if qa.filter_by and qa.search_term:
         raise APIError('cannot filter and search at the same time', rel.model)
-
-    query = sql.select(
-        columns=_col_list(
-            rel.model,
-            rel.parent_col.label('parent_id') if isinstance(obj_id, list) else None,
-            search_term=search_term),
-        from_obj=_from_obj(rel.model, *rel.get_from_items(True),
-                           filter_by=filter_by,
-                           order_by=order_by,
-                           search_term=search_term))
-
+    parent_col = rel.parent_col.label('parent_id') if isinstance(obj_id, list) else None
+    query = sql.select(columns=_col_list(rel.model, parent_col, search_term=qa.search_term),
+                       from_obj=_from_obj(rel.model, *rel.get_from_items(True), filter_by=qa.filter_by,
+                                          order_by=qa.order_by, search_term=qa.search_term))
     if not isinstance(obj_id, list):
         query = query.where(rel.parent_col == obj_id)
-
-    if not count:
+    if not qa.count:
         query = _protect_query(rel.model, query)
-        if rel.cardinality in (
-                Cardinality.ONE_TO_MANY, Cardinality.MANY_TO_MANY):
-            query = _sort_query(rel.model, query, order_by, search_term)
-        if limit is not None:
-            query = query.offset(offset).limit(limit)
-
-    query = _group_query(rel.model, query,
-                         rel.parent_col if isinstance(obj_id, list) else None,
-                         filter_by=filter_by, order_by=order_by)
-    query = _filter_query(query, filter_by)
-    query = _search_query(rel.model, query, search_term)
-
+        if rel.cardinality in (Cardinality.ONE_TO_MANY, Cardinality.MANY_TO_MANY):
+            query = _sort_query(rel.model, query, qa.order_by, qa.search_term)
+        if qa.limit is not None:
+            query = query.offset(qa.offset).limit(qa.limit)
+    query = _group_query(rel.model, query, parent_col, filter_by=qa.filter_by, order_by=qa.order_by)
+    query = _filter_query(query, qa.filter_by)
+    query = _search_query(rel.model, query, qa.search_term)
     if isinstance(obj_id, list):
         return (query.where(rel.parent_col.in_(x))
                 for x in (obj_id[i:i + SQL_PARAM_LIMIT]
                           for i in range(0, len(obj_id), SQL_PARAM_LIMIT)))
-    return _count_query(query) if count else query
+    return _count_query(query) if qa.count else query
 
 
 def search_query(model, term):
@@ -183,8 +166,7 @@ def _protect_query(model, query):
         return query
     if not hasattr(model, 'user'):
         raise ModelError('"user" not defined for protected model', model)
-    return query.where(model.access(
-        model.primary_key, model.user.id if model.user else None))
+    return query.where(model.access(model.primary_key, model.user.id if model.user else None))
 
 
 def _search_query(model, query, search_term):
@@ -194,9 +176,7 @@ def _search_query(model, query, search_term):
 
 
 def _rank_column(model, search_term):
-    return sql.func.ts_rank_cd(
-        model.search.c.tsvector, sql.func.to_tsquery(search_term)).label(
-        SEARCH_LABEL)
+    return sql.func.ts_rank_cd(model.search.c.tsvector, sql.func.to_tsquery(search_term)).label(SEARCH_LABEL)
 
 
 def _count_query(query):
