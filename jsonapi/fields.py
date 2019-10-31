@@ -116,7 +116,10 @@ class Aggregate(BaseField):
         elif isinstance(self.col, str):
             col_expr = model.get_expr(self.col).distinct()
         else:
-            col_expr = self.col(model.rec)
+            try:
+                col_expr = self.col(model.rec, self.rel.model.rec)
+            except TypeError:
+                col_expr = self.col(model.rec)
         self.expr = self.func(text(str(col_expr)))
         if self.data_type is None:
             self.data_type = DataType.get(self.expr)
@@ -208,9 +211,14 @@ class Relationship(BaseField):
             ref = self.model.from_clause.get_column(self.refs[0])
             if ref is not None:
                 from_items.append(FromItem(
-                    self.model.primary_key.table,
+                    ref.table,
                     onclause=self.parent.primary_key == ref,
                     left=True))
+                if self.model.primary_key.table != ref.table:
+                    from_items.append(FromItem(
+                        self.model.primary_key.table,
+                        onclause=get_primary_key(ref.table) == self.model.primary_key,
+                        left=True))
             else:
                 from_items.append(FromItem(
                     self.refs[0].table,
