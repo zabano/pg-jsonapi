@@ -207,8 +207,7 @@ class Model:
     def relationship(self, name):
         if name in self.fields.keys() and isinstance(self.fields[name], Relationship):
             return self.fields[name]
-        return ModelError('relationship does not exist: "{}"'.format(name),
-                          self)
+        raise ModelError('relationship does not exist: "{}"'.format(name), self)
 
     ####################################################################################################################
     # properties
@@ -255,12 +254,7 @@ class Model:
     # core functionality
     ####################################################################################################################
 
-    def init_schema(self, args=None, parents=(), related_fields=()):
-
-        for col in related_fields:
-            field = Field(col.name, data_type=DataType.get(col))
-            field.expr = col
-            self.fields[field.name] = field
+    def init_schema(self, args=None, parents=()):
 
         for name, field in self.fields.items():
 
@@ -275,8 +269,7 @@ class Model:
                 field.exclude = name != 'id' and fieldset_defined and not in_fieldset
                 if not field.exclude or in_sort or in_filter:
                     logger.info('load field: {}.{}'.format(self.name, field.name))
-                    if field.expr is None:
-                        field.load(self)
+                    field.load(self)
 
             elif isinstance(field, Aggregate):
                 field.exclude = not in_fieldset
@@ -290,7 +283,7 @@ class Model:
                 if in_include or in_sort or in_filter:
                     logger.info('load field: {}.{}'.format(self.name, field.name))
                     field.load(self)
-                    field.model.init_schema(args, tuple([*parents, field.name]), field.fields)
+                    field.model.init_schema(args, tuple([*parents, field.name]))
             else:
                 raise ModelError('unsupported field: {!r}'.format(field), self)
 
