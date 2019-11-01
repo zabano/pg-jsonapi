@@ -16,6 +16,9 @@ class AttributePath:
     def __iter__(self):
         return iter(self.names)
 
+    def __getitem__(self, index):
+        return self.names[index]
+
     def exists(self, name, parents=tuple()):
         return tuple((*parents, name)) == self.names[:1 + len(parents)]
 

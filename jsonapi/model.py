@@ -13,7 +13,7 @@ from sqlalchemy.sql.expression import ColumnCollection
 from jsonapi.args import parse_arguments
 from jsonapi.datatypes import Integer, String, DataType
 from jsonapi.db.filter import FilterBy
-from jsonapi.db.query import SEARCH_LABEL, exists, search_query, select_many, select_one, select_related
+from jsonapi.db.query import SEARCH_LABEL, exists, search_query, select_many, select_one, select_related, select_mixed
 from jsonapi.db.table import Cardinality, FromClause, FromItem, OrderBy, get_primary_key, is_from_item
 from jsonapi.exc import APIError, Error, Forbidden, ModelError, NotFound
 from jsonapi.fields import Aggregate, BaseField, Field, Relationship
@@ -509,7 +509,7 @@ class Model:
 
 class ModelSet(Set):
 
-    def __init__(self, *models):
+    def __init__(self, *models, search=False):
 
         if len(models) < 2:
             raise Error('at least two models are required')
@@ -524,9 +524,10 @@ class ModelSet(Set):
             elif not isinstance(model, Model):
                 raise Error('invalid model: {!r}'.format(model))
 
-        for model in models_uniq:
-            if model.search is None:
-                raise Error('model must be searchable: {!r}'.format(model))
+        if search:
+            for model in models_uniq:
+                if model.search is None:
+                    raise Error('model must be searchable: {!r}'.format(model))
 
         self._models = set(models_uniq)
 
@@ -552,6 +553,63 @@ def _extract_model_args(model, args):
         if key.startswith('fields'):
             model_args[key] = val
     return model_args
+
+
+async def get_collection(args, *models):
+    """
+    Search multiple models.
+
+    Returns a heterogeneous list of objects, sorted by search result rank.
+
+    >>> from jsonapi.model import search
+    >>> search({'include[user]': 'bio',
+    >>>         'include[article]': 'keywords,author.bio,publisher.bio',
+    >>>         'fields[user]': 'name,email',
+    >>>         'fields[user-bio]': 'birthday,age',
+    >>>         'fields[article]': 'title'},
+    >>>         'John', UserModel, ArticleModel)
+
+    :param dict args: a dictionary representing the request query string
+    :param str term: a PostgreSQL full text search query string (e.x. ``'foo:* & !bar'``)
+    :param Model models: variable length list of model classes or instances
+    :return: JSON API response document
+    """
+
+    search_args = parse_arguments(args)
+    models = ModelSet(*models)
+
+    query = select_mixed(*models, order_by=search_args.sort,
+                         limit=search_args.page.limit, offset=search_args.page.offset)
+
+    mixed = list()
+    log_query(query)
+    async with pg.query(query) as cursor:
+        async for row in cursor:
+            mixed.append(dict(type=row['resource_type'], id=row['id']))
+
+    data = defaultdict(dict)
+    included = defaultdict(dict)
+    for model in models:
+        id_list = list(obj['id'] for obj in mixed if model.type_ == obj['type'])
+        if len(id_list) > 0:
+            model_args = model.parse_arguments(_extract_model_args(model, args))
+            model.init_schema(model_args)
+            query = select_many(model, filter_by=FilterBy(
+                model.primary_key.in_([int(object_id) if isinstance(model.primary_key.type, Integer.sa_types)
+                                       else object_id for object_id in id_list])))
+            log_query(query)
+            recs = [{'type': model.type_, **rec} for rec in await pg.fetch(query)]
+            await model.fetch_included(recs, model_args)
+            for rec in model.schema.dump(recs, many=True):
+                data[rec['type']][rec['id']] = rec
+            if len(model.included) > 0:
+                included.update(model.included)
+        model.reset()
+
+    response = dict(data=[data[rec['type']][str(rec['id'])] for rec in mixed])
+    if included:
+        response['included'] = reduce(lambda a, b: a + [r for r in b.values()], included.values(), list())
+    return response
 
 
 async def search(args, term, *models):
@@ -582,7 +640,7 @@ async def search(args, term, *models):
         'page[number]': args['page[number]'] if 'page[number]' in args else 1,
     })
 
-    models = ModelSet(*models)
+    models = ModelSet(*models, search=True)
 
     data = list()
     total = 0

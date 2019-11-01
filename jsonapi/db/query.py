@@ -1,3 +1,5 @@
+from functools import reduce
+
 import sqlalchemy.sql as sql
 
 from jsonapi.exc import ModelError, APIError
@@ -80,6 +82,16 @@ def select_related(rel, obj_id, **kwargs):
                 for x in (obj_id[i:i + SQL_PARAM_LIMIT]
                           for i in range(0, len(obj_id), SQL_PARAM_LIMIT)))
     return _count_query(query) if qa.count else query
+
+
+def select_mixed(*models, **kwargs):
+    qa = QueryArguments(**kwargs)
+    union = sql.union(*[_protect_query(model, sql.select([
+        model.primary_key.label('id'), model.primary_key.table,
+        sql.func.lower(model.type_).label('resource_type')])) for model in models])
+    if qa.limit is not None:
+        union = union.limit(qa.limit).offset(qa.offset)
+    return union.order_by(*[getattr(union.c[s.path[0]], 'desc' if s.desc else 'asc')() for s in qa.order_by])
 
 
 def search_query(model, term):
