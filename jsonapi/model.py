@@ -11,7 +11,7 @@ from inflection import camelize, dasherize, underscore
 from sqlalchemy.sql.expression import ColumnCollection
 
 from jsonapi.args import parse_arguments
-from jsonapi.datatypes import Integer, String
+from jsonapi.datatypes import Integer, String, DataType
 from jsonapi.db.filter import FilterBy
 from jsonapi.db.query import SEARCH_LABEL, exists, search_query, select_many, select_one, select_related
 from jsonapi.db.table import Cardinality, FromClause, FromItem, OrderBy, get_primary_key, is_from_item
@@ -182,15 +182,16 @@ class Model:
         return expr
 
     @classmethod
-    def get_from_aliases(cls, name, index=None):
+    def get_from_aliases(cls, name, *extra):
         from_ = deepcopy(list(cls.from_)) if isinstance(cls.from_, Sequence) else [copy(cls.from_)]
+        from_.extend(extra)
         for i, from_item in enumerate(from_):
             alias_name = '_{}__{}_t'.format(name, from_item.name)
             if isinstance(from_item, FromItem):
                 from_item.table = from_item.table.alias(alias_name)
             else:
                 from_[i] = from_item.alias(alias_name)
-        return from_[index] if index is not None else from_
+        return from_
 
     def parse_arguments(self, args):
         try:
@@ -225,7 +226,8 @@ class Model:
         """
         A database column representing the Model's primary key.
         """
-        return get_primary_key(self.from_clause[0].table)
+        for from_item in self.from_clause:
+            return get_primary_key(from_item.table)
 
     @property
     def relationships(self):
@@ -253,7 +255,13 @@ class Model:
     # core functionality
     ####################################################################################################################
 
-    def init_schema(self, args=None, parents=tuple()):
+    def init_schema(self, args=None, parents=(), related_fields=()):
+
+        for col in related_fields:
+            field = Field(col.name, data_type=DataType.get(col))
+            field.expr = col
+            self.fields[field.name] = field
+
         for name, field in self.fields.items():
 
             fieldset_defined = args and args.fieldset_defined(self.type_)
@@ -267,7 +275,8 @@ class Model:
                 field.exclude = name != 'id' and fieldset_defined and not in_fieldset
                 if not field.exclude or in_sort or in_filter:
                     logger.info('load field: {}.{}'.format(self.name, field.name))
-                    field.load(self)
+                    if field.expr is None:
+                        field.load(self)
 
             elif isinstance(field, Aggregate):
                 field.exclude = not in_fieldset
@@ -281,8 +290,7 @@ class Model:
                 if in_include or in_sort or in_filter:
                     logger.info('load field: {}.{}'.format(self.name, field.name))
                     field.load(self)
-                    field.model.init_schema(args, tuple([*parents, field.name]))
-
+                    field.model.init_schema(args, tuple([*parents, field.name]), field.fields)
             else:
                 raise ModelError('unsupported field: {!r}'.format(field), self)
 

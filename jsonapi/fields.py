@@ -1,3 +1,5 @@
+import re
+from inflection import underscore
 import marshmallow as ma
 from sqlalchemy.sql import text, and_
 from sqlalchemy.sql.schema import Column
@@ -153,7 +155,8 @@ class Relationship(BaseField):
         self.model = None
         self.nested = None
         self.parent = None
-        self.where = kwargs.get('where', None)
+        self.where = kwargs.pop('where', None)
+        self.fields = self.get_fields(kwargs.pop('fields', None))
 
     def check_refs(self, refs):
         for ref in refs:
@@ -168,6 +171,15 @@ class Relationship(BaseField):
 
         if self.cardinality == Cardinality.ONE_TO_ONE and len(refs) > 1:
             raise Error('too many "ref" columns: {}'.format(', '.join(r.name) for r in refs))
+
+    def get_fields(self, fields):
+        if fields:
+            if self.cardinality != Cardinality.MANY_TO_MANY:
+                raise Error('{!r} | "fields" argument not allowed here'.format(self))
+            if not isinstance(fields, str):
+                raise Error('{!r} | invalid "fields" argument'.format(self))
+            return tuple(self.refs[0].table.c[underscore(name)] for name in re.split(r'[ ,]', fields))
+        return ()
 
     def get_from_items(self, related=False):
 

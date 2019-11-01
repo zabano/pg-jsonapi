@@ -94,19 +94,15 @@ def test_from_item_exc_5():
 def test_from_clause():
     fc = FromClause(users_t)
     assert len(fc) == 1
-    fc.append(FromItem(user_names_t, left=True))
+    fc.add(FromItem(user_names_t, left=True))
     assert len(fc) == 2
-    fc.append(FromItem(user_names_t, left=True))
+    fc.add(FromItem(user_names_t, left=True))
     assert len(fc) == 2
-    fc.append(FromItem(users_t.alias('test')))
+    fc.add(FromItem(users_t.alias('test')))
     assert len(fc) == 3
     for from_item in fc:
         assert isinstance(from_item, FromItem)
     assert isinstance(fc(), Join)
-    assert isinstance(fc.pop(), FromItem)
-    assert isinstance(fc(), Join)
-    assert isinstance(fc.pop(), FromItem)
-    assert isinstance(fc(), Table)
 
 
 def test_from_clause_exc():

@@ -114,17 +114,17 @@ def _from_obj(model, *extra_items, **kwargs):
     order_by = kwargs.get('order_by', None)
     search_term = kwargs.get('search_term', None)
     from_clause = FromClause(*model.from_clause)
-    from_clause.extend(extra_items)
+    from_clause.add(*extra_items)
     if filter_by:
-        from_clause.extend(filter_by.from_items)
+        from_clause.add(*filter_by.from_items)
     if order_by:
-        from_clause.extend(order_by.from_items)
+        from_clause.add(*order_by.from_items)
     if model.search is not None and search_term is not None:
-        from_clause.append(FromItem(model.search, onclause=model.primary_key == get_primary_key(model.search)))
+        from_clause.add(FromItem(model.search, onclause=model.primary_key == get_primary_key(model.search)))
     for field in model.attributes.values():
         if isinstance(field, Aggregate) and field.expr is not None:
             for from_item in field.from_items[model.name]:
-                from_clause.append(from_item)
+                from_clause.add(from_item)
     return from_clause()
 
 

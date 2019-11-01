@@ -1,5 +1,5 @@
 import enum
-from collections.abc import MutableSequence
+from collections import OrderedDict
 from functools import reduce
 
 from sqlalchemy.exc import NoForeignKeysError
@@ -149,7 +149,7 @@ class FromItem:
         return self.name
 
 
-class FromClause(MutableSequence):
+class FromClause:
     """
     Represent the FROM clause of a SELECT query.
     A :class:`FromClause` object is a sequence of :class:`FromItem` objects.
@@ -175,28 +175,22 @@ class FromClause(MutableSequence):
         """
         :param from_items: a variable length list of FROM items, tables, or aliases.
         """
-        self._from_items = [self.value(item) for item in from_items]
+        items = [self.value(item) for item in from_items]
+        self._from_items = OrderedDict([(i.name, i) for i in items])
+
+    def add(self, *items):
+        for item in items:
+            self._from_items[item.name] = item
 
     def __len__(self):
         return len(self._from_items)
 
-    def __getitem__(self, index):
-        return self._from_items[index]
-
-    def __setitem__(self, index, item):
-        from_item = self._from_items[index]
-        if item.name == from_item.table.name or self.is_valid(item):
-            self._from_items[index] = self.value(item)
-
-    def __delitem__(self, index):
-        del self._from_items[index]
-
-    def insert(self, index, item):
-        if self.is_valid(item):
-            self._from_items.insert(index, self.value(item))
+    def __iter__(self):
+        return iter(self._from_items.values())
 
     def __call__(self):
-        tables = [self._from_items[0].table] + self._from_items[1:]
+        items = list(self._from_items.values())
+        tables = [items[0].table] + items[1:]
         try:
             return reduce(lambda l, r: l.join(r.table, onclause=r.onclause, isouter=r.left), tables)
         except NoForeignKeysError:
@@ -226,13 +220,9 @@ class FromClause(MutableSequence):
 
     @staticmethod
     def value(item):
+        if not isinstance(item, (Table, Alias, FromItem)):
+            raise Error('FromClause | invalid item: {!r}')
         return item if isinstance(item, FromItem) else FromItem(item)
-
-    def keys(self):
-        return (from_item.name for from_item in self._from_items)
-
-    def is_valid(self, item):
-        return isinstance(item, (Table, Alias, FromItem)) and item.name not in self.keys()
 
     def __repr__(self):
         return "<{}({})>".format(self.__class__.__name__, ', '.join(from_item.name for from_item in self._from_items))

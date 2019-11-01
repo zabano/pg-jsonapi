@@ -155,7 +155,7 @@ async def test_custom(articles, article_count, superuser_id):
 
 
 @pytest.mark.asyncio
-async def test_relationship(articles, article_count, superuser_id):
+async def test_relationship_1(articles, article_count, superuser_id):
     for args in [{'filter[publisher]': 'none'},
                  {'filter[publisher:eq]': 'none'},
                  {'filter[publisher.id]': 'none'},
@@ -166,6 +166,9 @@ async def test_relationship(articles, article_count, superuser_id):
                 assert_object(article, 'article')
                 assert_attribute(article, 'is-published', lambda v: v is False)
 
+
+@pytest.mark.asyncio
+async def test_relationship_2(articles, superuser_id):
     async with get_collection(articles,
                               {'include': 'author',
                                'fields[user]': 'article-count',
