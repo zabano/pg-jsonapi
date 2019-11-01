@@ -259,6 +259,7 @@ class Model:
         for name, field in self.fields.items():
 
             fieldset_defined = args and args.fieldset_defined(self.type_)
+            fieldset_wildcard = fieldset_defined and args.fieldset_wildcard(self.type_)
             in_fieldset = args and args.in_fieldset(self.type_, name)
             in_include = args and args.in_include(name, parents)
             in_sort = args and args.in_sort(name, parents)
@@ -266,7 +267,7 @@ class Model:
             field.sort_by = in_sort
 
             if isinstance(field, Field):
-                field.exclude = name != 'id' and fieldset_defined and not in_fieldset
+                field.exclude = name != 'id' and fieldset_defined and not (in_fieldset or fieldset_wildcard)
                 if not field.exclude or in_sort or in_filter:
                     logger.info('load field: {}.{}'.format(self.name, field.name))
                     field.load(self)

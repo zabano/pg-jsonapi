@@ -129,6 +129,9 @@ class RequestArguments:
     def fieldset_defined(self, resource_type):
         return resource_type in self.fields.keys()
 
+    def fieldset_wildcard(self, resource_type):
+        return resource_type in self.fields.keys() and '*' in self.fields[resource_type]
+
     def in_fieldset(self, resource_type, name):
         return self.fieldset_defined(resource_type) and name in self.fields[resource_type]
 
