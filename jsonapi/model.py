@@ -3,7 +3,6 @@ from collections import defaultdict
 from collections.abc import Sequence, Set
 from copy import copy, deepcopy
 from functools import reduce
-from itertools import islice
 
 import marshmallow as ma
 from asyncpgsa import pg
@@ -11,9 +10,9 @@ from inflection import camelize, dasherize, underscore
 from sqlalchemy.sql.expression import ColumnCollection
 
 from jsonapi.args import parse_arguments
-from jsonapi.datatypes import Integer, String, DataType
+from jsonapi.datatypes import Integer, String
 from jsonapi.db.filter import FilterBy
-from jsonapi.db.query import SEARCH_LABEL, exists, search_query, select_many, select_one, select_related, select_mixed
+from jsonapi.db.query import SEARCH_LABEL, exists, search_query, select_many, select_mixed, select_one, select_related
 from jsonapi.db.table import Cardinality, FromClause, FromItem, OrderBy, get_primary_key, is_from_item
 from jsonapi.exc import APIError, Error, Forbidden, ModelError, NotFound
 from jsonapi.fields import Aggregate, BaseField, Field, Relationship
@@ -416,7 +415,7 @@ class Model:
         await self.fetch_included([rec], args)
         return self.response(rec)
 
-    async def get_collection(self, args, search=None):
+    async def get_collection(self, args, **kwargs):
         """
         Fetch a collection of resources.
 
@@ -445,16 +444,17 @@ class Model:
         args = self.parse_arguments(args)
         self.init_schema(args)
         filter_by, order_by = self.get_filter_by(args), self.get_order_by(args)
+        search_term = kwargs.pop('search', None)
         query = select_many(self, filter_by=filter_by, order_by=order_by,
                             offset=args.page.offset, limit=args.page.limit,
-                            search_term=search)
+                            search_term=search_term)
         log_query(query)
         recs = [dict(rec) for rec in await pg.fetch(query)]
-        await self.set_meta(args.page.limit, filter_by=filter_by, search_term=search)
+        await self.set_meta(args.page.limit, filter_by=filter_by, search_term=search_term)
         await self.fetch_included(recs, args)
         return self.response(recs)
 
-    async def get_related(self, args, object_id, relationship_name, search=None):
+    async def get_related(self, args, object_id, relationship_name, **kwargs):
         """
         Fetch a collection of related resources.
 
@@ -485,8 +485,9 @@ class Model:
         rel.load(self)
         rel.model.init_schema(args)
         filter_by, order_by = rel.model.get_filter_by(args), rel.model.get_order_by(args)
+        search_term = kwargs.pop('search', None)
         query = select_related(rel, obj[self.primary_key.name], filter_by=filter_by, order_by=order_by,
-                               offset=args.page.offset, limit=args.page.limit, search_term=search)
+                               offset=args.page.offset, limit=args.page.limit, search_term=search_term)
         log_query(query)
         if rel.cardinality in (Cardinality.ONE_TO_ONE, Cardinality.MANY_TO_ONE):
             result = await pg.fetchrow(query)
@@ -494,7 +495,7 @@ class Model:
         else:
             data = [dict(rec) for rec in await pg.fetch(query)]
             await rel.model.set_meta(args.page.limit, obj[self.primary_key.name], rel,
-                                     filter_by=filter_by, search_term=search)
+                                     filter_by=filter_by, search_term=search_term)
         await rel.model.fetch_included(data, args)
         return rel.model.response(data)
 
@@ -503,13 +504,13 @@ class Model:
 
 
 ########################################################################################################################
-# Multi-Model Search
+# Multi-Model Functions
 ########################################################################################################################
 
 
 class ModelSet(Set):
 
-    def __init__(self, *models, search=False):
+    def __init__(self, *models, searchable=False):
 
         if len(models) < 2:
             raise Error('at least two models are required')
@@ -524,7 +525,7 @@ class ModelSet(Set):
             elif not isinstance(model, Model):
                 raise Error('invalid model: {!r}'.format(model))
 
-        if search:
+        if searchable:
             for model in models_uniq:
                 if model.search is None:
                     raise Error('model must be searchable: {!r}'.format(model))
@@ -555,48 +556,21 @@ def _extract_model_args(model, args):
     return model_args
 
 
-async def get_collection(args, *models):
+async def _response(args, models, mixed):
     """
-    Search multiple models.
-
-    Returns a heterogeneous list of objects, sorted by search result rank.
-
-    >>> from jsonapi.model import search
-    >>> search({'include[user]': 'bio',
-    >>>         'include[article]': 'keywords,author.bio,publisher.bio',
-    >>>         'fields[user]': 'name,email',
-    >>>         'fields[user-bio]': 'birthday,age',
-    >>>         'fields[article]': 'title'},
-    >>>         'John', UserModel, ArticleModel)
-
-    :param dict args: a dictionary representing the request query string
-    :param str term: a PostgreSQL full text search query string (e.x. ``'foo:* & !bar'``)
-    :param Model models: variable length list of model classes or instances
-    :return: JSON API response document
+    :param Model models: a variable list of models
+    :param list mixed: a list of resource id objects
     """
-
-    search_args = parse_arguments(args)
-    models = ModelSet(*models)
-
-    query = select_mixed(*models, order_by=search_args.sort,
-                         limit=search_args.page.limit, offset=search_args.page.offset)
-
-    mixed = list()
-    log_query(query)
-    async with pg.query(query) as cursor:
-        async for row in cursor:
-            mixed.append(dict(type=row['resource_type'], id=row['id']))
-
     data = defaultdict(dict)
     included = defaultdict(dict)
     for model in models:
-        id_list = list(obj['id'] for obj in mixed if model.type_ == obj['type'])
-        if len(id_list) > 0:
+        object_id = list(obj['id'] for obj in mixed if model.type_ == obj['type'])
+        if len(object_id) > 0:
             model_args = model.parse_arguments(_extract_model_args(model, args))
             model.init_schema(model_args)
             query = select_many(model, filter_by=FilterBy(
                 model.primary_key.in_([int(object_id) if isinstance(model.primary_key.type, Integer.sa_types)
-                                       else object_id for object_id in id_list])))
+                                       else object_id for object_id in object_id])))
             log_query(query)
             recs = [{'type': model.type_, **rec} for rec in await pg.fetch(query)]
             await model.fetch_included(recs, model_args)
@@ -605,11 +579,34 @@ async def get_collection(args, *models):
             if len(model.included) > 0:
                 included.update(model.included)
         model.reset()
+    return dict(data=[data[rec['type']][str(rec['id'])] for rec in mixed],
+                included=reduce(lambda a, b: a + [r for r in b.values()], included.values(), list()))
 
-    response = dict(data=[data[rec['type']][str(rec['id'])] for rec in mixed])
-    if included:
-        response['included'] = reduce(lambda a, b: a + [r for r in b.values()], included.values(), list())
-    return response
+
+async def get_collection(args, *models):
+    """
+    Fetch a heterogeneous collection of objects.
+
+    Returns a heterogeneous list of objects. Can be sorted and filtered.
+
+    :param dict args: a dictionary representing the request query string
+    :param Model models: variable length list of model classes or instances
+    :return: JSON API response document
+    """
+
+    collection_args = parse_arguments(args)
+    models = ModelSet(*models)
+
+    query = select_mixed(*models, order_by=collection_args.sort,
+                         limit=collection_args.page.limit, offset=collection_args.page.offset)
+
+    mixed = list()
+    log_query(query)
+    async with pg.query(query) as cursor:
+        async for row in cursor:
+            mixed.append(dict(type=row['resource_type'], id=row['id']))
+
+    return await _response(args, models, mixed)
 
 
 async def search(args, term, *models):
@@ -640,7 +637,7 @@ async def search(args, term, *models):
         'page[number]': args['page[number]'] if 'page[number]' in args else 1,
     })
 
-    models = ModelSet(*models, search=True)
+    models = ModelSet(*models, searchable=True)
 
     data = list()
     total = 0
@@ -649,38 +646,15 @@ async def search(args, term, *models):
         log_query(query)
         async with pg.query(query) as cursor:
             async for row in cursor:
-                data.append(dict(type=model.type_, id=str(row['id']), rank=row[SEARCH_LABEL]))
+                data.append(dict(type=model.type_, id=row['id'], rank=row[SEARCH_LABEL]))
                 total += 1
     data = sorted(data, key=lambda x: x['rank'], reverse=True)
-
-    sliced_data = defaultdict(dict)
-    for rec in islice(data, search_args.page.offset, search_args.page.offset + search_args.page.limit):
-        sliced_data[rec['type']][rec['id']] = rec['rank']
-
-    data = list()
-    included = defaultdict(dict)
-    for model in models:
-        id_list = list(object_id for object_id in sliced_data[model.type_].keys())
-        if len(id_list) > 0:
-            model_args = model.parse_arguments(_extract_model_args(model, args))
-            model.init_schema(model_args)
-            query = select_many(model, filter_by=FilterBy(
-                model.primary_key.in_([int(object_id) if isinstance(model.primary_key.type, Integer.sa_types)
-                                       else object_id for object_id in id_list])))
-            log_query(query)
-            recs = [{'type': model.type_, **rec} for rec in await pg.fetch(query)]
-            await model.fetch_included(recs, model_args)
-            data.extend(model.schema.dump(recs, many=True))
-            if len(model.included) > 0:
-                included.update(model.included)
-        model.reset()
-
-    meta = dict(total=0, searchType=dict())
+    mixed = data[search_args.page.offset:search_args.page.offset + search_args.page.limit]
+    response = await _response(args, models, mixed)
+    meta = {'total': 0, 'searchType': dict()}
     for model in models:
         n = await pg.fetchval(select_many(model, count=True))
         meta['searchType'][model.type_] = dict(total=n)
         meta['total'] += n
-    response = dict(data=sorted(data, key=lambda x: sliced_data[x['type']][x['id']], reverse=True), meta=meta)
-    if included:
-        response['included'] = reduce(lambda a, b: a + [r for r in b.values()], included.values(), list())
+    response['meta'] = meta
     return response

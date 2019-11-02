@@ -3,9 +3,10 @@ import pytest
 from jsonapi.tests.util import *
 
 
+@pytest.mark.dev
 @pytest.mark.asyncio
 async def test_1(users, articles, user_count, article_count):
-    async with search('John', {}, users, articles) as json:
+    async with search({}, 'John', users, articles) as json:
         assert_meta(json, 'total', lambda v: v == user_count + article_count)
         assert_meta(json, 'searchType', lambda v: (v['user']['total'] == user_count and
                                                    v['article']['total'] == article_count))
@@ -14,13 +15,13 @@ async def test_1(users, articles, user_count, article_count):
 
 @pytest.mark.asyncio
 async def test_2(users, articles, user_1_id):
-    async with search('John', {}, users, articles, login=user_1_id) as json:
+    async with search({}, 'John', users, articles, login=user_1_id) as json:
         assert_collection(json, ('user', 'article'))
 
 
 @pytest.mark.asyncio
 async def test_3(users, articles, superuser_id):
-    async with search('John', {}, users, articles, login=superuser_id) as json:
+    async with search({}, 'John', users, articles, login=superuser_id) as json:
         assert_collection(json, ('user', 'article'))
 
 
@@ -46,13 +47,13 @@ def assert_user(json, user):
 @pytest.mark.skip
 @pytest.mark.asyncio
 async def test_4(users, articles, superuser_id):
-    async with search('John',
-                      {'include[user]': 'bio',
-                       'include[article]': 'keywords,author.bio,publisher.bio',
-                       'fields[user]': 'name,email',
-                       'fields[user-bio]': 'birthday,age',
-                       'fields[article]': 'title'},
-                      users, articles, login=superuser_id) as json:
+    async with search({
+        'include[user]': 'bio',
+        'include[article]': 'keywords,author.bio,publisher.bio',
+        'fields[user]': 'name,email',
+        'fields[user-bio]': 'birthday,age',
+        'fields[article]': 'title'
+    }, 'John', users, articles, login=superuser_id) as json:
         for obj in assert_collection(json, ('user', 'article')):
             if obj['type'] == 'user':
                 assert_user(json, obj)

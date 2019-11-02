@@ -7,7 +7,9 @@ from jsonapi.tests.util import *
 @pytest.mark.asyncio
 async def test_size(users, user_count):
     for step in (3, 10, 50):
-        async with get_collection(users, {'page[size]': step}) as json:
+        async with get_collection({
+            'page[size]': step
+        }, users) as json:
             assert isinstance(json['data'], list)
             assert len(json['data']) == step
             for user in json['data']:
@@ -21,9 +23,10 @@ async def test_size_number(users, user_count):
     for step in (3, 10, 50):
         user_id_list = list()
         for offset in range(0, 100, step):
-            async with get_collection(users,
-                                      {'page[size]': step,
-                                       'page[number]': int(offset / step) + 1}) as json:
+            async with get_collection({
+                'page[size]': step,
+                'page[number]': int(offset / step) + 1
+            }, users) as json:
                 assert isinstance(json['data'], list)
                 assert len(json['data']) == step
                 for user in json['data']:
@@ -41,9 +44,10 @@ async def test_number(users):
 
 @pytest.mark.asyncio
 async def test_filter(users, user_count):
-    async with get_collection(users,
-                              {'page[size]': 3,
-                               'filter[status]': 'active'}) as json:
+    async with get_collection({
+        'page[size]': 3,
+        'filter[status]': 'active'
+    }, users) as json:
         assert isinstance(json['data'], list)
         assert len(json['data']) == 3
         for user in json['data']:

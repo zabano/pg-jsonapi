@@ -6,7 +6,7 @@ from jsonapi.tests.util import *
 @pytest.mark.asyncio
 async def test_no_fieldset(comments, superuser_id):
     for comment_id in sample_integers(1, 1000):
-        async with get_related(comments, comment_id, 'article', login=superuser_id) as json:
+        async with get_related({}, comments, comment_id, 'article', login=superuser_id) as json:
             article = assert_object(json['data'], 'article')
             assert_attribute(article, 'title')
             assert_attribute(article, 'body')
@@ -20,9 +20,9 @@ async def test_no_fieldset(comments, superuser_id):
 @pytest.mark.asyncio
 async def test_fieldset(comments, superuser_id):
     for comment_id in sample_integers(1, 1000):
-        async with get_related(comments, comment_id, 'article',
-                               {'fields[article]': 'title'},
-                               login=superuser_id) as json:
+        async with get_related({
+            'fields[article]': 'title'
+        }, comments, comment_id, 'article', login=superuser_id) as json:
             article = assert_object(json['data'], 'article')
             assert_attribute(article, 'title')
             assert_no_attribute(article, 'body')
@@ -36,12 +36,11 @@ async def test_fieldset(comments, superuser_id):
 @pytest.mark.asyncio
 async def test_include_fieldset(comments, superuser_id):
     for comment_id in sample_integers(1, 1000):
-        async with get_related(comments, comment_id, 'article',
-                               {'include': 'author',
-                                'fields[article]': 'title,comment-count',
-                                'fields[user]': 'email'},
-                               login=superuser_id) as json:
-
+        async with get_related({
+            'include': 'author',
+            'fields[article]': 'title,comment-count',
+            'fields[user]': 'email'
+        }, comments, comment_id, 'article', login=superuser_id) as json:
             article = assert_object(json['data'], 'article')
             assert_attribute(article, 'title')
             assert_no_attribute(article, 'body')

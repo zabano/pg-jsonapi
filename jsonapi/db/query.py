@@ -95,7 +95,7 @@ def select_mixed(*models, **kwargs):
 
 
 def search_query(model, term):
-    query = sql.select(columns=[model.primary_key, _rank_column(model, term)],
+    query = sql.select(columns=[model.primary_key.label('id'), _rank_column(model, term)],
                        from_obj=_from_obj(model, search_term=term))
     query = _search_query(model, query, term)
     return _protect_query(model, query)

@@ -7,7 +7,7 @@ from jsonapi.tests.util import *
 @pytest.mark.asyncio
 async def test_simple(users, user_count):
     for user_id in sample_integers(1, user_count, 10):
-        async with get_related(users, user_id, 'followers', search='John') as json:
+        async with get_related({}, users, user_id, 'followers', search='John') as json:
             for user in assert_collection(json, 'user'):
                 total = assert_meta(json, 'total')
                 assert len(json['data']) <= total
@@ -20,8 +20,7 @@ async def test_simple(users, user_count):
 @pytest.mark.asyncio
 async def test_page(users, user_count):
     for user_id in sample_integers(1, user_count, 10):
-        async with get_related(users, user_id, 'followers',
-                               {'page[size]': 5}, search='John') as json:
+        async with get_related({'page[size]': 5}, users, user_id, 'followers', search='John') as json:
             for user in assert_collection(json, 'user', lambda size: size <= 5):
                 total = assert_meta(json, 'total')
                 search_total = assert_meta(json, 'searchTotal')
@@ -35,7 +34,7 @@ async def test_page(users, user_count):
 @pytest.mark.asyncio
 async def test_prefix(users, user_count):
     for user_id in sample_integers(1, user_count, 10):
-        async with get_related(users, user_id, 'followers', search='Al:*') as json:
+        async with get_related({}, users, user_id, 'followers', search='Al:*') as json:
             for user in assert_collection(json, 'user'):
                 assert any('al' in val.lower() for val in (
                     assert_attribute(user, 'first'),

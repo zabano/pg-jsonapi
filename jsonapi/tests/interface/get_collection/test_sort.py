@@ -10,7 +10,7 @@ async def test_single(users, user_count):
     for attr_name in ('id', 'last', 'created-on'):
         for modifier in ('', '+', '-'):
             sort_spec = '{}{}'.format(modifier, attr_name)
-            async with get_collection(users, {'sort': sort_spec}) as json:
+            async with get_collection({'sort': sort_spec}, users) as json:
                 assert_sorted(json, attr_name, 'user', modifier == '-',
                               lambda size: size == user_count)
 
@@ -18,10 +18,10 @@ async def test_single(users, user_count):
 @pytest.mark.asyncio
 async def test_exclude(users, user_count, superuser_id):
     for attr_name in ('last', 'created-on', 'article_count'):
-        async with get_collection(users,
-                                  {'fields[user]': 'email',
-                                   'sort': attr_name},
-                                  login=superuser_id) as json:
+        async with get_collection({
+            'fields[user]': 'email',
+            'sort': attr_name
+        }, users, login=superuser_id) as json:
             for user in assert_collection(json, 'user', lambda size: size == user_count):
                 assert_attribute(user, 'email')
                 assert_no_attribute(user, attr_name)
@@ -29,29 +29,29 @@ async def test_exclude(users, user_count, superuser_id):
 
 @pytest.mark.asyncio
 async def test_aggregate(users, user_count, superuser_id):
-    async with get_collection(users,
-                              {'sort': 'article-count'},
-                              login=superuser_id) as json:
+    async with get_collection({
+        'sort': 'article-count'
+    }, users, login=superuser_id) as json:
         for user in assert_collection(json, 'user', lambda size: size == user_count):
             assert_attribute(user, 'email')
             assert_attribute(user, 'createdOn')
             assert_attribute(user, 'name')
             assert_no_attribute(user, 'article-count')
 
-    async with get_collection(users,
-                              {'fields[user]': 'email',
-                               'sort': 'article-count'},
-                              login=superuser_id) as json:
+    async with get_collection({
+        'fields[user]': 'email',
+        'sort': 'article-count'
+    }, users, login=superuser_id) as json:
         for user in assert_collection(json, 'user', lambda size: size == user_count):
             assert_attribute(user, 'email')
             assert_no_attribute(user, 'createdOn')
             assert_no_attribute(user, 'name')
             assert_no_attribute(user, 'article-count')
 
-    async with get_collection(users,
-                              {'fields[user]': 'email,article-count',
-                               'sort': 'article-count'},
-                              login=superuser_id) as json:
+    async with get_collection({
+        'fields[user]': 'email,article-count',
+        'sort': 'article-count'
+    }, users, login=superuser_id) as json:
         for user in assert_collection(json, 'user', lambda size: size == user_count):
             assert_attribute(user, 'email')
             assert_no_attribute(user, 'createdOn')
@@ -60,10 +60,10 @@ async def test_aggregate(users, user_count, superuser_id):
         assert_sorted(json, 'article-count', 'user',
                       validator_length=lambda size: size == user_count)
 
-    async with get_collection(users,
-                              {'fields[user]': 'article-count',
-                               'sort': '-article-count'},
-                              login=superuser_id) as json:
+    async with get_collection({
+        'fields[user]': 'article-count',
+        'sort': '-article-count'
+    }, users, login=superuser_id) as json:
         for user in assert_collection(json, 'user', lambda size: size == user_count):
             assert_no_attribute(user, 'email')
             assert_no_attribute(user, 'createdOn')
@@ -75,11 +75,12 @@ async def test_aggregate(users, user_count, superuser_id):
 
 @pytest.mark.asyncio
 async def test_relationship(users, user_count):
-    async with get_collection(users,
-                              {'include': 'bio',
-                               'fields[user]': 'name,first,last',
-                               'fields[user-bio]': 'birthday',
-                               'sort': 'bio.birthday'}) as json:
+    async with get_collection({
+        'include': 'bio',
+        'fields[user]': 'name,first,last',
+        'fields[user-bio]': 'birthday',
+        'sort': 'bio.birthday'
+    }, users) as json:
         data = []
         for user in assert_collection(json, 'user', lambda size: size == user_count):
             bio = assert_relationship(user, 'bio')
@@ -93,10 +94,10 @@ async def test_relationship(users, user_count):
 
 @pytest.mark.asyncio
 async def test_multiple_1(users, user_count, superuser_id):
-    async with get_collection(users,
-                              {'fields[user]': 'article-count,last',
-                               'sort': '-article-count,last'},
-                              login=superuser_id) as json:
+    async with get_collection({
+        'fields[user]': 'article-count,last',
+        'sort': '-article-count,last'
+    }, users, login=superuser_id) as json:
         data = list(assert_collection(json, 'user', lambda size: size == user_count))
 
         names_by_count = defaultdict(list)
@@ -112,11 +113,11 @@ async def test_multiple_1(users, user_count, superuser_id):
 
 @pytest.mark.asyncio
 async def test_multiple_2(users, user_count, superuser_id):
-    async with get_collection(users,
-                              {'include': 'bio',
-                               'fields[user]': 'article-count',
-                               'sort': '-article-count,bio.birthday'},
-                              login=superuser_id) as json:
+    async with get_collection({
+        'include': 'bio',
+        'fields[user]': 'article-count',
+        'sort': '-article-count,bio.birthday'
+    }, users, login=superuser_id) as json:
         data = list(assert_collection(json, 'user', lambda size: size == user_count))
         birthdays_by_count = defaultdict(list)
         for user in data:
@@ -135,7 +136,7 @@ async def test_multiple_2(users, user_count, superuser_id):
 
 @pytest.mark.asyncio
 async def test_nested(articles, article_count, superuser_id):
-    async with get_collection(articles,
-                              {'sort': 'author.bio.birthday'},
-                              login=superuser_id) as json:
+    async with get_collection({
+        'sort': 'author.bio.birthday'
+    }, articles, login=superuser_id) as json:
         assert_collection(json, 'article', lambda size: size == article_count)

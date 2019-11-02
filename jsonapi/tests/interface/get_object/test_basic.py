@@ -7,7 +7,7 @@ from jsonapi.tests.util import *
 @pytest.mark.asyncio
 async def test_no_args(users, user_count):
     for user_id in sample_integers(1, user_count):
-        async with get_object(users, user_id) as json:
+        async with get_object({}, users, user_id) as json:
             check_user(json['data'], lambda v: int(v) == user_id)
             assert_no_attribute(json['data'], 'article-count')
             assert 'included' not in json

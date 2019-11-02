@@ -5,9 +5,9 @@ from json import dumps as json_dumps
 
 from inflection import camelize, underscore
 
+import jsonapi.model
 from jsonapi.datatypes import DataType
 from jsonapi.log import logger
-from jsonapi.model import search as search_models
 from jsonapi.tests.auth import login, logout
 
 
@@ -35,7 +35,7 @@ def logout_user(user_id):
 
 
 @asynccontextmanager
-async def get_object(model, object_id, args=None, **kwargs):
+async def get_object(args, model, object_id, **kwargs):
     user_id = login_user(kwargs.pop('login', None))
     try:
         yield await model.get_object(args, object_id)
@@ -44,16 +44,19 @@ async def get_object(model, object_id, args=None, **kwargs):
 
 
 @asynccontextmanager
-async def get_collection(model, args=None, **kwargs):
+async def get_collection(args, *models, **kwargs):
     user_id = login_user(kwargs.pop('login', None))
     try:
-        yield await model.get_collection(args, search=kwargs.pop('search', None))
+        if len(models) == 1:
+            yield await models[0].get_collection(args, search=kwargs.pop('search', None))
+        else:
+            yield await jsonapi.model.get_collection(args, *models)
     finally:
         logout_user(user_id)
 
 
 @asynccontextmanager
-async def get_related(model, object_id, name, args=None, **kwargs):
+async def get_related(args, model, object_id, name, **kwargs):
     user_id = login_user(kwargs.pop('login', None))
     try:
         yield await model.get_related(args, object_id, name, search=kwargs.pop('search', None))
@@ -62,10 +65,10 @@ async def get_related(model, object_id, name, args=None, **kwargs):
 
 
 @asynccontextmanager
-async def search(term, args, *models, **kwargs):
+async def search(args, term, *models, **kwargs):
     user_id = login_user(kwargs.pop('login', None))
     try:
-        yield await search_models(args, term, *models)
+        yield await jsonapi.model.search(args, term, *models)
     finally:
         logout_user(user_id)
 

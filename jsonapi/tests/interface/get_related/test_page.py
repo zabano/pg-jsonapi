@@ -6,11 +6,11 @@ from jsonapi.tests.util import *
 
 @pytest.fixture()
 async def users_with_5_articles(users, superuser_id):
-    async with get_collection(users,
-                              {'filter[article-count]': '5',
-                               'filter[articles.is-published]': 't',  # at least one is published
-                               'page[size]': 3},
-                              login=superuser_id) as json:
+    async with get_collection({
+        'filter[article-count]': '5',
+        'filter[articles.is-published]': 't',  # at least one is published
+        'page[size]': 3
+    }, users, login=superuser_id) as json:
         return [int(user['id']) for user in json['data']]
 
 
@@ -18,9 +18,7 @@ async def users_with_5_articles(users, superuser_id):
 async def test_size(users, users_with_5_articles, superuser_id):
     for user_id in users_with_5_articles:
         for step in (3, 5, 10):
-            async with get_related(users, user_id, 'articles',
-                                   {'page[size]': step},
-                                   login=superuser_id) as json:
+            async with get_related({'page[size]': step}, users, user_id, 'articles', login=superuser_id) as json:
                 assert isinstance(json['data'], list)
                 assert len(json['data']) <= step
                 for article in json['data']:
@@ -35,10 +33,10 @@ async def test_size_number(users, users_with_5_articles, superuser_id):
         for step in (3, 5, 10):
             article_id_list = list()
             for offset in range(0, 30, step):
-                async with get_related(users, user_id, 'articles',
-                                       {'page[size]': step,
-                                        'page[number]': int(offset / step) + 1},
-                                       login=superuser_id) as json:
+                async with get_related({
+                    'page[size]': step,
+                    'page[number]': int(offset / step) + 1
+                }, users, user_id, 'articles', login=superuser_id) as json:
                     assert isinstance(json['data'], list)
                     if offset == 0:
                         assert len(json['data']) == min(step, 5)
@@ -60,10 +58,10 @@ async def test_number(users):
 @pytest.mark.asyncio
 async def test_filter(users, users_with_5_articles, superuser_id):
     for user_id in users_with_5_articles:
-        async with get_related(users, user_id, 'articles',
-                               {'page[size]': 3,
-                                'filter[is-published]': 't'},
-                               login=superuser_id) as json:
+        async with get_related({
+            'page[size]': 3,
+            'filter[is-published]': 't'
+        }, users, user_id, 'articles', login=superuser_id) as json:
             assert isinstance(json['data'], list)
             assert 1 <= len(json['data']) <= 3
             for article in json['data']:
