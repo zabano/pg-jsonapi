@@ -7,12 +7,12 @@ from functools import reduce
 import marshmallow as ma
 from asyncpgsa import pg
 from inflection import camelize, dasherize, underscore
-from sqlalchemy.sql.expression import ColumnCollection
+from sqlalchemy.sql.expression import ColumnCollection, cast
 
 from jsonapi.args import parse_arguments
-from jsonapi.datatypes import Integer, String
+from jsonapi.datatypes import String
 from jsonapi.db.filter import FilterBy
-from jsonapi.db.query import SEARCH_LABEL, exists, search_query, select_many, select_mixed, select_one, select_related
+from jsonapi.db.query import exists, search_query, select_many, select_mixed, select_one, select_related
 from jsonapi.db.table import Cardinality, FromClause, FromItem, OrderBy, get_primary_key, is_from_item
 from jsonapi.exc import APIError, Error, Forbidden, ModelError, NotFound
 from jsonapi.fields import Aggregate, BaseField, Field, Relationship
@@ -556,11 +556,21 @@ def _extract_model_args(model, args):
     return model_args
 
 
-async def _response(args, models, mixed):
+async def _mixed_response(args, models, query, count_queries):
     """
-    :param Model models: a variable list of models
-    :param list mixed: a list of resource id objects
+    Fetch a mixed (heterogeneous) collection.
+
+    :param dict args: a dictionary representing the request query string
+    :param ModelSet models: a variable list of models
+    :param query: an SQLAlchemy query object
+    :return: JSONAPI response document
     """
+
+    mixed = list()
+    async with pg.query(query) as cursor:
+        async for row in cursor:
+            mixed.append(dict(type=row['resource_type'], id=row['id']))
+
     data = defaultdict(dict)
     included = defaultdict(dict)
     for model in models:
@@ -569,8 +579,7 @@ async def _response(args, models, mixed):
             model_args = model.parse_arguments(_extract_model_args(model, args))
             model.init_schema(model_args)
             query = select_many(model, filter_by=FilterBy(
-                model.primary_key.in_([int(object_id) if isinstance(model.primary_key.type, Integer.sa_types)
-                                       else object_id for object_id in object_id])))
+                model.primary_key.in_([cast(x, model.primary_key.type) for x in object_id])))
             log_query(query)
             recs = [{'type': model.type_, **rec} for rec in await pg.fetch(query)]
             await model.fetch_included(recs, model_args)
@@ -579,8 +588,14 @@ async def _response(args, models, mixed):
             if len(model.included) > 0:
                 included.update(model.included)
         model.reset()
+
+    meta = {'total': 0, 'subTotal': dict()}
+    for (resource_type, query) in count_queries:
+        meta['subTotal'][resource_type] = await pg.fetchval(query)
+        meta['total'] += meta['subTotal'][resource_type]
     return dict(data=[data[rec['type']][str(rec['id'])] for rec in mixed],
-                included=reduce(lambda a, b: a + [r for r in b.values()], included.values(), list()))
+                included=reduce(lambda a, b: a + [r for r in b.values()], included.values(), list()),
+                meta=meta)
 
 
 async def get_collection(args, *models):
@@ -593,20 +608,11 @@ async def get_collection(args, *models):
     :param Model models: variable length list of model classes or instances
     :return: JSON API response document
     """
-
-    collection_args = parse_arguments(args)
+    ra = parse_arguments(args)
     models = ModelSet(*models)
-
-    query = select_mixed(*models, order_by=collection_args.sort,
-                         limit=collection_args.page.limit, offset=collection_args.page.offset)
-
-    mixed = list()
+    query = select_mixed(*models, order_by=ra.sort, limit=ra.page.limit, offset=ra.page.offset)
     log_query(query)
-    async with pg.query(query) as cursor:
-        async for row in cursor:
-            mixed.append(dict(type=row['resource_type'], id=row['id']))
-
-    return await _response(args, models, mixed)
+    return await _mixed_response(args, models, query, select_mixed(models, count=True))
 
 
 async def search(args, term, *models):
@@ -628,33 +634,11 @@ async def search(args, term, *models):
     :param Model models: variable length list of model classes or instances
     :return: JSON API response document
     """
-
     if not isinstance(term, str):
         raise Error('search | "term" must be a string')
 
-    search_args = parse_arguments({
-        'page[size]': args['page[size]'] if 'page[size]' in args else SEARCH_PAGE_SIZE,
-        'page[number]': args['page[number]'] if 'page[number]' in args else 1,
-    })
-
+    ra = parse_arguments(args)
     models = ModelSet(*models, searchable=True)
-
-    data = list()
-    total = 0
-    for model in models:
-        query = search_query(model, term)
-        log_query(query)
-        async with pg.query(query) as cursor:
-            async for row in cursor:
-                data.append(dict(type=model.type_, id=row['id'], rank=row[SEARCH_LABEL]))
-                total += 1
-    data = sorted(data, key=lambda x: x['rank'], reverse=True)
-    mixed = data[search_args.page.offset:search_args.page.offset + search_args.page.limit]
-    response = await _response(args, models, mixed)
-    meta = {'total': 0, 'searchType': dict()}
-    for model in models:
-        n = await pg.fetchval(select_many(model, count=True))
-        meta['searchType'][model.type_] = dict(total=n)
-        meta['total'] += n
-    response['meta'] = meta
-    return response
+    query = search_query(models, term, limit=ra.page.limit, offset=ra.page.offset)
+    log_query(query)
+    return await _mixed_response(args, models, query, search_query(models, term, count=True))

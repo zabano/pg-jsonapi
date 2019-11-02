@@ -1,8 +1,6 @@
-from functools import reduce
-
 import sqlalchemy.sql as sql
 
-from jsonapi.exc import ModelError, APIError
+from jsonapi.exc import APIError, ModelError
 from jsonapi.fields import Aggregate, Field
 from .table import Cardinality, FromClause, FromItem, get_primary_key
 
@@ -86,19 +84,35 @@ def select_related(rel, obj_id, **kwargs):
 
 def select_mixed(*models, **kwargs):
     qa = QueryArguments(**kwargs)
-    union = sql.union(*[_protect_query(model, sql.select([
-        model.primary_key.label('id'), model.primary_key.table,
-        sql.func.lower(model.type_).label('resource_type')])) for model in models])
+    queries = dict()
+    for model in models:
+        queries[model.type_] = _protect_query(model, sql.select([
+            model.primary_key.label('id'), model.primary_key.table,
+            sql.func.lower(model.type_).label('resource_type')]))
+    union = sql.union(*queries.values())
     if qa.limit is not None:
         union = union.limit(qa.limit).offset(qa.offset)
     return union.order_by(*[getattr(union.c[s.path[0]], 'desc' if s.desc else 'asc')() for s in qa.order_by])
 
 
-def search_query(model, term):
-    query = sql.select(columns=[model.primary_key.label('id'), _rank_column(model, term)],
-                       from_obj=_from_obj(model, search_term=term))
-    query = _search_query(model, query, term)
-    return _protect_query(model, query)
+def search_query(models, term, **kwargs):
+    qa = QueryArguments(**kwargs)
+    if qa.count:
+        return ((model.type_, _count_query(_protect_query(
+            model, sql.select([model.primary_key])))) for model in models)
+    queries = list()
+    for model in models:
+        query = sql.select(columns=[model.primary_key.label('id'),
+                                    sql.func.lower(model.type_).label('resource_type'),
+                                    _rank_column(model, term)],
+                           from_obj=_from_obj(model, search_term=term))
+        query = _search_query(model, query, term)
+        queries.append(_protect_query(model, query))
+
+    union = sql.union(*queries)
+    if qa.limit is not None:
+        union = union.limit(qa.limit).offset(qa.offset)
+    return union.order_by(union.c[SEARCH_LABEL].desc())
 
 
 ########################################################################################################################
