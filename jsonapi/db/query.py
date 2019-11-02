@@ -82,14 +82,17 @@ def select_related(rel, obj_id, **kwargs):
     return _count_query(query) if qa.count else query
 
 
-def select_mixed(*models, **kwargs):
+def select_mixed(models, **kwargs):
     qa = QueryArguments(**kwargs)
-    queries = dict()
+    if qa.count:
+        return ((model.type_, _count_query(_protect_query(
+            model, sql.select([model.primary_key])))) for model in models)
+    queries = list()
     for model in models:
-        queries[model.type_] = _protect_query(model, sql.select([
+        queries.append(_protect_query(model, sql.select([
             model.primary_key.label('id'), model.primary_key.table,
-            sql.func.lower(model.type_).label('resource_type')]))
-    union = sql.union(*queries.values())
+            sql.func.lower(model.type_).label('resource_type')])))
+    union = sql.union(*queries)
     if qa.limit is not None:
         union = union.limit(qa.limit).offset(qa.offset)
     return union.order_by(*[getattr(union.c[s.path[0]], 'desc' if s.desc else 'asc')() for s in qa.order_by])

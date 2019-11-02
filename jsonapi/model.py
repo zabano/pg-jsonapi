@@ -556,16 +556,31 @@ def _extract_model_args(model, args):
     return model_args
 
 
-async def _mixed_response(args, models, query, count_queries):
+async def get_collection(args, *models, **kwargs):
     """
-    Fetch a mixed (heterogeneous) collection.
+    Fetch a heterogeneous collection of objects.
+
+    Returns a heterogeneous list of objects.
+
+    >>> from jsonapi.model import search
+    >>> search({'include[user]': 'bio',
+    >>>         'include[article]': 'keywords,author.bio,publisher.bio',
+    >>>         'fields[user]': 'name,email',
+    >>>         'fields[user-bio]': 'birthday,age',
+    >>>         'fields[article]': 'title'},
+    >>>         'John', UserModel, ArticleModel)
 
     :param dict args: a dictionary representing the request query string
-    :param ModelSet models: a variable list of models
-    :param query: an SQLAlchemy query object
-    :return: JSONAPI response document
+    :param mixed models: variable length list of model classes or instances
+    :param str search: a PostgreSQL full text search query string (e.x. ``'foo:* & !bar'``)
+    :return: JSON API response document
     """
-
+    ra = parse_arguments(args)
+    search_term = kwargs.pop('search', None)
+    models = ModelSet(*models, searchable=search_term is not None)
+    query = select_mixed(models, order_by=ra.sort, limit=ra.page.limit, offset=ra.page.offset) \
+        if search_term is None else search_query(models, search_term, limit=ra.page.limit, offset=ra.page.offset)
+    log_query(query)
     mixed = list()
     async with pg.query(query) as cursor:
         async for row in cursor:
@@ -573,6 +588,7 @@ async def _mixed_response(args, models, query, count_queries):
 
     data = defaultdict(dict)
     included = defaultdict(dict)
+    meta = {'total': 0, 'subTotal': dict()}
     for model in models:
         object_id = list(obj['id'] for obj in mixed if model.type_ == obj['type'])
         if len(object_id) > 0:
@@ -586,59 +602,14 @@ async def _mixed_response(args, models, query, count_queries):
             for rec in model.schema.dump(recs, many=True):
                 data[rec['type']][rec['id']] = rec
             if len(model.included) > 0:
-                included.update(model.included)
+                for resource_type in model.included.keys():
+                    included[resource_type].update(model.included[resource_type])
         model.reset()
 
-    meta = {'total': 0, 'subTotal': dict()}
-    for (resource_type, query) in count_queries:
+    for (resource_type, query) in (select_mixed(models, count=True) \
+        if search_term is None else search_query(models, search_term, count=True)):
         meta['subTotal'][resource_type] = await pg.fetchval(query)
         meta['total'] += meta['subTotal'][resource_type]
     return dict(data=[data[rec['type']][str(rec['id'])] for rec in mixed],
                 included=reduce(lambda a, b: a + [r for r in b.values()], included.values(), list()),
                 meta=meta)
-
-
-async def get_collection(args, *models):
-    """
-    Fetch a heterogeneous collection of objects.
-
-    Returns a heterogeneous list of objects. Can be sorted and filtered.
-
-    :param dict args: a dictionary representing the request query string
-    :param Model models: variable length list of model classes or instances
-    :return: JSON API response document
-    """
-    ra = parse_arguments(args)
-    models = ModelSet(*models)
-    query = select_mixed(*models, order_by=ra.sort, limit=ra.page.limit, offset=ra.page.offset)
-    log_query(query)
-    return await _mixed_response(args, models, query, select_mixed(models, count=True))
-
-
-async def search(args, term, *models):
-    """
-    Search multiple models.
-
-    Returns a heterogeneous list of objects, sorted by search result rank.
-
-    >>> from jsonapi.model import search
-    >>> search({'include[user]': 'bio',
-    >>>         'include[article]': 'keywords,author.bio,publisher.bio',
-    >>>         'fields[user]': 'name,email',
-    >>>         'fields[user-bio]': 'birthday,age',
-    >>>         'fields[article]': 'title'},
-    >>>         'John', UserModel, ArticleModel)
-
-    :param dict args: a dictionary representing the request query string
-    :param str term: a PostgreSQL full text search query string (e.x. ``'foo:* & !bar'``)
-    :param Model models: variable length list of model classes or instances
-    :return: JSON API response document
-    """
-    if not isinstance(term, str):
-        raise Error('search | "term" must be a string')
-
-    ra = parse_arguments(args)
-    models = ModelSet(*models, searchable=True)
-    query = search_query(models, term, limit=ra.page.limit, offset=ra.page.offset)
-    log_query(query)
-    return await _mixed_response(args, models, query, search_query(models, term, count=True))

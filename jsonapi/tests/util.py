@@ -48,9 +48,9 @@ async def get_collection(args, *models, **kwargs):
     user_id = login_user(kwargs.pop('login', None))
     try:
         if len(models) == 1:
-            yield await models[0].get_collection(args, search=kwargs.pop('search', None))
+            yield await models[0].get_collection(args, **kwargs)
         else:
-            yield await jsonapi.model.get_collection(args, *models)
+            yield await jsonapi.model.get_collection(args, *models, **kwargs)
     finally:
         logout_user(user_id)
 
@@ -59,16 +59,7 @@ async def get_collection(args, *models, **kwargs):
 async def get_related(args, model, object_id, name, **kwargs):
     user_id = login_user(kwargs.pop('login', None))
     try:
-        yield await model.get_related(args, object_id, name, search=kwargs.pop('search', None))
-    finally:
-        logout_user(user_id)
-
-
-@asynccontextmanager
-async def search(args, term, *models, **kwargs):
-    user_id = login_user(kwargs.pop('login', None))
-    try:
-        yield await jsonapi.model.search(args, term, *models)
+        yield await model.get_related(args, object_id, name , **kwargs)
     finally:
         logout_user(user_id)
 
