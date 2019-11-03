@@ -499,14 +499,14 @@ class Model:
         await rel.model.fetch_included(data, args)
         return rel.model.response(data)
 
-    async def get_merged(self, args, object_id_list, relationship_name, **kwargs):
+    async def get_merged(self, args, object_ids, relationship_name, **kwargs):
         self.init_schema()
-        for object_id in object_id_list:
+        for object_id in object_ids:
             if not await pg.fetchval(exists(self, object_id)):
                 raise NotFound(object_id, self)
 
         recs = list()
-        for object_id in object_id_list:
+        for object_id in object_ids:
             rec = await pg.fetchrow(select_one(self, object_id))
             if rec is None:
                 raise Forbidden(object_id, self)

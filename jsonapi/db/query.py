@@ -108,26 +108,18 @@ def select_merged(model, rel, obj_ids, **kwargs):
     merge_count = qa.options.merge_count if qa.options and qa.options.merge_count else len(include)
     merge_op = qa.options.merge_operator if qa.options else operator.eq
     exc_count = qa.options.exclude_count if qa.options and qa.options.exclude_count else len(qa.exclude)
-    exc_op = qa.options.merge_count if qa.options else operator.eq
+    exc_op = qa.options.exclude_operator if qa.options else operator.eq
 
     merge_col = rel.refs[0].distinct()
-
-    if merge_count == 1 and merge_op is operator.ge:
-        if len(qa.exclude) > 0:
-            query = query.having(sa.and_(*[sa.cast(obj_id, model.primary_key.type) != sa.all_(array_agg(merge_col))
-                                           for obj_id in qa.exclude]))
+    arr_len_merged = array_length(array(sa.select('*').select_from(unnest(array_agg(merge_col))).except_(
+        sa.select([unnest(sa.cast(qa.exclude, sa.ARRAY(sa.Integer)))]))), sa.text('1'))
+    if len(qa.exclude) > 0:
+        arr_len_excluded = coalesce(array_length(array(sa.select('*').select_from(unnest(array_agg(merge_col))).except_(
+            sa.select([unnest(sa.cast(include, sa.ARRAY(sa.Integer)))]))), sa.text('1')), sa.text('0'))
+        query = query.having(sa.and_(merge_op(arr_len_merged, merge_count), exc_op(arr_len_excluded, exc_count)))
     else:
-        if len(qa.exclude) > 0:
-            arr_len_merged = array_length(array(sa.select('*').select_from(
-                unnest(array_agg(merge_col))).except_(
-                sa.select([unnest(sa.cast(qa.exclude, sa.ARRAY(sa.Integer)))]))), 1)
-            arr_len_excluded = coalesce(array_length(array(sa.select('*').select_from(
-                unnest(array_agg(merge_col))).except_(
-                sa.select([unnest(sa.cast(include, sa.ARRAY(sa.Integer)))]))), 1), 0)
-            query = query.having(sa.and_(merge_op(arr_len_merged, merge_count), exc_op(arr_len_excluded, exc_count)))
-        else:
-            arr_len = array_length(array_agg(merge_col), 1)
-            query = query.having(merge_op(arr_len, merge_count))
+        query = query.having(merge_op(arr_len_merged, merge_count))
+
     query = _group_query(rel.model, query, filter_by=qa.filter_by, order_by=qa.order_by, force=True)
     query = _filter_query(query, qa.filter_by)
     return _count_query(query) if qa.count else query
