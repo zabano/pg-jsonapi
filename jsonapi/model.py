@@ -12,7 +12,7 @@ from sqlalchemy.sql.expression import ColumnCollection, cast
 from jsonapi.args import parse_arguments
 from jsonapi.datatypes import String
 from jsonapi.db.filter import FilterBy
-from jsonapi.db.query import exists, search_query, select_many, select_mixed, select_one, select_related
+from jsonapi.db.query import exists, search_query, select_many, select_merged, select_mixed, select_one, select_related
 from jsonapi.db.table import Cardinality, FromClause, FromItem, OrderBy, get_primary_key, is_from_item
 from jsonapi.exc import APIError, Error, Forbidden, ModelError, NotFound
 from jsonapi.fields import Aggregate, BaseField, Field, Relationship
@@ -476,8 +476,8 @@ class Model:
         if not await pg.fetchval(exists(self, object_id)):
             raise NotFound(object_id, self)
 
-        obj = await pg.fetchrow(select_one(self, object_id))
-        if obj is None:
+        rec = await pg.fetchrow(select_one(self, object_id))
+        if rec is None:
             raise Forbidden(object_id, self)
 
         rel = self.relationship(relationship_name)
@@ -496,6 +496,38 @@ class Model:
             data = [dict(rec) for rec in await pg.fetch(query)]
             await rel.model.set_meta(args.page.limit, obj[self.primary_key.name], rel,
                                      filter_by=filter_by, search_term=search_term)
+        await rel.model.fetch_included(data, args)
+        return rel.model.response(data)
+
+    async def get_merged(self, args, object_id_list, relationship_name, **kwargs):
+        self.init_schema()
+        for object_id in object_id_list:
+            if not await pg.fetchval(exists(self, object_id)):
+                raise NotFound(object_id, self)
+
+        recs = list()
+        for object_id in object_id_list:
+            rec = await pg.fetchrow(select_one(self, object_id))
+            if rec is None:
+                raise Forbidden(object_id, self)
+            recs.append(rec)
+
+        rel = self.relationship(relationship_name)
+        if rel.cardinality != Cardinality.MANY_TO_MANY:
+            raise APIError('get_merge works only with many-to-many relationships', self)
+
+        args = self.parse_arguments(args)
+        rel.load(self)
+        rel.model.init_schema(args)
+        filter_by, order_by = rel.model.get_filter_by(args), rel.model.get_order_by(args)
+        query = select_merged(self, rel, set(rec['id'] for rec in recs),
+                              filter_by=filter_by, order_by=order_by,
+                              offset=args.page.offset, limit=args.page.limit,
+                              exclude=set(kwargs.pop('exclude', ())), options=args.merge)
+        log_query(query)
+        data = [dict(rec) for rec in await pg.fetch(query)]
+        # await rel.model.set_meta(args.page.limit, obj[self.primary_key.name], rel,
+        #                          filter_by=filter_by, search_term=search_term)
         await rel.model.fetch_included(data, args)
         return rel.model.response(data)
 
@@ -607,7 +639,7 @@ async def get_collection(args, *models, **kwargs):
         model.reset()
 
     for (resource_type, query) in (select_mixed(models, count=True) \
-        if search_term is None else search_query(models, search_term, count=True)):
+            if search_term is None else search_query(models, search_term, count=True)):
         meta['subTotal'][resource_type] = await pg.fetchval(query)
         meta['total'] += meta['subTotal'][resource_type]
     return dict(data=[data[rec['type']][str(rec['id'])] for rec in mixed],

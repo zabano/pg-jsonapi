@@ -60,6 +60,9 @@ class KeywordModel(Model):
     from_ = keywords_t
     fields = 'name'
 
+    Relationship('articles', 'ArticleModel', MANY_TO_MANY,
+                 article_keywords_t.c.keyword_id, article_keywords_t.c.article_id),
+
 
 class CommentModel(Model):
     from_ = comments_t

@@ -59,7 +59,16 @@ async def get_collection(args, *models, **kwargs):
 async def get_related(args, model, object_id, name, **kwargs):
     user_id = login_user(kwargs.pop('login', None))
     try:
-        yield await model.get_related(args, object_id, name , **kwargs)
+        yield await model.get_related(args, object_id, name, **kwargs)
+    finally:
+        logout_user(user_id)
+
+
+@asynccontextmanager
+async def get_merged(args, model, object_ids, name, **kwargs):
+    user_id = login_user(kwargs.pop('login', None))
+    try:
+        yield await model.get_merged(args, object_ids, name, **kwargs)
     finally:
         logout_user(user_id)
 

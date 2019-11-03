@@ -2,6 +2,7 @@ import re
 
 from inflection import underscore
 
+from jsonapi.db.filter import MODIFIERS
 from jsonapi.exc import Error
 
 
@@ -113,6 +114,38 @@ class PageArgument:
         return '{}(limit={}, offset={})'.format(self.__class__.__name__, self.limit, self.offset)
 
 
+class MergeArgument:
+
+    def __init__(self, spec=None):
+
+        if spec is None:
+            spec = ''
+
+        if not isinstance(spec, str):
+            raise Error('merge argument must be a string')
+
+        merge_operator, merge_count, exclude_operator, exclude_count = '=', 0, '=', 0
+        match = re.match(r'([><]?=?)(\d+)(,([><]?=?)(\d+))?', spec)
+        if match:
+            merge_operator, merge_count, _, exclude_operator, exclude_count = match.groups()
+
+        self.merge_operator = MODIFIERS[merge_operator] if merge_operator else MODIFIERS['=']
+        self.exclude_operator = MODIFIERS[exclude_operator] if exclude_operator else MODIFIERS['=']
+
+        try:
+            self.merge_count = int(merge_count) if merge_count else 0
+            self.exclude_count = int(exclude_count) if exclude_count else 0
+        except ValueError:
+            raise Error('invalid merge argument: {!r}'.format(spec))
+
+        if self.merge_count < 0 or self.exclude_count < 0:
+            raise Error('invalid merge argument: {!r}'.format(spec))
+
+    def __repr__(self):
+        return '{}({merge_operator.__name__}:{merge_count},' \
+               '{exclude_operator.__name__}:{exclude_count})'.format(self.__class__.__name__, **self.__dict__)
+
+
 class RequestArguments:
 
     def __init__(self, args):
@@ -121,11 +154,14 @@ class RequestArguments:
         """
         args = args if args else dict()
         try:
-            self.include = tuple(AttributePath(path) for path in args['include'].split(',')) if 'include' in args else ()
-            self.fields = {f.type: f for f in (FieldArgument(k, args[k]) for k in args.keys() if k.startswith('fields'))}
+            self.include = tuple(
+                AttributePath(path) for path in args['include'].split(',')) if 'include' in args else ()
+            self.fields = {f.type: f for f in
+                           (FieldArgument(k, args[k]) for k in args.keys() if k.startswith('fields'))}
             self.sort = tuple(SortArgument(spec) for spec in args['sort'].split(',')) if 'sort' in args else ()
             self.filter = tuple(FilterArgument(k, args[k]) for k in args.keys() if k.startswith('filter'))
             self.page = PageArgument(args.get('page[size]', None), args.get('page[number]', None))
+            self.merge = MergeArgument(args['merge']) if 'merge' in args else None
         except (AttributeError, TypeError):
             raise Error('argument parser | invalid dictionary: {!r}'.format(args))
 
