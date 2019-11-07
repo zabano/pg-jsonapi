@@ -1,7 +1,7 @@
 import enum
 import re
 
-from sqlalchemy.sql import and_, operators, or_
+from sqlalchemy.sql import and_, operators, or_, cast
 
 from jsonapi.exc import Error
 from .table import Cardinality, PathJoin, is_clause, is_from_item
@@ -32,20 +32,25 @@ class FilterBy(PathJoin):
     def __bool__(self):
         return any((self.where, self.having, self.from_items))
 
-    def add(self, model, arg):
-        field = self.load(model, arg.path)
-        if field.is_relationship():
-            attr = field.model.fields['id']
-            self.where.append(attr.filter_clause.get(attr.expr, arg.operator, arg.value))
-        else:
-            clause = field.filter_clause.get(field.expr, arg.operator, arg.value)
-            if field.is_aggregate():
-                if field.rel.cardinality in (Cardinality.ONE_TO_MANY, Cardinality.MANY_TO_MANY):
-                    self.distinct = True
-                self.from_items.extend(field.rel.get_from_items())
-                self.having.append(clause)
+    def add(self, model, filter_args):
+        where = list()
+        having = list()
+        for arg in filter_args:
+            field = self.load(model, arg.path)
+            if field.is_relationship():
+                attr = field.model.fields['id']
+                where.append(attr.filter_clause.get(attr.expr, arg.operator, arg.value))
             else:
-                self.where.append(clause)
+                clause = field.filter_clause.get(field.expr, arg.operator, arg.value)
+                if field.is_aggregate():
+                    self.from_items.extend(field.rel.get_from_items())
+                    having.append(clause)
+                else:
+                    where.append(clause)
+        if where:
+            self.where.append(or_(*where))
+        if having:
+            self.having.append(or_(*having))
 
     def add_custom(self, name, custom_clause):
         if is_clause(custom_clause):
@@ -125,7 +130,7 @@ class FilterClause:
             else:
                 expressions = list()
                 for i, (mod, val) in enumerate(values):
-                    if val in (True, False, None):
+                    if val is True or val is False or val is None:
                         if mod == '=':
                             expressions.append(expr.is_(val))
                         elif mod in ('!=', '<>'):
@@ -139,13 +144,11 @@ class FilterClause:
                         if i > 0:
                             val_before = values[i - 1][1]
                             if val_before is not None:
-                                and_expr.append(
-                                    MODIFIERS['>'](expr, values[i - 1][1]))
+                                and_expr.append(MODIFIERS['>'](expr, values[i - 1][1]))
                         if i < len(values) - 1:
                             val_after = values[i + 1][1]
                             if val_after is not None:
-                                and_expr.append(
-                                    MODIFIERS['<'](expr, values[i + 1][1]))
+                                and_expr.append(MODIFIERS['<'](expr, values[i + 1][1]))
                         expressions.append(and_(*and_expr))
                 return or_(*expressions)
 

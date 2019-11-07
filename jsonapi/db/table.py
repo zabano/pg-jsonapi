@@ -180,7 +180,7 @@ class FromClause:
 
     def add(self, *items):
         for item in items:
-            self._from_items[item.name] = item
+            self._from_items[item.name] = self.value(item)
 
     def __len__(self):
         return len(self._from_items)
@@ -192,7 +192,7 @@ class FromClause:
         items = list(self._from_items.values())
         tables = [items[0].table] + items[1:]
         try:
-            return reduce(lambda l, r: l.join(r.table, onclause=r.onclause, isouter=r.left), tables)
+            return reduce(lambda l, r: l.join(r.table, onclause=r.onclause, isouter=True), tables)
         except NoForeignKeysError:
             left = tables.pop(0)
             n = len(tables)
@@ -200,7 +200,7 @@ class FromClause:
                 for j in range(len(tables)):
                     right = tables[j]
                     try:
-                        left = left.join(right.table, onclause=right.onclause, isouter=right.left)
+                        left = left.join(right.table, onclause=right.onclause, isouter=True)
                     except NoForeignKeysError:
                         pass
                     else:

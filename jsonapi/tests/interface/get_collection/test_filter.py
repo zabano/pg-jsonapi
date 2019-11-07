@@ -140,6 +140,7 @@ async def test_mixed(users, user_count, superuser_id):
                              lambda v: parse_datetime(v) < dt.datetime(2019, 10, 1))
 
 
+@pytest.mark.skip
 @pytest.mark.asyncio
 async def test_custom(articles, article_count, superuser_id):
     async with get_collection({

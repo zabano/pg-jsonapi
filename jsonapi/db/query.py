@@ -46,7 +46,7 @@ def select_many(model, **kwargs):
     qa = QueryArguments(**kwargs)
     if qa.filter_by and qa.search_term:
         raise APIError('cannot filter and search at the same time', model)
-    query = sa.select(columns=_col_list(model, search_term=qa.search_term),
+    query = sa.select(columns=_col_list(model, order_by=qa.order_by, search_term=qa.search_term),
                       from_obj=_from_obj(model, filter_by=qa.filter_by, order_by=qa.order_by,
                                          search_term=qa.search_term))
     if not qa.count:
@@ -65,7 +65,7 @@ def select_related(rel, obj_id, **kwargs):
     if qa.filter_by and qa.search_term:
         raise APIError('cannot filter and search at the same time', rel.model)
     parent_col = rel.parent_col.label('parent_id') if isinstance(obj_id, list) else None
-    query = sa.select(columns=_col_list(rel.model, parent_col, search_term=qa.search_term),
+    query = sa.select(columns=_col_list(rel.model, parent_col, order_by=qa.order_by, search_term=qa.search_term),
                       from_obj=_from_obj(rel.model, *rel.get_from_items(True), filter_by=qa.filter_by,
                                          order_by=qa.order_by, search_term=qa.search_term))
     if not isinstance(obj_id, list):
@@ -97,7 +97,7 @@ def select_merged(model, rel, obj_ids, **kwargs):
     obj_ids = set(obj_ids)
     include = obj_ids - qa.exclude
 
-    query = query.where(model.primary_key.in_(sa.cast(obj_id, model.primary_key.type) for obj_id in obj_ids))
+    query = query.where(model.primary_key.in_(obj_ids))
 
     array = sa.func.array
     array_length = sa.func.array_length
@@ -122,6 +122,11 @@ def select_merged(model, rel, obj_ids, **kwargs):
 
     query = _group_query(rel.model, query, filter_by=qa.filter_by, order_by=qa.order_by, force=True)
     query = _filter_query(query, qa.filter_by)
+    if not qa.count:
+        query = _protect_query(rel.model, query)
+        query = _sort_query(rel.model, query, qa.order_by, qa.search_term)
+        if qa.limit is not None:
+            query = query.offset(qa.offset).limit(qa.limit)
     return _count_query(query) if qa.count else query
 
 
@@ -166,18 +171,23 @@ def search_query(models, term, **kwargs):
 ########################################################################################################################
 
 def _where_one(model, obj_id):
-    return sa.and_(model.fields[name].expr == val for name, val in obj_id.items()) \
-        if isinstance(obj_id, dict) else model.primary_key == obj_id
+    if isinstance(obj_id, dict):
+        return sa.and_(model.fields[name].expr == sa.cast(val, model.fields[name].expr.type)
+                       for name, val in obj_id.items())
+    return model.primary_key == sa.cast(obj_id, model.primary_key.type)
 
 
 def _col_list(model, *extra_columns, **kwargs):
     group_by = bool(kwargs.get('group_by', False))
+    order_by = kwargs.get('order_by', None)
     col_list = [model.attributes['id'].expr.label('id')]
     for field in model.attributes.values():
         if (isinstance(field, Field) and field.name != 'id') \
                 or (not group_by and isinstance(field, Aggregate) and field.expr is not None):
             col_list.append(field.expr.label(field.name))
     col_list.extend(col for col in extra_columns if col is not None)
+    if order_by:
+        col_list.extend([col.label('_sort_{}_{}'.format(col.table.name, col.name)) for col in order_by.group_by])
     return col_list
 
 

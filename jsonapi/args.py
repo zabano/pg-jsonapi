@@ -1,6 +1,7 @@
 import re
+from collections import defaultdict
 
-from inflection import underscore
+from inflection import underscore, camelize
 
 from jsonapi.db.filter import MODIFIERS
 from jsonapi.exc import Error
@@ -68,18 +69,35 @@ class FilterArgument:
     def __init__(self, spec, value):
 
         try:
-            dot_path, op = re.match(r'filter\[([-_.\w]+)(:[-_\w]+)?\]', spec).groups()
+            group, dot_path, op = re.match(r'filter(\[\w+\])?\[([-_.\w]+)(:[-_\w]+)?\]', spec).groups()
         except AttributeError:
             raise Error('invalid filter parameter: {!r}'.format(spec))
         else:
             self.path = AttributePath(dot_path)
             self.operator = op.strip(':') if op else 'eq'
             self.value = value
+            self.group = group
 
     def __repr__(self):
         return '{}({!r}, op={!r}, val={!r})'.format(
             self.__class__.__name__, self.path, self.operator,
             self.value[:10] + '...' if len(self.value) > 10 else self.value)
+
+
+class OptionArgument:
+
+    def __init__(self, spec, value):
+
+        try:
+            name = re.match(r'option\[([-_\w]+)\]', spec).group(1)
+        except AttributeError:
+            raise Error('invalid option parameter: {!r}'.format(spec))
+        else:
+            self.name = camelize(name, False)
+            self.value = value
+
+    def __repr__(self):
+        return '{}({}={})'.format(self.__class__.__name__, self.name, self.value)
 
 
 class PageArgument:
@@ -154,16 +172,30 @@ class RequestArguments:
         """
         args = args if args else dict()
         try:
-            self.include = tuple(
-                AttributePath(path) for path in args['include'].split(',')) if 'include' in args else ()
-            self.fields = {f.type: f for f in
-                           (FieldArgument(k, args[k]) for k in args.keys() if k.startswith('fields'))}
+            self.include = tuple(AttributePath(path)
+                                 for path in args['include'].split(',')) if 'include' in args else ()
+            self.fields = {f.type: f for f in (FieldArgument(k, args[k])
+                                               for k in args.keys() if k.startswith('fields'))}
             self.sort = tuple(SortArgument(spec) for spec in args['sort'].split(',')) if 'sort' in args else ()
-            self.filter = tuple(FilterArgument(k, args[k]) for k in args.keys() if k.startswith('filter'))
+            self.filter = self._group_filter_args(FilterArgument(k, args[k])
+                                                  for k in args.keys() if k.startswith('filter'))
             self.page = PageArgument(args.get('page[size]', None), args.get('page[number]', None))
             self.merge = MergeArgument(args['merge']) if 'merge' in args else None
+            self.options = {o.name: o.value for o in
+                            (OptionArgument(k, v) for k, v in args.items() if k.startswith('option'))}
         except (AttributeError, TypeError):
             raise Error('argument parser | invalid dictionary: {!r}'.format(args))
+
+    @staticmethod
+    def _group_filter_args(filter_args):
+        filters_by_group = defaultdict(list)
+        for f in filter_args:
+            filters_by_group[f.group].append(f)
+        filters = list((f,) for f in filters_by_group[None])
+        for group, fs in filters_by_group.items():
+            if group:
+                filters.append(tuple(fs))
+        return tuple(filters)
 
     def fieldset_defined(self, resource_type):
         return resource_type in self.fields.keys()
@@ -181,7 +213,7 @@ class RequestArguments:
         return any(s.path.exists(name, parents) for s in self.sort)
 
     def in_filter(self, name, parents):
-        return any(f.path.exists(name, parents) for f in self.filter)
+        return any(f.path.exists(name, parents) for g in self.filter for f in g)
 
 
 def parse_arguments(args):

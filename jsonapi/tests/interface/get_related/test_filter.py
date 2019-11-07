@@ -118,6 +118,7 @@ async def test_aggregate(users, authors, superuser_id):
                 assert_attribute(article, 'keyword-count', lambda v: v <= 5)
 
 
+@pytest.mark.skip
 @pytest.mark.asyncio
 async def test_custom(users, authors, superuser_id):
     for user_id in authors[:5]:

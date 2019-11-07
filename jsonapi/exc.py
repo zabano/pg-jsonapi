@@ -22,6 +22,13 @@ class APIError(ModelError):
         self.status = status
 
 
+class LargeResult(APIError):
+    def __init__(self, message, model, size, limit):
+        super().__init__(message, model, 400)
+        self.size = size
+        self.limit = limit
+
+
 class DataTypeError(Error):
 
     def __init__(self, message, data_type):

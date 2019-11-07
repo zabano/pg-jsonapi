@@ -199,6 +199,9 @@ class Relationship(BaseField):
                     self.parent.primary_key.table if related else self.model.primary_key.table,
                     onclause=self.model.primary_key == ref,
                     left=True))
+                if not related:
+                    from_items.extend(self.model.from_[1:])
+
             else:
                 from_items.append(FromItem(
                     self.refs[0].table,
@@ -272,6 +275,6 @@ class Relationship(BaseField):
                 cls = type(name,
                            (base,),
                            {'type_': base.get_type(),
-                            'from_': base.get_from_aliases(self.name)})
+                            'from_': base.get_from_aliases('{}_{}'.format(underscore(self.parent.type_), self.name))})
             self.model = cls()
             self.filter_clause = self.get_filter_clause()

@@ -14,7 +14,7 @@ from jsonapi.datatypes import String
 from jsonapi.db.filter import FilterBy
 from jsonapi.db.query import exists, search_query, select_many, select_merged, select_mixed, select_one, select_related
 from jsonapi.db.table import Cardinality, FromClause, FromItem, OrderBy, get_primary_key, is_from_item
-from jsonapi.exc import APIError, Error, Forbidden, ModelError, NotFound
+from jsonapi.exc import APIError, Error, Forbidden, ModelError, NotFound, LargeResult
 from jsonapi.fields import Aggregate, BaseField, Field, Relationship
 from jsonapi.log import log_query, logger
 from jsonapi.registry import model_registry, schema_registry
@@ -28,6 +28,11 @@ The mime type to be used as the value of the Content-Type header
 SEARCH_PAGE_SIZE = 50
 """
 The default value for the "page[size]" option when searching
+"""
+
+RESULT_SIZE = 300
+"""
+The default limit for the size of the primary data  of the response document
 """
 
 ONE_TO_ONE = Cardinality.ONE_TO_ONE
@@ -308,38 +313,62 @@ class Model:
         self.meta = dict()
 
     async def set_meta(self, limit, object_id=None, rel=None, **kwargs):
-        filter_by = kwargs.get('filter_by', None)
-        search_term = kwargs.get('search_term', None)
-        is_related = object_id is not None and rel is not None
+
+        filter_by = kwargs.pop('filter_by', None)
+        search_term = kwargs.pop('search_term', None)
+        exclude = kwargs.pop('exclude', None)
+        options = kwargs.pop('options', None)
+        is_merged = kwargs.pop('merge', False)
+        is_related = object_id is not None and rel is not None and not is_merged
         if limit is not None or search_term is not None or filter_by:
-            query = select_related(rel, object_id, count=True) if is_related else select_many(self, count=True)
-            log_query(query)
+
+            if is_merged:
+                query = select_merged(rel.parent, rel, object_id, exclude=exclude, options=options, count=True)
+            elif is_related:
+                query = select_related(rel, object_id, count=True)
+            else:
+                query = select_many(self, count=True)
             self.meta['total'] = await pg.fetchval(query)
+
             if limit is not None and filter_by:
-                self.meta['totalFiltered'] = await pg.fetchval(
-                    select_related(rel, object_id, filter_by=filter_by, count=True)
-                    if is_related else select_many(self, filter_by=filter_by, count=True))
+                if is_merged:
+                    query = select_merged(rel.parent, rel, object_id, exclude=exclude, options=options,
+                                          filter_by=filter_by, count=True)
+                elif is_related:
+                    query = select_related(rel, object_id, filter_by=filter_by, count=True)
+                else:
+                    query = select_many(self, filter_by=filter_by, count=True)
+                self.meta['totalFiltered'] = await pg.fetchval(query)
+
             if search_term is not None:
                 self.meta['searchTerm'] = search_term
                 if limit is not None:
-                    self.meta['searchTotal'] = await pg.fetchval(
-                        select_related(rel, object_id, search_term=search_term, count=True)
-                        if is_related else select_many(self, search_term=search_term, count=True))
+                    if is_merged:
+                        query = select_merged(rel.parent, rel, object_id, exclude=exclude, options=options,
+                                              search_term=search_term, count=True)
+                    elif is_related:
+                        query = select_related(rel, object_id, search_term=search_term, count=True)
+                    else:
+                        query = select_many(self, search_term=search_term, count=True)
+                    self.meta['searchTotal'] = await pg.fetchval(query)
+
 
     def get_filter_by(self, args):
         filter_by = FilterBy()
         for arg in args.filter:
-            custom_name = 'filter_{}'.format('_'.join(arg.path))
-            if hasattr(self, custom_name):
-                custom_filter = getattr(self, custom_name)
-                op = arg.operator if arg.operator else 'eq'
-                filter_by.add_custom('.'.join(arg.path), custom_filter(self.rec, arg.value, getattr(operator, op)))
-            else:
-                filter_by.add(self, arg)
+            filter_by.add(self, arg)
         return filter_by
 
     def get_order_by(self, args):
         return OrderBy(self, *args.sort)
+
+    def check_size(self, args, recs):
+        if 'limit' in args.options:
+            n =  self.meta['totalFiltered'] if 'totalFiltered' in self.meta else len(recs)
+            if n > RESULT_SIZE:
+                raise LargeResult('primary data size: {!r} '
+                                  'exceeded the limit: {!r}'.format(n, RESULT_SIZE),
+                                  self, n, RESULT_SIZE)
 
     async def fetch_included(self, data, args):
 
@@ -441,16 +470,17 @@ class Model:
         :param str search: an optional search term
         :return: JSON API response document
         """
+        search_term = kwargs.pop('search', None) or args.pop('search', None)
         args = self.parse_arguments(args)
         self.init_schema(args)
         filter_by, order_by = self.get_filter_by(args), self.get_order_by(args)
-        search_term = kwargs.pop('search', None)
         query = select_many(self, filter_by=filter_by, order_by=order_by,
                             offset=args.page.offset, limit=args.page.limit,
                             search_term=search_term)
         log_query(query)
         recs = [dict(rec) for rec in await pg.fetch(query)]
         await self.set_meta(args.page.limit, filter_by=filter_by, search_term=search_term)
+        self.check_size(args, recs)
         await self.fetch_included(recs, args)
         return self.response(recs)
 
@@ -480,13 +510,14 @@ class Model:
         if rec is None:
             raise Forbidden(object_id, self)
 
+        search_term = kwargs.pop('search', None) or args.pop('search', None)
+
         rel = self.relationship(relationship_name)
         args = self.parse_arguments(args)
         rel.load(self)
         rel.model.init_schema(args)
         filter_by, order_by = rel.model.get_filter_by(args), rel.model.get_order_by(args)
-        search_term = kwargs.pop('search', None)
-        query = select_related(rel, obj[self.primary_key.name], filter_by=filter_by, order_by=order_by,
+        query = select_related(rel, rec[self.primary_key.name], filter_by=filter_by, order_by=order_by,
                                offset=args.page.offset, limit=args.page.limit, search_term=search_term)
         log_query(query)
         if rel.cardinality in (Cardinality.ONE_TO_ONE, Cardinality.MANY_TO_ONE):
@@ -494,8 +525,8 @@ class Model:
             data = dict(result) if result is not None else None
         else:
             data = [dict(rec) for rec in await pg.fetch(query)]
-            await rel.model.set_meta(args.page.limit, obj[self.primary_key.name], rel,
-                                     filter_by=filter_by, search_term=search_term)
+            await rel.model.set_meta(args.page.limit, object_id, rel, filter_by=filter_by, search_term=search_term)
+            rel.model.check_size(args, data)
         await rel.model.fetch_included(data, args)
         return rel.model.response(data)
 
@@ -520,14 +551,16 @@ class Model:
         rel.load(self)
         rel.model.init_schema(args)
         filter_by, order_by = rel.model.get_filter_by(args), rel.model.get_order_by(args)
-        query = select_merged(self, rel, set(rec['id'] for rec in recs),
+        exclude = set(kwargs.pop('exclude', ()))
+        query = select_merged(self, rel, object_ids,
                               filter_by=filter_by, order_by=order_by,
                               offset=args.page.offset, limit=args.page.limit,
-                              exclude=set(kwargs.pop('exclude', ())), options=args.merge)
+                              exclude=exclude, options=args.merge)
         log_query(query)
         data = [dict(rec) for rec in await pg.fetch(query)]
-        # await rel.model.set_meta(args.page.limit, obj[self.primary_key.name], rel,
-        #                          filter_by=filter_by, search_term=search_term)
+        await rel.model.set_meta(args.page.limit, object_ids, rel, exclude=exclude, options=args.merge,
+                                 filter_by=filter_by, merge=True)
+        rel.model.check_size(args, data)
         await rel.model.fetch_included(data, args)
         return rel.model.response(data)
 
@@ -573,9 +606,6 @@ class ModelSet(Set):
     def __len__(self):
         return len(self._models)
 
-    def __repr__(self):
-        return '{' + ','.join(model.name for model in self._models) + '}'
-
 
 def _extract_model_args(model, args):
     model_args = dict()
@@ -608,7 +638,7 @@ async def get_collection(args, *models, **kwargs):
     :return: JSON API response document
     """
     ra = parse_arguments(args)
-    search_term = kwargs.pop('search', None)
+    search_term = kwargs.pop('search', None) or args.pop('search', None)
     models = ModelSet(*models, searchable=search_term is not None)
     query = select_mixed(models, order_by=ra.sort, limit=ra.page.limit, offset=ra.page.offset) \
         if search_term is None else search_query(models, search_term, limit=ra.page.limit, offset=ra.page.offset)
