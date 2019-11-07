@@ -188,11 +188,27 @@ class FromClause:
     def __iter__(self):
         return iter(self._from_items.values())
 
+    @staticmethod
+    def _join(l, r):
+        if isinstance(r.table, Join):
+            items = list()
+            j = r.table
+            while hasattr(j, 'right'):
+                items.append((j.right, j.onclause))
+                j = j.left
+
+            left = l.join(j, onclause=r.onclause, isouter=True)
+            for i, onclause in reversed(items):
+                left = left.join(i, onclause=onclause, isouter=True)
+            return left
+        else:
+            return l.join(r.table, onclause=r.onclause, isouter=True)
+
     def __call__(self):
         items = list(self._from_items.values())
         tables = [items[0].table] + items[1:]
         try:
-            return reduce(lambda l, r: l.join(r.table, onclause=r.onclause, isouter=True), tables)
+            return reduce(lambda l, r: self._join(l, r), tables)
         except NoForeignKeysError:
             left = tables.pop(0)
             n = len(tables)
@@ -200,7 +216,7 @@ class FromClause:
                 for j in range(len(tables)):
                     right = tables[j]
                     try:
-                        left = left.join(right.table, onclause=right.onclause, isouter=True)
+                        left = self._join(left, right)
                     except NoForeignKeysError:
                         pass
                     else:

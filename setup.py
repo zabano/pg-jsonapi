@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 
-from distutils.core import setup
+from setuptools import setup, find_packages
 
 setup(
     name='pg-jsonapi',
@@ -8,7 +8,7 @@ setup(
     description='PostgreSQL JSONAPI',
     author='Omar Zabaneh',
     author_email='zabano@gmail.com',
-    packages=['jsonapi'],
+    packages=find_packages(),
     license='SSPL',
     keywords='jsonapi marshmallow asyncpgsa',
     install_requires=[
