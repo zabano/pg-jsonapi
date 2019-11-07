@@ -188,7 +188,7 @@ class Relationship(BaseField):
                     onclause=get_primary_key(self.refs[0].table) == self.parent.primary_key,
                     left=True))
             from_items.append(FromItem(
-                self.model.primary_key.table,
+                self.model.from_clause(),
                 onclause=self.model.primary_key == (self.refs[0] if self.refs else self.parent.primary_key),
                 left=True))
 
@@ -196,11 +196,9 @@ class Relationship(BaseField):
             ref = self.parent.from_clause.get_column(self.refs[0])
             if ref is not None:
                 from_items.append(FromItem(
-                    self.parent.primary_key.table if related else self.model.primary_key.table,
+                    self.parent.from_clause() if related else self.model.from_clause(),
                     onclause=self.model.primary_key == ref,
                     left=True))
-                if not related:
-                    from_items.extend(self.model.from_[1:])
 
             else:
                 from_items.append(FromItem(
@@ -208,7 +206,7 @@ class Relationship(BaseField):
                     onclause=self.model.primary_key == self.refs[0],
                     left=True))
                 from_items.append(FromItem(
-                    self.parent.primary_key.table,
+                    self.parent.from_clause(),
                     onclause=get_primary_key(self.refs[0].table) == self.parent.primary_key,
                     left=True))
 
@@ -219,9 +217,9 @@ class Relationship(BaseField):
                     ref.table,
                     onclause=self.parent.primary_key == ref,
                     left=True))
-                if self.model.primary_key.table != ref.table:
+                if self.model.from_clause() != ref.table:
                     from_items.append(FromItem(
-                        self.model.primary_key.table,
+                        self.model.from_clause(),
                         onclause=get_primary_key(ref.table) == self.model.primary_key,
                         left=True))
             else:
@@ -230,7 +228,7 @@ class Relationship(BaseField):
                     onclause=self.model.primary_key == get_primary_key(self.refs[0]),
                     left=True))
                 from_items.append(FromItem(
-                    self.parent.primary_key.table,
+                    self.parent.from_clause(),
                     onclause=self.refs[0] == self.parent.primary_key,
                     left=True))
 
@@ -241,7 +239,7 @@ class Relationship(BaseField):
                     onclause = and_(onclause, self.where)
                 from_items.append(FromItem(self.refs[1].table, onclause=onclause, left=True))
                 from_items.append(FromItem(
-                    self.parent.primary_key.table,
+                    self.parent.from_clause(),
                     onclause=self.parent.primary_key == self.refs[0],
                     left=True))
             else:
@@ -250,7 +248,7 @@ class Relationship(BaseField):
                     onclause = and_(onclause, self.where)
                 from_items.append(FromItem(self.refs[0].table, onclause=onclause, left=True))
                 from_items.append(FromItem(
-                    self.model.primary_key.table,
+                    self.model.from_clause(),
                     onclause=self.model.primary_key == self.refs[1],
                     left=True))
 

@@ -5,7 +5,7 @@ from functools import reduce
 from sqlalchemy.exc import NoForeignKeysError
 from sqlalchemy.sql.elements import BinaryExpression, BooleanClauseList
 from sqlalchemy.sql.schema import Column, Table
-from sqlalchemy.sql.selectable import Alias
+from sqlalchemy.sql import Alias, Selectable, Join
 
 from jsonapi.exc import APIError, Error
 
@@ -126,9 +126,8 @@ class FromItem:
         self.onclause = kwargs.get('onclause', None)
         self.left = bool(kwargs.get('left', False))
 
-        if not isinstance(self.table, (Table, Alias)):
-            raise Error(
-                '[FromItem] invalid "table" argument: {}'.format(self.table))
+        if not isinstance(self.table, Selectable):
+            raise Error('[FromItem] invalid "table" argument: {}'.format(self.table))
 
         if self.onclause is not None:
             if not is_clause(self.onclause):
@@ -140,7 +139,8 @@ class FromItem:
         """
         A unique string identifier (the name of the table, or the table alias).
         """
-        return '{}.{}'.format(self.table.schema, self.table.name) if self.table.schema else self.table.name
+        table = get_left(self.table) if isinstance(self.table, Join) else self.table
+        return '{}.{}'.format(table.schema, table.name) if table.schema else table.name
 
     def __repr__(self):
         return "<{}({})>".format(self.__class__.__name__, self.name)
@@ -156,11 +156,9 @@ class FromClause:
 
     >>> from jsonapi.tests.db import users_t, user_names_t
     >>> fc = FromClause(users_t)
-    >>> fc.append(FromItem(user_names_t, left=True))
+    >>> fc.add(FromItem(user_names_t, left=True))
     >>> len(fc)
     2
-    >>> fc[0], (fc[1], fc[1].left)
-    (<FromItem(users)>, (<FromItem(user_names)>, True))
     >>> fc
     <FromClause(users, user_names)>
     >>> print(fc)
@@ -243,6 +241,12 @@ def get_table_name(table_or_alias):
     if hasattr(table_or_alias, 'element'):
         return get_table_name(table_or_alias.element)
     return table_or_alias.name
+
+
+def get_left(join):
+    if hasattr(join, 'left'):
+        return get_left(join.left)
+    return join
 
 
 def get_primary_key(table):
