@@ -178,7 +178,9 @@ class FromClause:
 
     def add(self, *items):
         for item in items:
-            self._from_items[item.name] = self.value(item)
+            if item.name not in self._from_items \
+                    or not (isinstance(item.table, Join) or isinstance(self._from_items[item.name], Join)):
+                self._from_items[item.name] = self.value(item)
 
     def __len__(self):
         return len(self._from_items)
