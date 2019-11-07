@@ -217,9 +217,9 @@ class Relationship(BaseField):
                     ref.table,
                     onclause=self.parent.primary_key == ref,
                     left=True))
-                if self.model.from_clause() != ref.table:
+                if self.model.primary_key.table != ref.table:
                     from_items.append(FromItem(
-                        self.model.from_clause(),
+                        self.model.primary_key.table,
                         onclause=get_primary_key(ref.table) == self.model.primary_key,
                         left=True))
             else:

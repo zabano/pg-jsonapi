@@ -223,11 +223,11 @@ class FromClause:
         return item if isinstance(item, FromItem) else FromItem(item)
 
     def __repr__(self):
-        return "<{}({})>".format(self.__class__.__name__, ', '.join(from_item.name for from_item in self._from_items))
+        return "<{}({})>".format(self.__class__.__name__, ', '.join(name for name in self._from_items.keys()))
 
     def __str__(self):
         if len(self) > 0:
-            return self._from_items[0].table.name if len(self) == 1 else str(self().compile())
+            return str(self().compile())
         return ''
 
 
