@@ -187,7 +187,7 @@ def _col_list(model, *extra_columns, **kwargs):
             col_list.append(field.expr.label(field.name))
     col_list.extend(col for col in extra_columns if col is not None)
     if order_by:
-        col_list.extend([col.label('_sort_{}_{}'.format(col.table.name, col.name)) for col in order_by.group_by])
+        col_list.extend([col.label('_sort_{:d}'.format(i)) for i, col in enumerate(order_by.group_by)])
     return col_list
 
 

@@ -525,7 +525,8 @@ class Model:
             data = dict(result) if result is not None else None
         else:
             data = [dict(rec) for rec in await pg.fetch(query)]
-            await rel.model.set_meta(args.page.limit, object_id, rel, filter_by=filter_by, search_term=search_term)
+            await rel.model.set_meta(args.page.limit, rec[self.primary_key.name], rel,
+                                     filter_by=filter_by, search_term=search_term)
             rel.model.check_size(args, data)
         await rel.model.fetch_included(data, args)
         return rel.model.response(data)
