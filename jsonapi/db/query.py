@@ -44,8 +44,6 @@ def select_one(model, obj_id):
 
 def select_many(model, **kwargs):
     qa = QueryArguments(**kwargs)
-    if qa.filter_by and qa.search_term:
-        raise APIError('cannot filter and search at the same time', model)
     query = sa.select(columns=_col_list(model, order_by=qa.order_by, search_term=qa.search_term),
                       from_obj=_from_obj(model, filter_by=qa.filter_by, order_by=qa.order_by,
                                          search_term=qa.search_term))
@@ -54,7 +52,7 @@ def select_many(model, **kwargs):
         query = _sort_query(model, query, qa.order_by, qa.search_term)
         if qa.limit is not None:
             query = query.offset(qa.offset).limit(qa.limit)
-    query = _group_query(model, query, filter_by=qa.filter_by, order_by=qa.order_by)
+    query = _group_query(model, query, filter_by=qa.filter_by, order_by=qa.order_by, search_term=qa.search_term)
     query = _filter_query(query, qa.filter_by)
     query = _search_query(model, query, qa.search_term)
     return _count_query(query) if qa.count else query
@@ -62,8 +60,6 @@ def select_many(model, **kwargs):
 
 def select_related(rel, obj_id, **kwargs):
     qa = QueryArguments(**kwargs)
-    if qa.filter_by and qa.search_term:
-        raise APIError('cannot filter and search at the same time', rel.model)
     parent_col = rel.parent_col.label('parent_id') if isinstance(obj_id, list) else None
     query = sa.select(columns=_col_list(rel.model, parent_col, order_by=qa.order_by, search_term=qa.search_term),
                       from_obj=_from_obj(rel.model, *rel.get_from_items(True), filter_by=qa.filter_by,
@@ -76,7 +72,8 @@ def select_related(rel, obj_id, **kwargs):
             query = _sort_query(rel.model, query, qa.order_by, qa.search_term)
         if qa.limit is not None:
             query = query.offset(qa.offset).limit(qa.limit)
-    query = _group_query(rel.model, query, parent_col, filter_by=qa.filter_by, order_by=qa.order_by)
+    query = _group_query(rel.model, query, parent_col,
+                         filter_by=qa.filter_by, order_by=qa.order_by, search_term=qa.search_term)
     query = _filter_query(query, qa.filter_by)
     query = _search_query(rel.model, query, qa.search_term)
     if isinstance(obj_id, list):
@@ -213,6 +210,7 @@ def _from_obj(model, *extra_items, **kwargs):
 def _group_query(model, query, *extra_columns, **kwargs):
     filter_by = kwargs.get('filter_by', None)
     order_by = kwargs.get('order_by', None)
+    search_term = kwargs.get('search_term', None)
     force = bool(kwargs.get('force', False))
     if force or (filter_by is not None and len(filter_by.having) > 0) \
             or (order_by is not None and order_by.distinct) \
@@ -220,6 +218,8 @@ def _group_query(model, query, *extra_columns, **kwargs):
         columns = list(extra_columns)
         if order_by:
             columns.extend(order_by.group_by)
+        if search_term:
+            columns.append(model.search.c.tsvector)
         query = query.group_by(*_col_list(model, *columns, group_by=True))
     return query
 

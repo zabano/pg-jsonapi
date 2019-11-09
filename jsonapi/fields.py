@@ -1,6 +1,5 @@
-import re
-from inflection import underscore
 import marshmallow as ma
+from inflection import underscore
 from sqlalchemy.sql import text, and_
 from sqlalchemy.sql.schema import Column
 
