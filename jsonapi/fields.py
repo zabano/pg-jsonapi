@@ -113,15 +113,15 @@ class Aggregate(BaseField):
         self.rel = model.relationship(self.rel_name)
         self.rel.load(model)
         if self.col is None:
-            col_expr = self.rel.model.primary_key.distinct()
+            col_expr = self.rel.model.primary_key
         elif isinstance(self.col, str):
-            col_expr = model.get_expr(self.col).distinct()
+            col_expr = model.get_expr(self.col)
         else:
             try:
                 col_expr = self.col(model.rec, self.rel.model.rec)
             except TypeError:
                 col_expr = self.col(model.rec)
-        self.expr = self.func(text(str(col_expr)))
+        self.expr = self.func(text(str(col_expr.distinct())))
         if self.data_type is None:
             self.data_type = DataType.get(self.expr)
         self.filter_clause = self.get_filter_clause()

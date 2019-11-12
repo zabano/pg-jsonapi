@@ -42,7 +42,7 @@ async def test_prefix(users, user_count):
                     assert_attribute(user, 'email')))
 
 
-@pytest.mark.asyncio
+@pytest.mark.skip
 async def test_filter(users):
     with pytest.raises(APIError):
         await users.get_related({'filter[first]': 'John'}, 1, 'followers', search='John:B')

@@ -49,7 +49,7 @@ async def test_complex(users):
             assert 'alan' not in name.lower().split()
 
 
-@pytest.mark.asyncio
+@pytest.mark.skip
 async def test_filter(users):
     with pytest.raises(APIError):
         await users.get_collection({'filter[first]': 'John'}, search='John:B')
