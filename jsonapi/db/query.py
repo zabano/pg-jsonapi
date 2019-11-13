@@ -237,7 +237,7 @@ def _filter_query(query, filter_by):
 
 
 def _sort_query(model, query, order_by, search_term):
-    if search_term is not None:
+    if search_term is not None and not order_by:
         return query.order_by(_rank_column(model, search_term).desc())
     if order_by:
         return query.order_by(*order_by)
