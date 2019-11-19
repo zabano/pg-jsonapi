@@ -13,6 +13,7 @@ SEARCH_LABEL = '_ts_rank'
 class QueryArguments:
 
     def __init__(self, **kwargs):
+        self.where = kwargs.get('where', None)
         self.filter_by = kwargs.get('filter_by', None)
         self.order_by = kwargs.get('order_by', None)
         self.search_term = kwargs.get('search_term', None)
@@ -47,6 +48,8 @@ def select_many(model, **kwargs):
     query = sa.select(columns=_col_list(model, order_by=qa.order_by, search_term=qa.search_term),
                       from_obj=_from_obj(model, filter_by=qa.filter_by, order_by=qa.order_by,
                                          search_term=qa.search_term))
+    if qa.where is not None:
+        query = query.where(qa.where)
     if not qa.count:
         query = _protect_query(model, query)
         query = _sort_query(model, query, qa.order_by, qa.search_term)
@@ -64,6 +67,8 @@ def select_related(rel, obj_id, **kwargs):
     query = sa.select(columns=_col_list(rel.model, parent_col, order_by=qa.order_by, search_term=qa.search_term),
                       from_obj=_from_obj(rel.model, *rel.get_from_items(True), filter_by=qa.filter_by,
                                          order_by=qa.order_by, search_term=qa.search_term))
+    if qa.where is not None:
+        query = query.where(qa.where)
     if not isinstance(obj_id, list):
         query = query.where(rel.parent_col == obj_id)
     if not qa.count:

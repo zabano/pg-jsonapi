@@ -200,14 +200,24 @@ class Relationship(BaseField):
                     left=True))
 
             else:
-                from_items.append(FromItem(
-                    self.refs[0].table,
-                    onclause=self.model.primary_key == self.refs[0],
-                    left=True))
-                from_items.append(FromItem(
-                    self.parent.from_clause(),
-                    onclause=get_primary_key(self.refs[0].table) == self.parent.primary_key,
-                    left=True))
+                if related:
+                    from_items.append(FromItem(
+                        self.refs[0].table,
+                        onclause=self.model.primary_key == self.refs[0],
+                        left=True))
+                    from_items.append(FromItem(
+                        self.parent.from_clause(),
+                        onclause=get_primary_key(self.refs[0].table) == self.parent.primary_key,
+                        left=True))
+                else:
+                    from_items.append(FromItem(
+                        self.refs[0].table,
+                        onclause=self.parent.primary_key == get_primary_key(self.refs[0].table),
+                        left=True))
+                    from_items.append(FromItem(
+                        self.model.from_clause(),
+                        onclause=self.refs[0] == self.model.primary_key,
+                        left=True))
 
         elif self.cardinality == Cardinality.ONE_TO_MANY:
             ref = self.model.from_clause.get_column(self.refs[0])

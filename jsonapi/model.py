@@ -73,12 +73,16 @@ class JSONSchema(ma.Schema):
                     resource['relationships'][name] = [dict(id=rec['id'], type=rec['type']) for rec in data[name]]
                     if len(data[name]) > 0:
                         for rec in data[name]:
+                            if rec['type'] in included and rec['id'] in included[rec['type']]:
+                                rec.update(included[rec['type']][rec['id']])
                             included[rec['type']][rec['id']] = rec
                 else:
                     if data[name] is None:
                         resource['relationships'][name] = None
                     else:
                         resource['relationships'][name] = dict(id=data[name]['id'], type=orig[name]['type'])
+                        if orig[name]['type'] in included and data[name]['id'] in included[orig[name]['type']]:
+                            data[name].update(included[orig[name]['type']][data[name]['id']])
                         included[orig[name]['type']][data[name]['id']] = data[name]
         return resource
 
@@ -314,6 +318,7 @@ class Model:
 
     async def set_meta(self, limit, object_id=None, rel=None, **kwargs):
 
+        where = kwargs.pop('where', None)
         filter_by = kwargs.pop('filter_by', None)
         search_term = kwargs.pop('search_term', None)
         exclude = kwargs.pop('exclude', None)
@@ -325,9 +330,9 @@ class Model:
             if is_merged:
                 query = select_merged(rel.parent, rel, object_id, exclude=exclude, options=options, count=True)
             elif is_related:
-                query = select_related(rel, object_id, count=True)
+                query = select_related(rel, object_id, where=where, count=True)
             else:
-                query = select_many(self, count=True)
+                query = select_many(self, where=where, count=True)
             self.meta['total'] = await pg.fetchval(query)
 
             if limit is not None and filter_by:
@@ -335,9 +340,9 @@ class Model:
                     query = select_merged(rel.parent, rel, object_id, exclude=exclude, options=options,
                                           filter_by=filter_by, count=True)
                 elif is_related:
-                    query = select_related(rel, object_id, filter_by=filter_by, count=True)
+                    query = select_related(rel, object_id, where=where, filter_by=filter_by, count=True)
                 else:
-                    query = select_many(self, filter_by=filter_by, count=True)
+                    query = select_many(self, where=where, filter_by=filter_by, count=True)
                 self.meta['totalFiltered'] = await pg.fetchval(query)
 
             if search_term is not None:
@@ -474,12 +479,15 @@ class Model:
         args = self.parse_arguments(args)
         self.init_schema(args)
         filter_by, order_by = self.get_filter_by(args), self.get_order_by(args)
+        where = None
+        if 'where' in kwargs:
+            where = kwargs['where'](self.rec)
         query = select_many(self, filter_by=filter_by, order_by=order_by,
                             offset=args.page.offset, limit=args.page.limit,
-                            search_term=search_term)
+                            search_term=search_term, where=where)
         log_query(query)
         recs = [dict(rec) for rec in await pg.fetch(query)]
-        await self.set_meta(args.page.limit, filter_by=filter_by, search_term=search_term)
+        await self.set_meta(args.page.limit, filter_by=filter_by, search_term=search_term, where=where)
         self.check_size(args, recs)
         await self.fetch_included(recs, args)
         return self.response(recs)
@@ -517,8 +525,12 @@ class Model:
         rel.load(self)
         rel.model.init_schema(args)
         filter_by, order_by = rel.model.get_filter_by(args), rel.model.get_order_by(args)
+        where = None
+        if 'where' in kwargs:
+            where = kwargs['where'](self.rec, rel.model.rec)
         query = select_related(rel, rec[self.primary_key.name], filter_by=filter_by, order_by=order_by,
-                               offset=args.page.offset, limit=args.page.limit, search_term=search_term)
+                               offset=args.page.offset, limit=args.page.limit, search_term=search_term,
+                               where=where)
         log_query(query)
         if rel.cardinality in (Cardinality.ONE_TO_ONE, Cardinality.MANY_TO_ONE):
             result = await pg.fetchrow(query)
@@ -526,7 +538,7 @@ class Model:
         else:
             data = [dict(rec) for rec in await pg.fetch(query)]
             await rel.model.set_meta(args.page.limit, rec[self.primary_key.name], rel,
-                                     filter_by=filter_by, search_term=search_term)
+                                     filter_by=filter_by, search_term=search_term, where=where)
             rel.model.check_size(args, data)
         await rel.model.fetch_included(data, args)
         return rel.model.response(data)
