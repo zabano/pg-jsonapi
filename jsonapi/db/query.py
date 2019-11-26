@@ -50,8 +50,9 @@ def select_many(model, **kwargs):
                                          search_term=qa.search_term))
     if qa.where is not None:
         query = query.where(qa.where)
+
+    query = _protect_query(model, query)
     if not qa.count:
-        query = _protect_query(model, query)
         query = _sort_query(model, query, qa.order_by, qa.search_term)
         if qa.limit is not None:
             query = query.offset(qa.offset).limit(qa.limit)
@@ -71,8 +72,9 @@ def select_related(rel, obj_id, **kwargs):
         query = query.where(qa.where)
     if not isinstance(obj_id, list):
         query = query.where(rel.parent_col == obj_id)
+
+    query = _protect_query(rel.model, query)
     if not qa.count:
-        query = _protect_query(rel.model, query)
         if rel.cardinality in (Cardinality.ONE_TO_MANY, Cardinality.MANY_TO_MANY):
             query = _sort_query(rel.model, query, qa.order_by, qa.search_term)
         if qa.limit is not None:
@@ -124,8 +126,8 @@ def select_merged(model, rel, obj_ids, **kwargs):
 
     query = _group_query(rel.model, query, filter_by=qa.filter_by, order_by=qa.order_by, force=True)
     query = _filter_query(query, qa.filter_by)
+    query = _protect_query(rel.model, query)
     if not qa.count:
-        query = _protect_query(rel.model, query)
         query = _sort_query(rel.model, query, qa.order_by, qa.search_term)
         if qa.limit is not None:
             query = query.offset(qa.offset).limit(qa.limit)
