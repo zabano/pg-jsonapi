@@ -1,4 +1,3 @@
-import operator
 from collections import defaultdict
 from collections.abc import Sequence, Set
 from copy import copy, deepcopy
@@ -49,6 +48,13 @@ def get_error_object(e):
     raise e
 
 
+def _update_included_rec(a, b):
+    for key in b:
+        if key not in a:
+            a[key] = b[key]
+    return a
+
+
 class JSONSchema(ma.Schema):
 
     @ma.post_dump(pass_many=False, pass_original=True)
@@ -74,7 +80,7 @@ class JSONSchema(ma.Schema):
                     if len(data[name]) > 0:
                         for rec in data[name]:
                             if rec['type'] in included and rec['id'] in included[rec['type']]:
-                                rec.update(included[rec['type']][rec['id']])
+                                rec = _update_included_rec(rec, included[rec['type']][rec['id']])
                             included[rec['type']][rec['id']] = rec
                 else:
                     if data[name] is None:
@@ -82,7 +88,7 @@ class JSONSchema(ma.Schema):
                     else:
                         resource['relationships'][name] = dict(id=data[name]['id'], type=orig[name]['type'])
                         if orig[name]['type'] in included and data[name]['id'] in included[orig[name]['type']]:
-                            data[name].update(included[orig[name]['type']][data[name]['id']])
+                            data[name] = _update_included_rec(data[name], included[orig[name]['type']][data[name]['id']])
                         included[orig[name]['type']][data[name]['id']] = data[name]
         return resource
 
@@ -357,7 +363,6 @@ class Model:
                         query = select_many(self, search_term=search_term, count=True)
                     self.meta['searchTotal'] = await pg.fetchval(query)
 
-
     def get_filter_by(self, args):
         filter_by = FilterBy()
         for arg in args.filter:
@@ -369,7 +374,7 @@ class Model:
 
     def check_size(self, args, recs):
         if 'limit' in args.options:
-            n =  self.meta['totalFiltered'] if 'totalFiltered' in self.meta else len(recs)
+            n = self.meta['totalFiltered'] if 'totalFiltered' in self.meta else len(recs)
             if n > RESULT_SIZE:
                 raise LargeResult('primary data size: {!r} '
                                   'exceeded the limit: {!r}'.format(n, RESULT_SIZE),
