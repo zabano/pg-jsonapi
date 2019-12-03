@@ -238,8 +238,8 @@ def _filter_query(query, filter_by):
         query = query.where(sa.and_(*filter_by.where))
     if filter_by.having:
         query = query.having(sa.and_(*filter_by.having))
-    if filter_by.distinct:
-        query = query.distinct()
+    # if filter_by.distinct:
+    #     query = query.distinct()
     return query
 
 

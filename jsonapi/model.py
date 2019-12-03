@@ -88,7 +88,8 @@ class JSONSchema(ma.Schema):
                     else:
                         resource['relationships'][name] = dict(id=data[name]['id'], type=orig[name]['type'])
                         if orig[name]['type'] in included and data[name]['id'] in included[orig[name]['type']]:
-                            data[name] = _update_included_rec(data[name], included[orig[name]['type']][data[name]['id']])
+                            data[name] = _update_included_rec(data[name],
+                                                              included[orig[name]['type']][data[name]['id']])
                         included[orig[name]['type']][data[name]['id']] = data[name]
         return resource
 
@@ -390,7 +391,7 @@ class Model:
 
         for rel in self.relationships.values():
             result = list()
-            for query in select_related(rel, [rec['id'] for rec in data]):
+            for query in select_related(rel, list(set(rec['id'] for rec in data))):
                 log_query(query)
                 result.extend(await pg.fetch(query))
 
@@ -533,7 +534,7 @@ class Model:
         where = None
         if 'where' in kwargs:
             where = kwargs['where'](self.rec, rel.model.rec)
-        query = select_related(rel, rec[self.primary_key.name], filter_by=filter_by, order_by=order_by,
+        query = select_related(rel, rec['id'], filter_by=filter_by, order_by=order_by,
                                offset=args.page.offset, limit=args.page.limit, search_term=search_term,
                                where=where)
         log_query(query)
@@ -541,8 +542,9 @@ class Model:
             result = await pg.fetchrow(query)
             data = dict(result) if result is not None else None
         else:
-            data = [dict(rec) for rec in await pg.fetch(query)]
-            await rel.model.set_meta(args.page.limit, rec[self.primary_key.name], rel,
+            data = {rec['id']: dict(rec) for rec in await pg.fetch(query)}
+            data = list(data.values())
+            await rel.model.set_meta(args.page.limit, rec['id'], rel,
                                      filter_by=filter_by, search_term=search_term, where=where)
             rel.model.check_size(args, data)
         await rel.model.fetch_included(data, args)
@@ -575,7 +577,8 @@ class Model:
                               offset=args.page.offset, limit=args.page.limit,
                               exclude=exclude, options=args.merge)
         log_query(query)
-        data = [dict(rec) for rec in await pg.fetch(query)]
+        data = {rec['id']: dict(rec) for rec in await pg.fetch(query)}
+        data = list(data.values())
         await rel.model.set_meta(args.page.limit, object_ids, rel, exclude=exclude, options=args.merge,
                                  filter_by=filter_by, merge=True)
         rel.model.check_size(args, data)

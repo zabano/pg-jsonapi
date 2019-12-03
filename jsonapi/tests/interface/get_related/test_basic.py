@@ -3,7 +3,6 @@ import pytest
 from jsonapi.tests.util import *
 
 
-@pytest.mark.dev
 @pytest.mark.asyncio
 async def test_one_to_one(users, user_count, superuser_id):
     for user_id in sample_integers(1, user_count, 10):
