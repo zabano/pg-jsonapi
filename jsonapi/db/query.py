@@ -57,7 +57,7 @@ def select_many(model, **kwargs):
         if qa.limit is not None:
             query = query.offset(qa.offset).limit(qa.limit)
     query = _group_query(model, query, filter_by=qa.filter_by, order_by=qa.order_by, search_term=qa.search_term)
-    query = _filter_query(query, qa.filter_by)
+    query = _filter_query(query, qa.filter_by, qa.limit)
     query = _search_query(model, query, qa.search_term)
     return _count_query(query) if qa.count else query
 
@@ -81,7 +81,7 @@ def select_related(rel, obj_id, **kwargs):
             query = query.offset(qa.offset).limit(qa.limit)
     query = _group_query(rel.model, query, parent_col,
                          filter_by=qa.filter_by, order_by=qa.order_by, search_term=qa.search_term)
-    query = _filter_query(query, qa.filter_by)
+    query = _filter_query(query, qa.filter_by, qa.limit)
     query = _search_query(rel.model, query, qa.search_term)
     if isinstance(obj_id, list):
         return (query.where(rel.parent_col.in_(x))
@@ -125,7 +125,7 @@ def select_merged(model, rel, obj_ids, **kwargs):
         query = query.having(merge_op(arr_len_merged, merge_count))
 
     query = _group_query(rel.model, query, filter_by=qa.filter_by, order_by=qa.order_by, force=True)
-    query = _filter_query(query, qa.filter_by)
+    query = _filter_query(query, qa.filter_by, qa.limit)
     query = _protect_query(rel.model, query)
     if not qa.count:
         query = _sort_query(rel.model, query, qa.order_by, qa.search_term)
@@ -231,15 +231,15 @@ def _group_query(model, query, *extra_columns, **kwargs):
     return query
 
 
-def _filter_query(query, filter_by):
+def _filter_query(query, filter_by, limit):
     if not filter_by:
         return query
     if filter_by.where:
         query = query.where(sa.and_(*filter_by.where))
     if filter_by.having:
         query = query.having(sa.and_(*filter_by.having))
-    # if filter_by.distinct:
-    #     query = query.distinct()
+    if filter_by.distinct and limit is not None:
+        query = query.distinct()
     return query
 
 

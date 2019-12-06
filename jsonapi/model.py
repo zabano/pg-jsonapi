@@ -492,7 +492,8 @@ class Model:
                             offset=args.page.offset, limit=args.page.limit,
                             search_term=search_term, where=where)
         log_query(query)
-        recs = [dict(rec) for rec in await pg.fetch(query)]
+        recs = {rec['id']: dict(rec) for rec in await pg.fetch(query)}
+        recs = list(recs.values())
         await self.set_meta(args.page.limit, filter_by=filter_by, search_term=search_term, where=where)
         self.check_size(args, recs)
         await self.fetch_included(recs, args)

@@ -58,7 +58,6 @@ async def test_many_to_many(articles, article_count, superuser_id):
             check_included(json, article, 'keywords', 'keyword', lambda size: size >= 0)
 
 
-@pytest.mark.dev
 @pytest.mark.asyncio
 async def test_multiple(users, superuser_id):
     async with get_collection({
