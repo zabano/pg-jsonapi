@@ -259,14 +259,21 @@ def _protect_query(model, query):
     return query.where(model.access(model.primary_key, model.user.id if model.user else None))
 
 
+def _search_term(search_term):
+    if ' ' in search_term:
+        return sa.func.cast(sa.func.plainto_tsquery(search_term), sa.Text)
+    return search_term
+
+
 def _search_query(model, query, search_term):
     if model.search is None or search_term is None:
         return query
-    return query.where(model.search.c.tsvector.match(search_term))
+    return query.where(model.search.c.tsvector.match(_search_term(search_term)))
 
 
 def _rank_column(model, search_term):
-    return sa.func.ts_rank_cd(model.search.c.tsvector, sa.func.to_tsquery(search_term)).label(SEARCH_LABEL)
+    return sa.func.ts_rank_cd(model.search.c.tsvector,
+                              sa.func.to_tsquery(_search_term(search_term))).label(SEARCH_LABEL)
 
 
 def _count_query(query):
